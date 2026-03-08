@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } from '@/lib/types';
+import { useLivePrices } from '@/hooks/use-live-prices';
 
 // ─── Formatting helpers ────────────────────────────────────────
 
@@ -244,6 +245,20 @@ export default function ScreenerDashboard() {
   const [watchlist, setWatchlist] = useState<Set<string>>(() => new Set(loadWatchlist()));
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
+  // Live WebSocket prices
+  const symbolSet = useMemo(() => new Set(data.map((e) => e.symbol)), [data]);
+  const { livePrices, isConnected } = useLivePrices(symbolSet);
+
+  // Merge live prices with server data
+  const mergedData = useMemo(() => {
+    if (livePrices.size === 0) return data;
+    return data.map((entry) => {
+      const live = livePrices.get(entry.symbol);
+      if (!live || live.updatedAt <= entry.updatedAt) return entry;
+      return { ...entry, price: live.price, change24h: live.change24h, volume24h: live.volume24h };
+    });
+  }, [data, livePrices]);
+
   // Close column picker on click outside
   useEffect(() => {
     if (!showColPicker) return;
@@ -349,7 +364,7 @@ export default function ScreenerDashboard() {
 
   // ── Filtered & sorted data ──
   const filtered = useMemo(() => {
-    let items = data;
+    let items = mergedData;
 
     // Watchlist filter
     if (showWatchlistOnly) {
@@ -391,7 +406,7 @@ export default function ScreenerDashboard() {
     });
 
     return items;
-  }, [data, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist]);
+  }, [mergedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist]);
 
   // ── Presets ──
   const showMostOversold = () => {
@@ -425,31 +440,47 @@ export default function ScreenerDashboard() {
   return (
     <div className="max-w-[1800px] mx-auto px-4 py-6">
       {/* ── Header ── */}
-      <header className="mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <header className="mb-5 rounded-2xl border border-dark-700 bg-gradient-to-r from-dark-900 via-dark-800 to-dark-900 p-4 sm:p-5 shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <span className="text-blue-400">⚡</span> CryptoRSI Screener
+            <div className="inline-flex items-center gap-2 rounded-full border border-dark-600 bg-dark-800/80 px-2.5 py-1 text-[11px] tracking-wide text-gray-400 uppercase">
+              Quant Dashboard
+            </div>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-semibold text-white flex items-center gap-2.5 tracking-tight">
+              <span className="text-blue-400">⚡</span>
+              <span>CryptoRSI Screener</span>
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Multi-indicator market screener · RSI · MACD · Bollinger · Stochastic · VWAP
+            <p className="text-sm text-gray-400 mt-1.5">
+              Multi-indicator market scanner · RSI · MACD · Bollinger · Stochastic · VWAP
             </p>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+
+          <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 text-xs">
             {meta && (
-              <span className="text-gray-500">
-                {meta.computeTimeMs}ms · {timeAgo(lastFetchTime)}
-              </span>
+              <div className="inline-flex items-center gap-2 rounded-lg border border-dark-600 bg-dark-800/80 px-3 py-1.5 text-gray-300">
+                <span className="text-gray-500">Compute</span>
+                <span className="font-medium text-gray-200 tabular-nums">{meta.computeTimeMs}ms</span>
+              </div>
             )}
-            <span className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full ${refreshInterval > 0 ? 'bg-emerald-400 animate-pulse' : 'bg-gray-600'}`} />
-              <span className="text-gray-400 text-xs">
-                {refreshInterval > 0 ? `${countdown}s` : 'Paused'}
-              </span>
-            </span>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-dark-600 bg-dark-800/80 px-3 py-1.5 text-gray-300">
+              <span className="text-gray-500">Updated</span>
+              <span className="font-medium text-gray-200">{timeAgo(lastFetchTime)}</span>
+            </div>
+            <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
+              isConnected
+                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
+                : 'border-dark-600 bg-dark-800/80 text-gray-500'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="font-medium text-xs tracking-wide">{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-lg border border-dark-600 bg-dark-800/80 px-3 py-1.5 text-gray-300">
+              <span className={`h-2 w-2 rounded-full ${refreshInterval > 0 ? 'bg-blue-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="font-medium text-gray-200">{refreshInterval > 0 ? `${countdown}s` : 'Paused'}</span>
+            </div>
             <button
               onClick={() => { fetchData(); setCountdown(refreshInterval); }}
-              className="px-3 py-1.5 text-xs bg-dark-700 hover:bg-dark-600 rounded-lg border border-dark-600 transition-colors"
+              className="inline-flex items-center rounded-lg border border-dark-500 bg-dark-700 px-3 py-1.5 text-xs font-medium text-gray-100 hover:bg-dark-600 transition-colors"
               title="Refresh now"
             >
               ↻ Refresh
@@ -461,35 +492,41 @@ export default function ScreenerDashboard() {
       {/* ── Stats bar (2 rows) ── */}
       {meta && (
         <div className="space-y-3 mb-5">
-          {/* Row 1: RSI-based stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard label="Total Pairs" value={meta.total} color="text-blue-400" />
+          {/* Row 1: core market metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+            <StatCard label="Total Pairs" value={meta.total} color="text-blue-400" helper="Universe" />
             <StatCard
               label="Oversold (RSI)"
               value={meta.oversold}
               color="text-emerald-400"
               onClick={showMostOversold}
+              helper="Tap to filter"
             />
             <StatCard
               label="Overbought (RSI)"
               value={meta.overbought}
               color="text-red-400"
               onClick={showMostOverbought}
+              helper="Tap to filter"
             />
             <StatCard
               label="Strong Buy"
               value={meta.strongBuy}
               color="text-emerald-400"
               onClick={showStrongBuys}
+              helper="Top setups"
             />
           </div>
-          {/* Row 2: Strategy breakdown */}
-          <div className="grid grid-cols-5 gap-3">
-            <MiniStatCard label="Strong Buy" value={meta.strongBuy} color="text-emerald-400" />
-            <MiniStatCard label="Buy" value={meta.buy} color="text-emerald-300" />
-            <MiniStatCard label="Neutral" value={meta.neutral} color="text-gray-400" />
-            <MiniStatCard label="Sell" value={meta.sell} color="text-red-300" />
-            <MiniStatCard label="Strong Sell" value={meta.strongSell} color="text-red-400" />
+
+          {/* Row 2: strategy distribution */}
+          <div className="rounded-xl border border-dark-700 bg-dark-800/70 p-2.5 sm:p-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
+              <MiniStatCard label="Strong Buy" value={meta.strongBuy} color="text-emerald-400" />
+              <MiniStatCard label="Buy" value={meta.buy} color="text-emerald-300" />
+              <MiniStatCard label="Neutral" value={meta.neutral} color="text-gray-300" />
+              <MiniStatCard label="Sell" value={meta.sell} color="text-red-300" />
+              <MiniStatCard label="Strong Sell" value={meta.strongSell} color="text-red-400" />
+            </div>
           </div>
         </div>
       )}
@@ -820,7 +857,7 @@ export default function ScreenerDashboard() {
           {showWatchlistOnly && ` · watchlist only`}
         </span>
         <span>
-          Data from Binance · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20
+          Data from {isConnected ? ' · Live WebSocket' : ' · REST API'} · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20
         </span>
       </footer>
     </div>
@@ -834,28 +871,31 @@ function StatCard({
   value,
   color,
   onClick,
+  helper,
 }: {
   label: string;
   value: number;
   color: string;
   onClick?: () => void;
+  helper?: string;
 }) {
   return (
     <div
       onClick={onClick}
-      className={`p-3 bg-dark-800 rounded-xl border border-dark-700 ${onClick ? 'cursor-pointer hover:border-dark-500 transition-colors' : ''}`}
+      className={`p-3.5 bg-dark-800/85 rounded-xl border border-dark-700 ${onClick ? 'cursor-pointer hover:border-dark-500 hover:bg-dark-700/70 transition-colors' : ''}`}
     >
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className={`text-xl font-bold tabular-nums ${color}`}>{value}</div>
+      <div className="text-xs text-gray-500 mb-1.5 tracking-wide uppercase">{label}</div>
+      <div className={`text-3xl leading-none font-semibold tabular-nums ${color}`}>{value}</div>
+      {helper && <div className="mt-2 text-[11px] text-gray-500">{helper}</div>}
     </div>
   );
 }
 
 function MiniStatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="p-2 bg-dark-800 rounded-lg border border-dark-700 text-center">
-      <div className="text-xs text-gray-600 mb-0.5">{label}</div>
-      <div className={`text-lg font-bold tabular-nums ${color}`}>{value}</div>
+    <div className="p-2.5 bg-dark-800 rounded-lg border border-dark-700 text-center">
+      <div className="text-[11px] text-gray-500 mb-1 uppercase tracking-wide">{label}</div>
+      <div className={`text-2xl leading-none font-semibold tabular-nums ${color}`}>{value}</div>
     </div>
   );
 }
