@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CryptoRSI Screener — Real-Time RSI Market Scanner',
-  description: 'Monitor hundreds of crypto trading pairs with real-time RSI across multiple timeframes.',
+  title: 'CryptoRSI Screener — Multi-Indicator Crypto Market Scanner',
+  description: 'Monitor 500+ crypto trading pairs with real-time RSI, MACD, Bollinger Bands, Stochastic RSI, VWAP, and composite strategy scoring.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

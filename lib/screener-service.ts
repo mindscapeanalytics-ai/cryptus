@@ -1,9 +1,18 @@
 import { calculateRsi } from './rsi';
+import {
+  latestEma, detectEmaCross, calculateMacd,
+  calculateBollinger, calculateStochRsi, calculateVwap,
+  detectVolumeSpike, computeStrategyScore,
+} from './indicators';
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
 
 const BINANCE_API = 'https://api.binance.com';
 const RSI_PERIOD = 14;
-const KLINE_LIMIT = 500; // enough for 15m RSI (500/15 = 33 candles, need 15 for RSI-14)
+const KLINE_LIMIT = 1000; // 1000 1m candles → ~66 15m candles (MACD needs 35, StochRSI needs 34)
+const KLINE_1H_LIMIT = 100; // for 1h RSI
+const BATCH_SIZE = 50; // parallel kline fetches per batch (conservative for Binance rate limits)
+const BATCH_DELAY_MS = 300; // delay between batches to stay within rate limits
+const FETCH_RETRY_COUNT = 2; // retry failed kline fetches
 
 // ── In-memory symbol cache ──
 let symbolCache: { data: string[]; ts: number } | null = null;
@@ -26,6 +35,10 @@ const FALLBACK_SYMBOLS = [
 // ── Ticker cache for price + change data ──
 let tickerCache: { data: Map<string, BinanceTicker>; ts: number } | null = null;
 const TICKER_CACHE_TTL = 30_000; // 30 seconds
+
+// ── Result cache to avoid re-computing on rapid refreshes ──
+let resultCache: { data: ScreenerResponse; count: number; ts: number } | null = null;
+const RESULT_CACHE_TTL = 12_000; // 12 seconds (shorter than typical 15s refresh)
 
 /**
  * Fetch 24hr tickers from Binance. Returns Map<symbol, ticker>.
@@ -63,7 +76,7 @@ async function getTopSymbols(count: number): Promise<string[]> {
     const usdtPairs = [...tickers.values()]
       .filter((t) => t.symbol.endsWith('USDT'))
       .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-      .slice(0, Math.max(count, 200))
+      .slice(0, Math.max(count, 500))
       .map((t) => t.symbol);
 
     symbolCache = { data: usdtPairs, ts: Date.now() };
@@ -74,24 +87,80 @@ async function getTopSymbols(count: number): Promise<string[]> {
 }
 
 /**
+ * Fetch klines with retry logic for resilience at scale.
+ */
+async function fetchWithRetry(
+  url: string,
+  label: string,
+  retries = FETCH_RETRY_COUNT,
+): Promise<BinanceKline[]> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.status === 429) {
+        // Rate limited — wait and retry
+        const wait = Math.min(2000 * (attempt + 1), 5000);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      if (!res.ok) throw new Error(`${label}: ${res.status}`);
+      return res.json();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw new Error(`${label}: exhausted retries`);
+}
+
+/**
  * Fetch 1m klines for a single symbol.
  */
 async function fetchKlines(symbol: string): Promise<BinanceKline[]> {
   const url = `${BINANCE_API}/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1m&limit=${KLINE_LIMIT}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`Klines ${symbol}: ${res.status}`);
-  return res.json();
+  return fetchWithRetry(url, `Klines ${symbol}`);
+}
+
+/**
+ * Fetch 1h klines for a single symbol.
+ */
+async function fetchKlines1h(symbol: string): Promise<BinanceKline[]> {
+  const url = `${BINANCE_API}/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=${KLINE_1H_LIMIT}`;
+  return fetchWithRetry(url, `Klines1h ${symbol}`);
+}
+
+/**
+ * Fetch klines in batches to avoid overwhelming Binance API.
+ */
+async function fetchKlinesBatched(
+  symbols: string[],
+  fetcher: (symbol: string) => Promise<BinanceKline[]>,
+): Promise<PromiseSettledResult<BinanceKline[]>[]> {
+  const results: PromiseSettledResult<BinanceKline[]>[] = [];
+
+  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
+    const batch = symbols.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.allSettled(batch.map(fetcher));
+    results.push(...batchResults);
+    // Delay between batches to respect Binance rate limits
+    if (i + BATCH_SIZE < symbols.length) {
+      await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+    }
+  }
+
+  return results;
 }
 
 /**
  * Aggregate 1m klines into higher timeframe klines.
+ * Returns full OHLCV for BB/VWAP calculations.
  */
 function aggregateKlines(
   klines: BinanceKline[],
   minutes: number,
-): { close: number }[] {
+): { open: number; high: number; low: number; close: number; volume: number }[] {
   const intervalMs = minutes * 60_000;
-  const buckets = new Map<number, { open: number; high: number; low: number; close: number }>();
+  const buckets = new Map<number, { open: number; high: number; low: number; close: number; volume: number }>();
 
   for (const k of klines) {
     const openTime = k[0];
@@ -99,14 +168,16 @@ function aggregateKlines(
     const high = parseFloat(k[2]);
     const low = parseFloat(k[3]);
     const close = parseFloat(k[4]);
+    const volume = parseFloat(k[5]);
 
     const existing = buckets.get(bucketStart);
     if (!existing) {
-      buckets.set(bucketStart, { open: parseFloat(k[1]), high, low, close });
+      buckets.set(bucketStart, { open: parseFloat(k[1]), high, low, close, volume });
     } else {
       existing.high = Math.max(existing.high, high);
       existing.low = Math.min(existing.low, low);
       existing.close = close;
+      existing.volume += volume;
     }
   }
 
@@ -123,9 +194,33 @@ function deriveSignal(rsi: number | null): ScreenerEntry['signal'] {
 }
 
 /**
- * Main screener function: fetch data, compute RSI, return results.
+ * Main screener function: fetch data, compute all indicators, return results.
+ * Supports 500+ coins via batched parallel fetching.
  */
 export async function getScreenerData(symbolCount = 100): Promise<ScreenerResponse> {
+  // Return cached result if fresh enough and same count
+  if (resultCache && resultCache.count >= symbolCount && Date.now() - resultCache.ts < RESULT_CACHE_TTL) {
+    const cached = resultCache.data;
+    if (resultCache.count === symbolCount) return cached;
+    // Slice down if cached has more
+    const sliced = cached.data.slice(0, symbolCount);
+    return {
+      data: sliced,
+      meta: {
+        total: sliced.length,
+        oversold: sliced.filter((e) => e.signal === 'oversold').length,
+        overbought: sliced.filter((e) => e.signal === 'overbought').length,
+        strongBuy: sliced.filter((e) => e.strategySignal === 'strong-buy').length,
+        buy: sliced.filter((e) => e.strategySignal === 'buy').length,
+        neutral: sliced.filter((e) => e.strategySignal === 'neutral').length,
+        sell: sliced.filter((e) => e.strategySignal === 'sell').length,
+        strongSell: sliced.filter((e) => e.strategySignal === 'strong-sell').length,
+        computeTimeMs: cached.meta.computeTimeMs,
+        fetchedAt: cached.meta.fetchedAt,
+      },
+    };
+  }
+
   const start = Date.now();
 
   // 1. Get top symbols + ticker data in parallel
@@ -134,64 +229,147 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
     fetchTickers(),
   ]);
 
-  // 2. Fetch 1m klines for all symbols in parallel
-  const klinesResults = await Promise.allSettled(
-    symbols.map((s) => fetchKlines(s)),
-  );
+  // 2. Fetch 1m + 1h klines in batched parallel
+  const [klines1mResults, klines1hResults] = await Promise.all([
+    fetchKlinesBatched(symbols, fetchKlines),
+    fetchKlinesBatched(symbols, fetchKlines1h),
+  ]);
 
   // 3. Process each symbol
   const entries: ScreenerEntry[] = [];
 
   for (let i = 0; i < symbols.length; i++) {
     const sym = symbols[i];
-    const result = klinesResults[i];
-    if (result.status !== 'fulfilled') continue;
+    const result1m = klines1mResults[i];
+    const result1h = klines1hResults[i];
 
-    const klines = result.value;
+    if (result1m.status !== 'fulfilled') continue;
+
+    const klines = result1m.value;
     if (klines.length < RSI_PERIOD + 2) continue;
 
-    // RSI for 1m
     const closes1m = klines.map((k) => parseFloat(k[4]));
+    const highs1m = klines.map((k) => parseFloat(k[2]));
+    const lows1m = klines.map((k) => parseFloat(k[3]));
+    const volumes1m = klines.map((k) => parseFloat(k[5]));
+
+    // ── RSI (original, kept) ──
     const rsi1m = calculateRsi(closes1m, RSI_PERIOD);
 
-    // RSI for 5m
     const agg5m = aggregateKlines(klines, 5);
-    const rsi5m = agg5m.length >= RSI_PERIOD + 1
-      ? calculateRsi(agg5m.map((c) => c.close), RSI_PERIOD)
+    const closes5m = agg5m.map((c) => c.close);
+    const rsi5m = closes5m.length >= RSI_PERIOD + 1
+      ? calculateRsi(closes5m, RSI_PERIOD)
       : null;
 
-    // RSI for 15m
     const agg15m = aggregateKlines(klines, 15);
-    const rsi15m = agg15m.length >= RSI_PERIOD + 1
-      ? calculateRsi(agg15m.map((c) => c.close), RSI_PERIOD)
+    const closes15m = agg15m.map((c) => c.close);
+    const rsi15m = closes15m.length >= RSI_PERIOD + 1
+      ? calculateRsi(closes15m, RSI_PERIOD)
       : null;
+
+    // ── RSI 1h (new) ──
+    let rsi1h: number | null = null;
+    if (result1h.status === 'fulfilled' && result1h.value.length >= RSI_PERIOD + 1) {
+      const closes1h = result1h.value.map((k) => parseFloat(k[4]));
+      rsi1h = calculateRsi(closes1h, RSI_PERIOD);
+    }
+
+    // ── EMA 9/21 on 15m closes (new) ──
+    const ema9 = latestEma(closes15m, 9);
+    const ema21 = latestEma(closes15m, 21);
+    const emaCross = detectEmaCross(closes15m, 9, 21);
+
+    // ── MACD on 15m closes (new) ──
+    const macd = calculateMacd(closes15m);
+
+    // ── Bollinger Bands on 15m closes (new) ──
+    const bb = calculateBollinger(closes15m);
+
+    // ── Stochastic RSI on 15m closes (new) ──
+    const stochRsi = calculateStochRsi(closes15m);
+
+    // ── VWAP on 1m data (new) ──
+    const vwap = calculateVwap(highs1m, lows1m, closes1m, volumes1m);
+    const price = closes1m[closes1m.length - 1];
+    const vwapDiff = vwap !== null && vwap > 0
+      ? Math.round(((price - vwap) / vwap) * 10000) / 100
+      : null;
+
+    // ── Volume spike (new) ──
+    const volumeSpike = detectVolumeSpike(volumes1m);
+
+    // ── Original signal (kept) ──
+    const signal = deriveSignal(rsi15m ?? rsi5m ?? rsi1m);
+
+    // ── Composite strategy score (new) ──
+    const strategy = computeStrategyScore({
+      rsi1m, rsi5m, rsi15m, rsi1h,
+      macdHistogram: macd?.histogram ?? null,
+      bbPosition: bb?.position ?? null,
+      stochK: stochRsi?.k ?? null,
+      stochD: stochRsi?.d ?? null,
+      emaCross,
+      vwapDiff,
+      volumeSpike,
+    });
 
     const ticker = tickers.get(sym);
-    const price = closes1m[closes1m.length - 1];
 
     entries.push({
       symbol: sym,
       price,
       change24h: ticker ? parseFloat(ticker.priceChangePercent) : 0,
       volume24h: ticker ? parseFloat(ticker.quoteVolume) : 0,
+      // Original
       rsi1m,
       rsi5m,
       rsi15m,
-      signal: deriveSignal(rsi15m ?? rsi5m ?? rsi1m),
+      signal,
+      // New
+      rsi1h,
+      ema9,
+      ema21,
+      emaCross,
+      macdLine: macd?.macdLine ?? null,
+      macdSignal: macd?.signalLine ?? null,
+      macdHistogram: macd?.histogram ?? null,
+      bbUpper: bb?.upper ?? null,
+      bbMiddle: bb?.middle ?? null,
+      bbLower: bb?.lower ?? null,
+      bbPosition: bb?.position ?? null,
+      stochK: stochRsi?.k ?? null,
+      stochD: stochRsi?.d ?? null,
+      vwap,
+      vwapDiff,
+      volumeSpike,
+      strategyScore: strategy.score,
+      strategySignal: strategy.signal,
+      strategyLabel: strategy.label,
       updatedAt: Date.now(),
     });
   }
 
   const computeTimeMs = Date.now() - start;
 
-  return {
+  const response: ScreenerResponse = {
     data: entries,
     meta: {
       total: entries.length,
       oversold: entries.filter((e) => e.signal === 'oversold').length,
       overbought: entries.filter((e) => e.signal === 'overbought').length,
+      strongBuy: entries.filter((e) => e.strategySignal === 'strong-buy').length,
+      buy: entries.filter((e) => e.strategySignal === 'buy').length,
+      neutral: entries.filter((e) => e.strategySignal === 'neutral').length,
+      sell: entries.filter((e) => e.strategySignal === 'sell').length,
+      strongSell: entries.filter((e) => e.strategySignal === 'strong-sell').length,
       computeTimeMs,
       fetchedAt: Date.now(),
     },
   };
+
+  // Cache the result
+  resultCache = { data: response, count: symbolCount, ts: Date.now() };
+
+  return response;
 }

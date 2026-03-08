@@ -23,6 +23,16 @@ function formatRsi(rsi: number | null): string {
   return rsi.toFixed(1);
 }
 
+function formatNum(n: number | null, decimals = 2): string {
+  if (n === null) return '—';
+  return n.toFixed(decimals);
+}
+
+function formatPct(n: number | null): string {
+  if (n === null) return '—';
+  return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
+}
+
 function getRsiColor(rsi: number | null): string {
   if (rsi === null) return 'text-gray-600';
   if (rsi <= 20) return 'text-emerald-400 font-semibold';
@@ -41,6 +51,14 @@ function getRsiBg(rsi: number | null): string {
   if (rsi >= 75) return 'bg-red-500/10';
   if (rsi >= 70) return 'bg-red-500/5';
   return '';
+}
+
+function getScoreBarColor(score: number): string {
+  if (score >= 40) return 'bg-emerald-400';
+  if (score >= 15) return 'bg-emerald-300/70';
+  if (score <= -40) return 'bg-red-400';
+  if (score <= -15) return 'bg-red-300/70';
+  return 'bg-gray-500';
 }
 
 function timeAgo(ts: number): string {
@@ -64,6 +82,21 @@ function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
       {signal === 'oversold' && '▼ '}
       {signal === 'overbought' && '▲ '}
       {signal.charAt(0).toUpperCase() + signal.slice(1)}
+    </span>
+  );
+}
+
+function StrategyBadge({ signal, label }: { signal: ScreenerEntry['strategySignal']; label: string }) {
+  const styles: Record<string, string> = {
+    'strong-buy': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+    'buy': 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
+    'neutral': 'bg-gray-500/15 text-gray-400 border-gray-500/30',
+    'sell': 'bg-red-500/10 text-red-300 border-red-500/25',
+    'strong-sell': 'bg-red-500/20 text-red-400 border-red-500/40',
+  };
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${styles[signal]}`}>
+      {label}
     </span>
   );
 }
@@ -108,36 +141,81 @@ function SortHeader({
 
 // ─── Loading skeleton ─────────────────────────────────────────
 
-function SkeletonRows() {
+function SkeletonRows({ cols }: { cols: number }) {
   return (
     <>
       {Array.from({ length: 15 }).map((_, i) => (
         <tr key={i} className="border-b border-dark-700/50">
-          <td className="px-3 py-3"><div className="skeleton h-4 w-6" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-20" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-24 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-14 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-20 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-12 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-12 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-12 ml-auto" /></td>
-          <td className="px-3 py-3"><div className="skeleton h-4 w-20 ml-auto" /></td>
+          {Array.from({ length: cols }).map((_, j) => (
+            <td key={j} className="px-3 py-3">
+              <div className={`skeleton h-4 ${j === 0 ? 'w-6' : j === 1 ? 'w-20' : 'w-14 ml-auto'}`} />
+            </td>
+          ))}
         </tr>
       ))}
     </>
   );
 }
 
+// ─── Column definitions ───────────────────────────────────────
+
+type ColumnId =
+  | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
+  | 'emaCross' | 'macdHistogram' | 'bbPosition' | 'stochK'
+  | 'vwapDiff' | 'volumeSpike' | 'strategy';
+
+interface ColumnDef {
+  id: ColumnId;
+  label: string;
+  group: string;
+  defaultVisible: boolean;
+}
+
+const OPTIONAL_COLUMNS: ColumnDef[] = [
+  { id: 'rsi1m', label: 'RSI 1m', group: 'RSI', defaultVisible: true },
+  { id: 'rsi5m', label: 'RSI 5m', group: 'RSI', defaultVisible: true },
+  { id: 'rsi15m', label: 'RSI 15m', group: 'RSI', defaultVisible: true },
+  { id: 'rsi1h', label: 'RSI 1h', group: 'RSI', defaultVisible: true },
+  { id: 'emaCross', label: 'EMA Cross', group: 'Trend', defaultVisible: true },
+  { id: 'macdHistogram', label: 'MACD', group: 'Trend', defaultVisible: true },
+  { id: 'bbPosition', label: 'BB Pos', group: 'Volatility', defaultVisible: false },
+  { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: false },
+  { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: false },
+  { id: 'volumeSpike', label: 'Vol Spike', group: 'Volume', defaultVisible: false },
+  { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
+];
+
 // ─── Main Dashboard ───────────────────────────────────────────
 
 const REFRESH_OPTIONS = [
-  { label: '15s', value: 15 },
-  { label: '30s', value: 30 },
-  { label: '60s', value: 60 },
-  { label: 'Off', value: 0 },
+  { label: '15s', value: 15, maxPairs: 200 },
+  { label: '30s', value: 30, maxPairs: 500 },
+  { label: '60s', value: 60, maxPairs: 500 },
+  { label: '2m', value: 120, maxPairs: 500 },
+  { label: 'Off', value: 0, maxPairs: 500 },
 ];
 
-const PAIR_COUNTS = [50, 100, 150, 200];
+const PAIR_COUNTS = [50, 100, 200, 300, 500];
+
+const SIGNAL_FILTERS: { label: string; value: SignalFilter }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Str Buy', value: 'strong-buy' },
+  { label: 'Buy', value: 'buy' },
+  { label: 'Neutral', value: 'neutral' },
+  { label: 'Sell', value: 'sell' },
+  { label: 'Str Sell', value: 'strong-sell' },
+  { label: 'Oversold', value: 'oversold' },
+  { label: 'Overbought', value: 'overbought' },
+];
+
+function loadWatchlist(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem('crypto-rsi-watchlist') ?? '[]');
+  } catch {
+    return [];
+  }
+}
 
 export default function ScreenerDashboard() {
   // ── State ──
@@ -147,13 +225,66 @@ export default function ScreenerDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('volume24h');
+  const [sortKey, setSortKey] = useState<SortKey>('strategyScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [pairCount, setPairCount] = useState(100);
   const [countdown, setCountdown] = useState(30);
   const [lastFetchTime, setLastFetchTime] = useState(0);
   const fetchingRef = useRef(false);
+
+  // Column visibility
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnId>>(() =>
+    new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id)),
+  );
+  const [showColPicker, setShowColPicker] = useState(false);
+  const colPickerRef = useRef<HTMLDivElement>(null);
+
+  // Watchlist
+  const [watchlist, setWatchlist] = useState<Set<string>>(() => new Set(loadWatchlist()));
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+
+  // Close column picker on click outside
+  useEffect(() => {
+    if (!showColPicker) return;
+    function handleClick(e: MouseEvent) {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) {
+        setShowColPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showColPicker]);
+
+  // Persist watchlist
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-watchlist', JSON.stringify([...watchlist]));
+  }, [watchlist]);
+
+  const toggleWatchlist = useCallback((symbol: string) => {
+    setWatchlist((prev) => {
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }, []);
+
+  const toggleCol = useCallback((id: ColumnId) => {
+    setVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Auto-adjust refresh interval when pair count changes (500 pairs needs more time)
+  useEffect(() => {
+    if (pairCount >= 300 && refreshInterval > 0 && refreshInterval < 30) {
+      setRefreshInterval(60);
+    }
+  }, [pairCount, refreshInterval]);
 
   // ── Fetch data ──
   const fetchData = useCallback(async () => {
@@ -220,9 +351,18 @@ export default function ScreenerDashboard() {
   const filtered = useMemo(() => {
     let items = data;
 
-    // Signal filter
-    if (signalFilter !== 'all') {
+    // Watchlist filter
+    if (showWatchlistOnly) {
+      items = items.filter((e) => watchlist.has(e.symbol));
+    }
+
+    // Signal filter — supports both RSI-based and strategy-based
+    if (signalFilter === 'oversold' || signalFilter === 'overbought') {
       items = items.filter((e) => e.signal === signalFilter);
+    } else if (signalFilter !== 'all' && signalFilter !== 'neutral') {
+      items = items.filter((e) => e.strategySignal === signalFilter);
+    } else if (signalFilter === 'neutral') {
+      items = items.filter((e) => e.strategySignal === 'neutral');
     }
 
     // Search filter
@@ -234,8 +374,8 @@ export default function ScreenerDashboard() {
     // Sort
     const dir = sortDir === 'asc' ? 1 : -1;
     items = [...items].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = a[sortKey as keyof ScreenerEntry];
+      const bv = b[sortKey as keyof ScreenerEntry];
 
       if (av === null && bv === null) return 0;
       if (av === null) return 1;
@@ -244,11 +384,14 @@ export default function ScreenerDashboard() {
       if (typeof av === 'string' && typeof bv === 'string') {
         return av.localeCompare(bv) * dir;
       }
+      if (typeof av === 'boolean' && typeof bv === 'boolean') {
+        return ((av ? 1 : 0) - (bv ? 1 : 0)) * dir;
+      }
       return ((av as number) - (bv as number)) * dir;
     });
 
     return items;
-  }, [data, signalFilter, search, sortKey, sortDir]);
+  }, [data, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist]);
 
   // ── Presets ──
   const showMostOversold = () => {
@@ -261,16 +404,26 @@ export default function ScreenerDashboard() {
     setSortKey('rsi15m');
     setSortDir('desc');
   };
+  const showStrongBuys = () => {
+    setSignalFilter('strong-buy');
+    setSortKey('strategyScore');
+    setSortDir('desc');
+  };
   const resetFilters = () => {
     setSearch('');
     setSignalFilter('all');
-    setSortKey('volume24h');
+    setSortKey('strategyScore');
     setSortDir('desc');
+    setShowWatchlistOnly(false);
   };
+
+  // Count visible columns for colSpan
+  // Fixed cols: #, ★, symbol, price, 24h%, volume, signal = 7
+  const colCount = 7 + OPTIONAL_COLUMNS.filter((c) => visibleCols.has(c.id)).length;
 
   // ── Render ──
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-6">
+    <div className="max-w-[1800px] mx-auto px-4 py-6">
       {/* ── Header ── */}
       <header className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -279,7 +432,7 @@ export default function ScreenerDashboard() {
               <span className="text-blue-400">⚡</span> CryptoRSI Screener
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Real-time RSI across multiple timeframes
+              Multi-indicator market screener · RSI · MACD · Bollinger · Stochastic · VWAP
             </p>
           </div>
           <div className="flex items-center gap-3 text-sm">
@@ -305,23 +458,39 @@ export default function ScreenerDashboard() {
         </div>
       </header>
 
-      {/* ── Stats bar ── */}
+      {/* ── Stats bar (2 rows) ── */}
       {meta && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-          <StatCard label="Total Pairs" value={meta.total} color="text-blue-400" />
-          <StatCard
-            label="Oversold"
-            value={meta.oversold}
-            color="text-emerald-400"
-            onClick={showMostOversold}
-          />
-          <StatCard
-            label="Overbought"
-            value={meta.overbought}
-            color="text-red-400"
-            onClick={showMostOverbought}
-          />
-          <StatCard label="Neutral" value={meta.total - meta.oversold - meta.overbought} color="text-gray-400" />
+        <div className="space-y-3 mb-5">
+          {/* Row 1: RSI-based stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Pairs" value={meta.total} color="text-blue-400" />
+            <StatCard
+              label="Oversold (RSI)"
+              value={meta.oversold}
+              color="text-emerald-400"
+              onClick={showMostOversold}
+            />
+            <StatCard
+              label="Overbought (RSI)"
+              value={meta.overbought}
+              color="text-red-400"
+              onClick={showMostOverbought}
+            />
+            <StatCard
+              label="Strong Buy"
+              value={meta.strongBuy}
+              color="text-emerald-400"
+              onClick={showStrongBuys}
+            />
+          </div>
+          {/* Row 2: Strategy breakdown */}
+          <div className="grid grid-cols-5 gap-3">
+            <MiniStatCard label="Strong Buy" value={meta.strongBuy} color="text-emerald-400" />
+            <MiniStatCard label="Buy" value={meta.buy} color="text-emerald-300" />
+            <MiniStatCard label="Neutral" value={meta.neutral} color="text-gray-400" />
+            <MiniStatCard label="Sell" value={meta.sell} color="text-red-300" />
+            <MiniStatCard label="Strong Sell" value={meta.strongSell} color="text-red-400" />
+          </div>
         </div>
       )}
 
@@ -341,19 +510,67 @@ export default function ScreenerDashboard() {
 
         {/* Signal filter */}
         <div className="flex rounded-lg border border-dark-600 overflow-hidden text-xs">
-          {(['all', 'oversold', 'overbought', 'neutral'] as SignalFilter[]).map((f) => (
+          {SIGNAL_FILTERS.map((f) => (
             <button
-              key={f}
-              onClick={() => setSignalFilter(f)}
-              className={`px-3 py-2 transition-colors capitalize ${
-                signalFilter === f
+              key={f.value}
+              onClick={() => setSignalFilter(f.value)}
+              className={`px-2.5 py-2 transition-colors ${
+                signalFilter === f.value
                   ? 'bg-blue-500/20 text-blue-400 font-medium'
                   : 'bg-dark-700 text-gray-400 hover:bg-dark-600'
               }`}
             >
-              {f}
+              {f.label}
             </button>
           ))}
+        </div>
+
+        {/* Watchlist toggle */}
+        <button
+          onClick={() => setShowWatchlistOnly((v) => !v)}
+          className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
+            showWatchlistOnly
+              ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40'
+              : 'bg-dark-700 text-gray-400 border-dark-600 hover:bg-dark-600'
+          }`}
+        >
+          ★ Watchlist{watchlist.size > 0 ? ` (${watchlist.size})` : ''}
+        </button>
+
+        {/* Column picker */}
+        <div className="relative" ref={colPickerRef}>
+          <button
+            onClick={() => setShowColPicker((v) => !v)}
+            className="px-3 py-2 text-xs bg-dark-700 border border-dark-600 rounded-lg text-gray-400 hover:bg-dark-600 transition-colors"
+          >
+            ⊞ Columns
+          </button>
+          {showColPicker && (
+            <div className="absolute right-0 top-full mt-1 z-50 bg-dark-800 border border-dark-600 rounded-xl shadow-xl p-3 min-w-[200px]">
+              {OPTIONAL_COLUMNS.map((col) => (
+                <label key={col.id} className="flex items-center gap-2 py-1 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={visibleCols.has(col.id)}
+                    onChange={() => toggleCol(col.id)}
+                    className="rounded border-dark-500"
+                  />
+                  <span className="text-gray-300">{col.label}</span>
+                  <span className="text-gray-600 ml-auto">{col.group}</span>
+                </label>
+              ))}
+              <div className="mt-2 pt-2 border-t border-dark-600 flex gap-2">
+                <button
+                  onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.map((c) => c.id)))}
+                  className="text-xs text-blue-400 hover:text-blue-300"
+                >Show all</button>
+                <button
+                  onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id)))}
+                  className="text-xs text-gray-400 hover:text-gray-300"
+                >Reset</button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Pair count */}
@@ -373,13 +590,13 @@ export default function ScreenerDashboard() {
           onChange={(e) => setRefreshInterval(Number(e.target.value))}
           className="px-3 py-2 text-xs bg-dark-700 border border-dark-600 rounded-lg text-gray-300 focus:outline-none"
         >
-          {REFRESH_OPTIONS.map((o) => (
+          {REFRESH_OPTIONS.filter((o) => o.maxPairs >= pairCount).map((o) => (
             <option key={o.value} value={o.value}>⟳ {o.label}</option>
           ))}
         </select>
 
         {/* Reset */}
-        {(search || signalFilter !== 'all') && (
+        {(search || signalFilter !== 'all' || showWatchlistOnly) && (
           <button
             onClick={resetFilters}
             className="px-3 py-2 text-xs text-gray-400 hover:text-white transition-colors"
@@ -406,22 +623,53 @@ export default function ScreenerDashboard() {
             <thead className="bg-dark-900/50 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-3 text-xs font-medium text-gray-600 text-left w-10">#</th>
+                <th className="px-2 py-3 text-xs font-medium text-gray-600 text-center w-8" title="Watchlist">★</th>
                 <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
                 <SortHeader label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 <SortHeader label="24h %" sortKey="change24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 <SortHeader label="Volume" sortKey="volume24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortHeader label="RSI 1m" sortKey="rsi1m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                {visibleCols.has('rsi1m') && (
+                  <SortHeader label="RSI 1m" sortKey="rsi1m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('rsi5m') && (
+                  <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('rsi15m') && (
+                  <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('rsi1h') && (
+                  <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('emaCross') && (
+                  <th className="px-3 py-3 text-xs font-medium text-gray-500 text-right uppercase tracking-wider whitespace-nowrap">EMA</th>
+                )}
+                {visibleCols.has('macdHistogram') && (
+                  <SortHeader label="MACD" sortKey="macdHistogram" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('bbPosition') && (
+                  <SortHeader label="BB Pos" sortKey="bbPosition" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('stochK') && (
+                  <SortHeader label="Stoch" sortKey="stochK" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('vwapDiff') && (
+                  <SortHeader label="VWAP %" sortKey="vwapDiff" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('volumeSpike') && (
+                  <th className="px-3 py-3 text-xs font-medium text-gray-500 text-center uppercase tracking-wider whitespace-nowrap">Spike</th>
+                )}
                 <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                {visibleCols.has('strategy') && (
+                  <SortHeader label="Score" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <SkeletonRows />
+                <SkeletonRows cols={colCount} />
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-12 text-center text-gray-600">
+                  <td colSpan={colCount} className="px-3 py-12 text-center text-gray-600">
                     No pairs match your filters
                   </td>
                 </tr>
@@ -432,6 +680,15 @@ export default function ScreenerDashboard() {
                     className={`border-b border-dark-700/40 transition-colors hover:bg-dark-700/40 ${getRsiBg(entry.rsi15m)}`}
                   >
                     <td className="px-3 py-2.5 text-xs text-gray-600 tabular-nums">{idx + 1}</td>
+                    <td className="px-2 py-2.5 text-center">
+                      <button
+                        onClick={() => toggleWatchlist(entry.symbol)}
+                        className={`text-sm transition-colors ${watchlist.has(entry.symbol) ? 'text-yellow-400' : 'text-gray-700 hover:text-gray-500'}`}
+                        title={watchlist.has(entry.symbol) ? 'Remove from watchlist' : 'Add to watchlist'}
+                      >
+                        {watchlist.has(entry.symbol) ? '★' : '☆'}
+                      </button>
+                    </td>
                     <td className="px-3 py-2.5">
                       <span className="font-medium text-white text-sm">{entry.symbol.replace('USDT', '')}</span>
                       <span className="text-gray-600 text-xs ml-0.5">/USDT</span>
@@ -447,18 +704,106 @@ export default function ScreenerDashboard() {
                     <td className="px-3 py-2.5 text-right text-xs text-gray-400 tabular-nums">
                       {formatVolume(entry.volume24h)}
                     </td>
-                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi1m)}`}>
-                      {formatRsi(entry.rsi1m)}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi5m)}`}>
-                      {formatRsi(entry.rsi5m)}
-                    </td>
-                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi15m)}`}>
-                      {formatRsi(entry.rsi15m)}
-                    </td>
+                    {visibleCols.has('rsi1m') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi1m)}`}>
+                        {formatRsi(entry.rsi1m)}
+                      </td>
+                    )}
+                    {visibleCols.has('rsi5m') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi5m)}`}>
+                        {formatRsi(entry.rsi5m)}
+                      </td>
+                    )}
+                    {visibleCols.has('rsi15m') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi15m)}`}>
+                        {formatRsi(entry.rsi15m)}
+                      </td>
+                    )}
+                    {visibleCols.has('rsi1h') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${getRsiColor(entry.rsi1h)}`}>
+                        {formatRsi(entry.rsi1h)}
+                      </td>
+                    )}
+                    {visibleCols.has('emaCross') && (
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        <span className={
+                          entry.emaCross === 'bullish'
+                            ? 'text-emerald-400'
+                            : entry.emaCross === 'bearish'
+                              ? 'text-red-400'
+                              : 'text-gray-600'
+                        }>
+                          {entry.emaCross === 'bullish' ? '▲ Bull' : entry.emaCross === 'bearish' ? '▼ Bear' : '— None'}
+                        </span>
+                      </td>
+                    )}
+                    {visibleCols.has('macdHistogram') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${
+                        entry.macdHistogram === null
+                          ? 'text-gray-600'
+                          : entry.macdHistogram > 0
+                            ? 'text-emerald-400'
+                            : 'text-red-400'
+                      }`}>
+                        {formatNum(entry.macdHistogram, 4)}
+                      </td>
+                    )}
+                    {visibleCols.has('bbPosition') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${
+                        entry.bbPosition === null
+                          ? 'text-gray-600'
+                          : entry.bbPosition < 0.2
+                            ? 'text-emerald-400'
+                            : entry.bbPosition > 0.8
+                              ? 'text-red-400'
+                              : 'text-gray-300'
+                      }`}>
+                        {formatNum(entry.bbPosition)}
+                      </td>
+                    )}
+                    {visibleCols.has('stochK') && (
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums font-mono">
+                        <span className={getRsiColor(entry.stochK)}>{formatRsi(entry.stochK)}</span>
+                        {entry.stochD !== null && (
+                          <span className="text-gray-600 ml-1">/ {entry.stochD.toFixed(0)}</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleCols.has('vwapDiff') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${
+                        entry.vwapDiff === null
+                          ? 'text-gray-600'
+                          : entry.vwapDiff > 0
+                            ? 'text-emerald-300/70'
+                            : 'text-red-300/70'
+                      }`}>
+                        {formatPct(entry.vwapDiff)}
+                      </td>
+                    )}
+                    {visibleCols.has('volumeSpike') && (
+                      <td className="px-3 py-2.5 text-center">
+                        {entry.volumeSpike
+                          ? <span className="text-yellow-400 text-sm" title="Volume Spike">🔥</span>
+                          : <span className="text-gray-700 text-xs">—</span>
+                        }
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-right">
                       <SignalBadge signal={entry.signal} />
                     </td>
+                    {visibleCols.has('strategy') && (
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-12 h-1.5 bg-dark-600 rounded-full overflow-hidden" title={`Score: ${entry.strategyScore}`}>
+                            <div
+                              className={`h-full rounded-full transition-all ${getScoreBarColor(entry.strategyScore)}`}
+                              style={{ width: `${Math.min(100, Math.abs(entry.strategyScore))}%`, marginLeft: entry.strategyScore < 0 ? 'auto' : 0 }}
+                            />
+                          </div>
+                          <StrategyBadge signal={entry.strategySignal} label={entry.strategyLabel} />
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -472,9 +817,10 @@ export default function ScreenerDashboard() {
         <span>
           Showing {filtered.length} of {data.length} pairs
           {signalFilter !== 'all' && ` · filtered by ${signalFilter}`}
+          {showWatchlistOnly && ` · watchlist only`}
         </span>
         <span>
-          Data from Binance · RSI period 14
+          Data from Binance · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20
         </span>
       </footer>
     </div>
@@ -501,6 +847,15 @@ function StatCard({
     >
       <div className="text-xs text-gray-500 mb-1">{label}</div>
       <div className={`text-xl font-bold tabular-nums ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function MiniStatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="p-2 bg-dark-800 rounded-lg border border-dark-700 text-center">
+      <div className="text-xs text-gray-600 mb-0.5">{label}</div>
+      <div className={`text-lg font-bold tabular-nums ${color}`}>{value}</div>
     </div>
   );
 }
