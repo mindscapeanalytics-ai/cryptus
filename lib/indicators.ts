@@ -257,6 +257,192 @@ export function detectVolumeSpike(
   return Number.isFinite(avg) && avg > 0 && Number.isFinite(current) && current >= avg * threshold;
 }
 
+// ── RSI Divergence ──────────────────────────────────────────────
+
+function computeRsiSeries(closes: number[], period: number): number[] {
+  const values: number[] = [];
+  if (closes.length < period + 1) return values;
+
+  const changes: number[] = [];
+  for (let i = 1; i < closes.length; i++) changes.push(closes[i] - closes[i - 1]);
+
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 0; i < period; i++) {
+    if (changes[i] > 0) avgGain += changes[i];
+    else avgLoss += Math.abs(changes[i]);
+  }
+  avgGain /= period;
+  avgLoss /= period;
+
+  for (let i = 0; i < period; i++) values.push(50); // padding for alignment
+  values.push(avgLoss === 0 ? (avgGain === 0 ? 50 : 100) : 100 - 100 / (1 + avgGain / avgLoss));
+
+  for (let i = period; i < changes.length; i++) {
+    const c = changes[i];
+    if (c > 0) {
+      avgGain = (avgGain * (period - 1) + c) / period;
+      avgLoss = (avgLoss * (period - 1)) / period;
+    } else {
+      avgGain = (avgGain * (period - 1)) / period;
+      avgLoss = (avgLoss * (period - 1) + Math.abs(c)) / period;
+    }
+    values.push(avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss));
+  }
+  return values;
+}
+
+function findSwingLows(data: number[], tolerance = 3): number[] {
+  const lows: number[] = [];
+  for (let i = tolerance; i < data.length - tolerance; i++) {
+    let isLow = true;
+    for (let j = 1; j <= tolerance; j++) {
+      if (data[i] > data[i - j] || data[i] > data[i + j]) { isLow = false; break; }
+    }
+    if (isLow) lows.push(i);
+  }
+  return lows;
+}
+
+function findSwingHighs(data: number[], tolerance = 3): number[] {
+  const highs: number[] = [];
+  for (let i = tolerance; i < data.length - tolerance; i++) {
+    let isHigh = true;
+    for (let j = 1; j <= tolerance; j++) {
+      if (data[i] < data[i - j] || data[i] < data[i + j]) { isHigh = false; break; }
+    }
+    if (isHigh) highs.push(i);
+  }
+  return highs;
+}
+
+/**
+ * Detect bullish or bearish RSI divergence.
+ * Bullish: price makes lower lows while RSI makes higher lows (potential reversal up).
+ * Bearish: price makes higher highs while RSI makes lower highs (potential reversal down).
+ */
+export function detectRsiDivergence(
+  closes: number[],
+  rsiPeriod = 14,
+  lookback = 40,
+): 'bullish' | 'bearish' | 'none' {
+  if (closes.length < rsiPeriod + lookback) return 'none';
+
+  const priceWindow = closes.slice(-lookback);
+  const fullRsi = computeRsiSeries(closes.slice(-(rsiPeriod + lookback)), rsiPeriod);
+  const rsiWindow = fullRsi.slice(-lookback);
+  if (rsiWindow.length < lookback) return 'none';
+
+  // Bullish divergence: lower price lows + higher RSI lows
+  const priceLows = findSwingLows(priceWindow, 3);
+  if (priceLows.length >= 2) {
+    const prev = priceLows[priceLows.length - 2];
+    const curr = priceLows[priceLows.length - 1];
+    if (priceWindow[curr] < priceWindow[prev] && rsiWindow[curr] > rsiWindow[prev] + 1) {
+      return 'bullish';
+    }
+  }
+
+  // Bearish divergence: higher price highs + lower RSI highs
+  const priceHighs = findSwingHighs(priceWindow, 3);
+  if (priceHighs.length >= 2) {
+    const prev = priceHighs[priceHighs.length - 2];
+    const curr = priceHighs[priceHighs.length - 1];
+    if (priceWindow[curr] > priceWindow[prev] && rsiWindow[curr] < rsiWindow[prev] - 1) {
+      return 'bearish';
+    }
+  }
+
+  return 'none';
+}
+
+// ── Rate of Change (Momentum) ───────────────────────────────────
+
+/** Price rate of change over N periods, expressed as percentage. */
+export function calculateROC(closes: number[], period = 10): number | null {
+  if (closes.length < period + 1) return null;
+  const current = closes[closes.length - 1];
+  const previous = closes[closes.length - 1 - period];
+  if (!Number.isFinite(previous) || previous === 0) return null;
+  return round(((current - previous) / previous) * 100);
+}
+
+// ── Multi-Timeframe Confluence ──────────────────────────────────
+
+export interface ConfluenceResult {
+  score: number;   // -100 to +100
+  label: string;
+}
+
+/** Measures how many indicators and timeframes agree on direction. */
+export function calculateConfluence(params: {
+  rsi1m: number | null;
+  rsi5m: number | null;
+  rsi15m: number | null;
+  rsi1h: number | null;
+  macdHistogram: number | null;
+  emaCross: 'bullish' | 'bearish' | 'none';
+  stochK: number | null;
+  bbPosition: number | null;
+}): ConfluenceResult {
+  let bullish = 0;
+  let bearish = 0;
+  let total = 0;
+
+  const checkRsi = (rsi: number | null, w: number) => {
+    if (rsi === null) return;
+    total += w;
+    if (rsi < 30) bullish += w;
+    else if (rsi < 40) bullish += w * 0.4;
+    else if (rsi > 70) bearish += w;
+    else if (rsi > 60) bearish += w * 0.4;
+  };
+
+  checkRsi(params.rsi1m, 0.5);
+  checkRsi(params.rsi5m, 1);
+  checkRsi(params.rsi15m, 1.5);
+  checkRsi(params.rsi1h, 2);
+
+  if (params.macdHistogram !== null) {
+    total += 1;
+    if (params.macdHistogram > 0) bullish += 1;
+    else bearish += 1;
+  }
+  if (params.emaCross !== 'none') {
+    total += 1;
+    if (params.emaCross === 'bullish') bullish += 1;
+    else bearish += 1;
+  }
+  if (params.stochK !== null) {
+    total += 1;
+    if (params.stochK < 20) bullish += 1;
+    else if (params.stochK < 30) bullish += 0.5;
+    else if (params.stochK > 80) bearish += 1;
+    else if (params.stochK > 70) bearish += 0.5;
+  }
+  if (params.bbPosition !== null) {
+    total += 1;
+    if (params.bbPosition < 0.2) bullish += 1;
+    else if (params.bbPosition < 0.3) bullish += 0.5;
+    else if (params.bbPosition > 0.8) bearish += 1;
+    else if (params.bbPosition > 0.7) bearish += 0.5;
+  }
+
+  if (total === 0) return { score: 0, label: 'No Data' };
+
+  const raw = ((bullish - bearish) / total) * 100;
+  const score = Math.round(Math.max(-100, Math.min(100, raw)));
+
+  let label: string;
+  if (score >= 60) label = 'Strong Bullish';
+  else if (score >= 25) label = 'Bullish';
+  else if (score <= -60) label = 'Strong Bearish';
+  else if (score <= -25) label = 'Bearish';
+  else label = 'Mixed';
+
+  return { score, label };
+}
+
 // ── Strategy Scoring ────────────────────────────────────────────
 
 export type StrategySignal = 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
@@ -265,6 +451,7 @@ export interface StrategyResult {
   score: number;        // -100 to +100
   signal: StrategySignal;
   label: string;
+  reasons: string[];    // key factors driving the score
 }
 
 /**
@@ -284,52 +471,61 @@ export function computeStrategyScore(params: {
   vwapDiff: number | null;
   volumeSpike: boolean;
   price: number;
+  confluence?: number;
+  rsiDivergence?: 'bullish' | 'bearish' | 'none';
+  momentum?: number | null;
 }): StrategyResult {
   let score = 0;
   let factors = 0;
+  const reasons: string[] = [];
 
   // RSI scoring (higher weight for longer timeframes)
-  const rsiScore = (rsi: number | null, weight: number) => {
+  const rsiScore = (rsi: number | null, weight: number, tf: string) => {
     if (rsi === null) return;
     factors += weight;
-    if (rsi <= 20) score += 100 * weight;
-    else if (rsi <= 30) score += 70 * weight;
+    if (rsi <= 20) { score += 100 * weight; reasons.push(`RSI ${tf} deep oversold`); }
+    else if (rsi <= 30) { score += 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} oversold`); }
     else if (rsi <= 40) score += 30 * weight;
     else if (rsi <= 60) score += 0;
     else if (rsi <= 70) score -= 30 * weight;
-    else if (rsi <= 80) score -= 70 * weight;
-    else score -= 100 * weight;
+    else if (rsi <= 80) { score -= 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} overbought`); }
+    else { score -= 100 * weight; reasons.push(`RSI ${tf} deep overbought`); }
   };
 
-  rsiScore(params.rsi1m, 0.5);
-  rsiScore(params.rsi5m, 1);
-  rsiScore(params.rsi15m, 1.5);
-  rsiScore(params.rsi1h, 2);
+  rsiScore(params.rsi1m, 0.5, '1m');
+  rsiScore(params.rsi5m, 1, '5m');
+  rsiScore(params.rsi15m, 1.5, '15m');
+  rsiScore(params.rsi1h, 2, '1h');
 
   // MACD histogram (normalized as % of price for fair cross-asset comparison)
   if (params.macdHistogram !== null && params.price > 0) {
     factors += 1.5;
     const hPct = (params.macdHistogram / params.price) * 100;
-    if (hPct > 0) score += Math.min(hPct * 200, 100) * 1.5;
-    else score += Math.max(hPct * 200, -100) * 1.5;
+    if (hPct > 0) {
+      score += Math.min(hPct * 200, 100) * 1.5;
+      if (hPct * 200 > 40) reasons.push('MACD bullish');
+    } else {
+      score += Math.max(hPct * 200, -100) * 1.5;
+      if (hPct * 200 < -40) reasons.push('MACD bearish');
+    }
   }
 
   // Bollinger position
   if (params.bbPosition !== null) {
     factors += 1;
     const bp = params.bbPosition;
-    if (bp <= 0.1) score += 80 * 1;
+    if (bp <= 0.1) { score += 80 * 1; reasons.push('Near lower BB'); }
     else if (bp <= 0.25) score += 40 * 1;
-    else if (bp >= 0.9) score -= 80 * 1;
+    else if (bp >= 0.9) { score -= 80 * 1; reasons.push('Near upper BB'); }
     else if (bp >= 0.75) score -= 40 * 1;
   }
 
   // Stochastic RSI
   if (params.stochK !== null && params.stochD !== null) {
     factors += 1;
-    if (params.stochK < 20 && params.stochD < 20) score += 80 * 1;
+    if (params.stochK < 20 && params.stochD < 20) { score += 80 * 1; reasons.push('StochRSI oversold'); }
     else if (params.stochK < 30) score += 40 * 1;
-    else if (params.stochK > 80 && params.stochD > 80) score -= 80 * 1;
+    else if (params.stochK > 80 && params.stochD > 80) { score -= 80 * 1; reasons.push('StochRSI overbought'); }
     else if (params.stochK > 70) score -= 40 * 1;
     // K crossing above D = bullish
     if (params.stochK > params.stochD && params.stochK < 50) score += 20;
@@ -340,18 +536,53 @@ export function computeStrategyScore(params: {
   if (params.emaCross !== 'none') {
     factors += 1.5;
     score += (params.emaCross === 'bullish' ? 60 : -60) * 1.5;
+    reasons.push(params.emaCross === 'bullish' ? 'Bullish EMA cross' : 'Bearish EMA cross');
   }
 
   // VWAP
   if (params.vwapDiff !== null) {
     factors += 0.5;
-    if (params.vwapDiff < -2) score += 40 * 0.5;
-    else if (params.vwapDiff > 2) score -= 40 * 0.5;
+    if (params.vwapDiff < -2) { score += 40 * 0.5; if (params.vwapDiff < -3) reasons.push('Below VWAP'); }
+    else if (params.vwapDiff > 2) { score -= 40 * 0.5; if (params.vwapDiff > 3) reasons.push('Above VWAP'); }
   }
 
   // Volume spike amplifies the signal
   if (params.volumeSpike && factors > 0) {
     score *= 1.15;
+    reasons.push('Volume spike');
+  }
+
+  // ── Intelligence signals ──
+
+  // Multi-TF confluence (strong when indicators and timeframes agree)
+  if (params.confluence !== undefined && Math.abs(params.confluence) >= 20) {
+    factors += 2;
+    score += params.confluence * 2;
+    if (params.confluence >= 50) reasons.push('Strong multi-TF bullish');
+    else if (params.confluence >= 20) reasons.push('Multi-TF bullish');
+    else if (params.confluence <= -50) reasons.push('Strong multi-TF bearish');
+    else if (params.confluence <= -20) reasons.push('Multi-TF bearish');
+  }
+
+  // RSI divergence (powerful reversal signal)
+  if (params.rsiDivergence && params.rsiDivergence !== 'none') {
+    factors += 1.5;
+    if (params.rsiDivergence === 'bullish') {
+      score += 70 * 1.5;
+      reasons.push('Bullish divergence');
+    } else {
+      score -= 70 * 1.5;
+      reasons.push('Bearish divergence');
+    }
+  }
+
+  // Momentum (ROC)
+  if (params.momentum !== undefined && params.momentum !== null && Math.abs(params.momentum) > 0.5) {
+    factors += 0.5;
+    const mScore = Math.max(-60, Math.min(60, params.momentum * 15));
+    score += mScore * 0.5;
+    if (params.momentum > 2) reasons.push('Strong upward momentum');
+    else if (params.momentum < -2) reasons.push('Strong downward momentum');
   }
 
   // Normalize to -100..+100, guard against NaN
@@ -366,7 +597,7 @@ export function computeStrategyScore(params: {
   else if (normalized <= -20) { signal = 'sell'; label = 'Sell'; }
   else { signal = 'neutral'; label = 'Neutral'; }
 
-  return { score: normalized, signal, label };
+  return { score: normalized, signal, label, reasons };
 }
 
 // ── Utility ─────────────────────────────────────────────────────

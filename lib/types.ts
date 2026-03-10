@@ -37,6 +37,14 @@ export interface ScreenerEntry {
   strategyScore: number;
   strategySignal: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
   strategyLabel: string;
+  strategyReasons: string[];
+  // ── Intelligence indicators ──
+  confluence: number;
+  confluenceLabel: string;
+  rsiDivergence: 'bullish' | 'bearish' | 'none';
+  momentum: number | null;
+  // ── Live RSI state (for client-side approximation) ──
+  rsiState1m: { avgGain: number; avgLoss: number; lastClose: number } | null;
   updatedAt: number;
 }
 
@@ -78,7 +86,8 @@ export type SortKey =
   | 'symbol' | 'price' | 'change24h' | 'volume24h'
   | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'macdHistogram' | 'bbPosition' | 'stochK' | 'vwapDiff'
-  | 'strategyScore' | 'signal';
+  | 'strategyScore' | 'signal'
+  | 'confluence' | 'momentum';
 
 export type SortDir = 'asc' | 'desc';
 export type SignalFilter = 'all' | 'oversold' | 'overbought' | 'neutral'

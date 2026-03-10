@@ -38,3 +38,74 @@ export function calculateRsi(closes: number[], period: number = 14): number | nu
   const rsi = 100 - 100 / (1 + rs);
   return Math.round(Math.max(0, Math.min(100, rsi)) * 100) / 100;
 }
+
+// ── RSI State (for incremental client-side updates) ─────────────
+
+export interface RsiState {
+  avgGain: number;
+  avgLoss: number;
+  lastClose: number;
+}
+
+/**
+ * Calculate RSI and return internal Wilder smoothing state.
+ * The state enables client-side real-time RSI approximation via WebSocket prices.
+ */
+export function calculateRsiWithState(closes: number[], period: number = 14): RsiState | null {
+  if (closes.length < period + 1) return null;
+
+  const changes: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    changes.push(closes[i] - closes[i - 1]);
+  }
+
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 0; i < period; i++) {
+    const c = changes[i];
+    if (c > 0) avgGain += c;
+    else avgLoss += Math.abs(c);
+  }
+  avgGain /= period;
+  avgLoss /= period;
+
+  for (let i = period; i < changes.length; i++) {
+    const c = changes[i];
+    if (c > 0) {
+      avgGain = (avgGain * (period - 1) + c) / period;
+      avgLoss = (avgLoss * (period - 1)) / period;
+    } else {
+      avgGain = (avgGain * (period - 1)) / period;
+      avgLoss = (avgLoss * (period - 1) + Math.abs(c)) / period;
+    }
+  }
+
+  return { avgGain, avgLoss, lastClose: closes[closes.length - 1] };
+}
+
+/**
+ * Approximate RSI from a previous state + new live price.
+ * Used client-side with WebSocket prices for real-time RSI updates.
+ * Performs one Wilder smoothing step using the price delta.
+ */
+export function approximateRsi(
+  state: RsiState,
+  livePrice: number,
+  period: number = 14,
+): number {
+  const change = livePrice - state.lastClose;
+  let avgGain: number;
+  let avgLoss: number;
+
+  if (change > 0) {
+    avgGain = (state.avgGain * (period - 1) + change) / period;
+    avgLoss = (state.avgLoss * (period - 1)) / period;
+  } else {
+    avgGain = (state.avgGain * (period - 1)) / period;
+    avgLoss = (state.avgLoss * (period - 1) + Math.abs(change)) / period;
+  }
+
+  if (avgLoss === 0) return avgGain === 0 ? 50 : 100;
+  const rs = avgGain / avgLoss;
+  return Math.round(Math.max(0, Math.min(100, 100 - 100 / (1 + rs))) * 100) / 100;
+}

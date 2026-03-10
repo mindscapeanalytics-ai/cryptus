@@ -1,8 +1,9 @@
-import { calculateRsi } from './rsi';
+import { calculateRsi, calculateRsiWithState } from './rsi';
 import {
   latestEma, detectEmaCross, calculateMacd,
   calculateBollinger, calculateStochRsi, calculateVwap,
   detectVolumeSpike, computeStrategyScore,
+  detectRsiDivergence, calculateROC, calculateConfluence,
 } from './indicators';
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
 
@@ -34,6 +35,7 @@ const BINANCE_APIS = [
   'https://api4.binance.com',
   'https://data-api.binance.vision',
 ] as const;
+const KUCOIN_TICKER_URL = 'https://api.kucoin.com/api/v1/market/allTickers';
 const FETCH_HEADERS: HeadersInit = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0',
   'Accept': 'application/json',
@@ -164,6 +166,9 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
     stochK: null, stochD: null,
     vwap: null, vwapDiff: null, volumeSpike: false,
     strategyScore: 0, strategySignal: 'neutral', strategyLabel: 'N/A',
+    strategyReasons: [],
+    confluence: 0, confluenceLabel: 'No Data', rsiDivergence: 'none',
+    momentum: null, rsiState1m: null,
     updatedAt: nowTs,
   };
 }
@@ -218,6 +223,50 @@ function fromCachedResult(symbolCount: number, smartMode: boolean): ScreenerResp
   };
 }
 
+interface KucoinTickerRow {
+  symbol: string;
+  last: string;
+  changeRate: string;
+  volValue: string;
+}
+
+interface KucoinTickerResponse {
+  code: string;
+  data?: {
+    ticker?: KucoinTickerRow[];
+  };
+}
+
+async function fetchKucoinTickers(): Promise<Map<string, BinanceTicker>> {
+  const res = await fetch(KUCOIN_TICKER_URL, {
+    signal: AbortSignal.timeout(12000),
+    cache: 'no-store' as RequestCache,
+  });
+  if (!res.ok) throw new Error(`KuCoin ticker API ${res.status}`);
+
+  const payload = await res.json() as KucoinTickerResponse;
+  const rows = payload.data?.ticker ?? [];
+  const map = new Map<string, BinanceTicker>();
+
+  for (const row of rows) {
+    // KuCoin uses BTC-USDT format; normalize to BTCUSDT
+    if (!row.symbol.endsWith('-USDT')) continue;
+    const symbol = row.symbol.replace('-', '');
+    const changePct = Number.isFinite(parseFloat(row.changeRate))
+      ? (parseFloat(row.changeRate) * 100).toString()
+      : '0';
+
+    map.set(symbol, {
+      symbol,
+      lastPrice: row.last,
+      priceChangePercent: changePct,
+      quoteVolume: row.volValue,
+    });
+  }
+
+  return map;
+}
+
 /**
  * Fetch 24hr tickers from Binance. Returns Map<symbol, ticker>.
  */
@@ -249,7 +298,18 @@ async function fetchTickers(): Promise<Map<string, BinanceTicker>> {
     }
   }
 
-  throw lastError ?? new Error('All Binance ticker endpoints failed');
+  // Free-source fallback: KuCoin public market tickers
+  try {
+    const map = await fetchKucoinTickers();
+    if (map.size > 0) {
+      tickerCache = { data: map, ts: Date.now() };
+      return map;
+    }
+  } catch (err) {
+    lastError = err;
+  }
+
+  throw lastError ?? new Error('All ticker providers failed');
 }
 
 /**
@@ -487,6 +547,18 @@ function buildEntryFromKlines(
   const volumeSpike = detectVolumeSpike(volumes1m);
   const signal = deriveSignal(rsi15m ?? rsi5m ?? rsi1m);
 
+  // Intelligence indicators
+  const rsiState1m = calculateRsiWithState(closes1m, RSI_PERIOD);
+  const rsiDivergence = detectRsiDivergence(closes15m, RSI_PERIOD, 40);
+  const momentum = calculateROC(closes15m, 10);
+  const confluenceResult = calculateConfluence({
+    rsi1m, rsi5m, rsi15m, rsi1h,
+    macdHistogram: macd?.histogram ?? null,
+    emaCross,
+    stochK: stochRsi?.k ?? null,
+    bbPosition: bb?.position ?? null,
+  });
+
   const strategy = computeStrategyScore({
     rsi1m,
     rsi5m,
@@ -500,6 +572,9 @@ function buildEntryFromKlines(
     vwapDiff,
     volumeSpike,
     price,
+    confluence: confluenceResult.score,
+    rsiDivergence,
+    momentum,
   });
 
   return {
@@ -530,6 +605,12 @@ function buildEntryFromKlines(
     strategyScore: strategy.score,
     strategySignal: strategy.signal,
     strategyLabel: strategy.label,
+    strategyReasons: strategy.reasons,
+    confluence: confluenceResult.score,
+    confluenceLabel: confluenceResult.label,
+    rsiDivergence,
+    momentum,
+    rsiState1m,
     updatedAt: nowTs,
   };
   } catch (err) {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } from '@/lib/types';
 import { useLivePrices } from '@/hooks/use-live-prices';
+import { approximateRsi } from '@/lib/rsi';
 
 // ─── Formatting helpers ────────────────────────────────────────
 
@@ -88,7 +89,7 @@ function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
   );
 }
 
-function StrategyBadge({ signal, label }: { signal: ScreenerEntry['strategySignal']; label: string }) {
+function StrategyBadge({ signal, label, reasons }: { signal: ScreenerEntry['strategySignal']; label: string; reasons?: string[] }) {
   const styles: Record<string, string> = {
     'strong-buy': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
     'buy': 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25',
@@ -96,8 +97,9 @@ function StrategyBadge({ signal, label }: { signal: ScreenerEntry['strategySigna
     'sell': 'bg-red-500/10 text-red-300 border-red-500/25',
     'strong-sell': 'bg-red-500/20 text-red-400 border-red-500/40',
   };
+  const title = reasons?.length ? reasons.join(' \u00B7 ') : undefined;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${styles[signal]}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full border ${styles[signal]}`} title={title}>
       {label}
     </span>
   );
@@ -164,7 +166,8 @@ function SkeletonRows({ cols }: { cols: number }) {
 type ColumnId =
   | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'emaCross' | 'macdHistogram' | 'bbPosition' | 'stochK'
-  | 'vwapDiff' | 'volumeSpike' | 'strategy';
+  | 'vwapDiff' | 'volumeSpike' | 'strategy'
+  | 'confluence' | 'divergence' | 'momentum';
 
 interface ColumnDef {
   id: ColumnId;
@@ -184,6 +187,9 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: false },
   { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: false },
   { id: 'volumeSpike', label: 'Vol Spike', group: 'Volume', defaultVisible: false },
+  { id: 'confluence', label: 'Confluence', group: 'Intelligence', defaultVisible: true },
+  { id: 'divergence', label: 'Divergence', group: 'Intelligence', defaultVisible: true },
+  { id: 'momentum', label: 'Momentum', group: 'Intelligence', defaultVisible: false },
   { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
 ];
 
@@ -279,7 +285,14 @@ export default function ScreenerDashboard() {
     return data.map((entry) => {
       const live = livePrices.get(entry.symbol);
       if (!live || live.updatedAt <= entry.updatedAt) return entry;
-      return { ...entry, price: live.price, change24h: live.change24h, volume24h: live.volume24h };
+
+      // Live RSI approximation: use server RSI state + live price
+      let rsi1m = entry.rsi1m;
+      if (entry.rsiState1m && live.price > 0) {
+        rsi1m = approximateRsi(entry.rsiState1m, live.price);
+      }
+
+      return { ...entry, price: live.price, change24h: live.change24h, volume24h: live.volume24h, rsi1m };
     });
   }, [data, livePrices]);
 
@@ -838,6 +851,15 @@ export default function ScreenerDashboard() {
                 {visibleCols.has('volumeSpike') && (
                   <th className="px-3 py-3 text-xs font-medium text-gray-500 text-center uppercase tracking-wider whitespace-nowrap">Spike</th>
                 )}
+                {visibleCols.has('confluence') && (
+                  <SortHeader label="Confluence" sortKey="confluence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
+                {visibleCols.has('divergence') && (
+                  <th className="px-3 py-3 text-xs font-medium text-gray-500 text-right uppercase tracking-wider whitespace-nowrap">Diverg</th>
+                )}
+                {visibleCols.has('momentum') && (
+                  <SortHeader label="Mom" sortKey="momentum" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                )}
                 <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                 {visibleCols.has('strategy') && (
                   <SortHeader label="Score" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
@@ -968,6 +990,39 @@ export default function ScreenerDashboard() {
                         }
                       </td>
                     )}
+                    {visibleCols.has('confluence') && (
+                      <td className={`px-3 py-2.5 text-right text-xs font-medium ${
+                        entry.confluence >= 40 ? 'text-emerald-400' :
+                        entry.confluence >= 15 ? 'text-emerald-300/70' :
+                        entry.confluence <= -40 ? 'text-red-400' :
+                        entry.confluence <= -15 ? 'text-red-300/70' :
+                        'text-gray-500'
+                      }`} title={`Confluence: ${entry.confluence}`}>
+                        {entry.confluenceLabel}
+                      </td>
+                    )}
+                    {visibleCols.has('divergence') && (
+                      <td className="px-3 py-2.5 text-right text-xs">
+                        {entry.rsiDivergence === 'bullish' ? (
+                          <span className="text-emerald-400 font-medium" title="Bullish RSI divergence: price lower low + RSI higher low">▲ Bull</span>
+                        ) : entry.rsiDivergence === 'bearish' ? (
+                          <span className="text-red-400 font-medium" title="Bearish RSI divergence: price higher high + RSI lower high">▼ Bear</span>
+                        ) : (
+                          <span className="text-gray-700">—</span>
+                        )}
+                      </td>
+                    )}
+                    {visibleCols.has('momentum') && (
+                      <td className={`px-3 py-2.5 text-right text-sm tabular-nums font-mono ${
+                        entry.momentum === null ? 'text-gray-600' :
+                        entry.momentum > 1 ? 'text-emerald-400' :
+                        entry.momentum > 0 ? 'text-emerald-300/70' :
+                        entry.momentum < -1 ? 'text-red-400' :
+                        entry.momentum < 0 ? 'text-red-300/70' : 'text-gray-400'
+                      }`}>
+                        {formatPct(entry.momentum)}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-right">
                       <SignalBadge signal={entry.signal} />
                     </td>
@@ -980,7 +1035,7 @@ export default function ScreenerDashboard() {
                               style={{ width: `${Math.min(100, Math.abs(entry.strategyScore))}%`, marginLeft: entry.strategyScore < 0 ? 'auto' : 0 }}
                             />
                           </div>
-                          <StrategyBadge signal={entry.strategySignal} label={entry.strategyLabel} />
+                          <StrategyBadge signal={entry.strategySignal} label={entry.strategyLabel} reasons={entry.strategyReasons} />
                         </div>
                       </td>
                     )}
@@ -1000,7 +1055,7 @@ export default function ScreenerDashboard() {
           {showWatchlistOnly && ` · watchlist only`}
         </span>
         <span className="flex items-center gap-2">
-          <span>Data from{isConnected ? ' · Live WebSocket' : ' · REST API'} · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20</span>
+          <span>Data from{isConnected ? ' · Live WebSocket + RSI' : ' · REST API'} · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20 · Confluence · Divergence</span>
           <Link href="/guide" className="text-blue-500 hover:text-blue-400 transition-colors">📖 Guide</Link>
         </span>
       </footer>
