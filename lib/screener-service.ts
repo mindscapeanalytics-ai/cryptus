@@ -66,10 +66,12 @@ const FALLBACK_SYMBOLS = [
 // ── Ticker cache for price + change data ──
 let tickerCache: { data: Map<string, BinanceTicker>; ts: number } | null = null;
 const TICKER_CACHE_TTL = 30_000; // 30 seconds
+const TRAFFIC_WARM_COOLDOWN_MS = 45_000;
 
 // ── Result cache to avoid re-computing on rapid refreshes ──
 const resultCache = new Map<string, { data: ScreenerResponse; count: number; smartMode: boolean; ts: number }>();
 const smartTuningByCount = new Map<number, SmartTuningState>();
+const trafficWarmLastRun = new Map<string, number>();
 
 function getResultCacheTtl(symbolCount: number): number {
   // Shorter TTL is fine — stale-first always returns cached data instantly
@@ -86,6 +88,35 @@ function getSmartModeDefault(): boolean {
 
 function makeCacheKey(symbolCount: number, smartMode: boolean): string {
   return `${symbolCount}:${smartMode ? 'smart' : 'classic'}`;
+}
+
+function getTrafficWarmCandidates(symbolCount: number): number[] {
+  if (symbolCount <= 100) return [300, 500];
+  if (symbolCount <= 300) return [500, 100];
+  return [300, 100];
+}
+
+function maybeTrafficWarm(symbolCount: number, smartMode: boolean): void {
+  if (process.env.TRAFFIC_WARM_DISABLED === '1') return;
+
+  const key = smartMode ? 'smart' : 'classic';
+  const now = Date.now();
+  const lastRun = trafficWarmLastRun.get(key) ?? 0;
+  if (now - lastRun < TRAFFIC_WARM_COOLDOWN_MS) return;
+
+  const candidates = getTrafficWarmCandidates(symbolCount);
+  for (const candidate of candidates) {
+    if (candidate === symbolCount) continue;
+    const cache = resultCache.get(makeCacheKey(candidate, smartMode));
+    const ttl = getResultCacheTtl(candidate);
+    const fresh = cache && now - cache.ts < ttl;
+    if (fresh) continue;
+
+    trafficWarmLastRun.set(key, now);
+    debugLog(`[screener] traffic-warm trigger: request=${symbolCount}, warming=${candidate}, smart=${smartMode}`);
+    void runRefresh(candidate, smartMode);
+    break;
+  }
 }
 
 // ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
@@ -686,6 +717,7 @@ function runRefresh(symbolCount: number, smartMode: boolean): Promise<ScreenerRe
  */
 export async function getScreenerData(symbolCount = 100, options: ScreenerOptions = {}): Promise<ScreenerResponse> {
   const smartMode = options.smartMode ?? getSmartModeDefault();
+  maybeTrafficWarm(symbolCount, smartMode);
 
   // Return cached result if fresh enough and same count.
   const resultCacheTtl = getResultCacheTtl(symbolCount);
