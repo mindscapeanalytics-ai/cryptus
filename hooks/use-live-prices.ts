@@ -38,6 +38,7 @@ export function useLivePrices(symbols: Set<string>) {
   // Flush buffered ticks to React state at a throttled interval
   useEffect(() => {
     flushTimerRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       const buf = bufferRef.current;
       if (buf.size === 0) return;
       setLivePrices((prev) => {

@@ -13,11 +13,11 @@ const BINANCE_APIS = [
   'https://api3.binance.com',
 ] as const;
 const RSI_PERIOD = 14;
-const KLINE_LIMIT = 1000; // 1000 1m candles → ~66 15m candles (MACD needs 35, StochRSI needs 34)
-const KLINE_1H_LIMIT = 100; // for 1h RSI
-const BATCH_SIZE = 50; // parallel kline fetches per batch (conservative for Binance rate limits)
-const BATCH_DELAY_MS = 300; // delay between batches to stay within rate limits
+const KLINE_LIMIT = 900; // 900 1m candles (~15h): minimum for derived 1h RSI(14) + 15m indicators
+const BATCH_SIZE = 50; // baseline parallel kline fetches per batch
+const BATCH_DELAY_MS = 120; // low baseline delay – Binance allows 1200 req/min
 const FETCH_RETRY_COUNT = 2; // retry failed kline fetches
+const MAX_KLINE_FETCH = 80; // cap kline fetches per cycle (rolling refresh)
 
 // ── In-memory symbol cache ──
 let symbolCache: { data: string[]; ts: number } | null = null;
@@ -43,7 +43,46 @@ const TICKER_CACHE_TTL = 30_000; // 30 seconds
 
 // ── Result cache to avoid re-computing on rapid refreshes ──
 let resultCache: { data: ScreenerResponse; count: number; ts: number } | null = null;
-const RESULT_CACHE_TTL = 12_000; // 12 seconds (shorter than typical 15s refresh)
+
+function getResultCacheTtl(symbolCount: number): number {
+  // Shorter TTL is fine — stale-first always returns cached data instantly
+  // and rolling refresh keeps cycle time low.
+  if (symbolCount >= 500) return 20_000;
+  if (symbolCount >= 300) return 15_000;
+  if (symbolCount >= 200) return 12_000;
+  return 8_000;
+}
+
+// ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
+const indicatorCache = new Map<string, { entry: ScreenerEntry; ts: number }>();
+const INDICATOR_CACHE_TTL = 180_000; // 3 min — indicators barely drift, WebSocket keeps prices live
+const INDICATOR_CACHE_MAX = 1500;
+
+function pruneIndicatorCache() {
+  if (indicatorCache.size <= INDICATOR_CACHE_MAX) return;
+  const sorted = [...indicatorCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+  const removeCount = indicatorCache.size - INDICATOR_CACHE_MAX;
+  for (let i = 0; i < removeCount; i++) {
+    indicatorCache.delete(sorted[i][0]);
+  }
+}
+
+function toNum(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function withTickerOverlay(entry: ScreenerEntry, ticker: BinanceTicker | undefined, nowTs: number): ScreenerEntry {
+  if (!ticker) return { ...entry, updatedAt: nowTs };
+  return {
+    ...entry,
+    price: toNum(ticker.lastPrice, entry.price),
+    change24h: toNum(ticker.priceChangePercent, entry.change24h),
+    volume24h: toNum(ticker.quoteVolume, entry.volume24h),
+    updatedAt: nowTs,
+  };
+}
 
 function buildMeta(entries: ScreenerEntry[], computeTimeMs: number, fetchedAt = Date.now()): ScreenerResponse['meta'] {
   return {
@@ -62,6 +101,8 @@ function buildMeta(entries: ScreenerEntry[], computeTimeMs: number, fetchedAt = 
 
 function fromCachedResult(symbolCount: number): ScreenerResponse | null {
   if (!resultCache) return null;
+  // Don't serve data older than 10 minutes
+  if (Date.now() - resultCache.ts > 600_000) return null;
   const sliced = resultCache.data.data.slice(0, symbolCount);
   return {
     data: sliced,
@@ -162,14 +203,6 @@ async function fetchKlines(symbol: string): Promise<BinanceKline[]> {
   return fetchWithRetry(path, `Klines ${symbol}`);
 }
 
-/**
- * Fetch 1h klines for a single symbol.
- */
-async function fetchKlines1h(symbol: string): Promise<BinanceKline[]> {
-  const path = `/api/v3/klines?symbol=${encodeURIComponent(symbol)}&interval=1h&limit=${KLINE_1H_LIMIT}`;
-  return fetchWithRetry(path, `Klines1h ${symbol}`);
-}
-
 async function fetchTickersSafe(): Promise<Map<string, BinanceTicker>> {
   try {
     return await fetchTickers();
@@ -186,14 +219,16 @@ async function fetchKlinesBatched(
   fetcher: (symbol: string) => Promise<BinanceKline[]>,
 ): Promise<PromiseSettledResult<BinanceKline[]>[]> {
   const results: PromiseSettledResult<BinanceKline[]>[] = [];
+  const batchSize = symbols.length >= 400 ? 40 : symbols.length >= 200 ? 45 : BATCH_SIZE;
+  const batchDelay = symbols.length >= 60 ? 180 : BATCH_DELAY_MS;
 
-  for (let i = 0; i < symbols.length; i += BATCH_SIZE) {
-    const batch = symbols.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < symbols.length; i += batchSize) {
+    const batch = symbols.slice(i, i + batchSize);
     const batchResults = await Promise.allSettled(batch.map(fetcher));
     results.push(...batchResults);
     // Delay between batches to respect Binance rate limits
-    if (i + BATCH_SIZE < symbols.length) {
-      await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+    if (i + batchSize < symbols.length) {
+      await new Promise((r) => setTimeout(r, batchDelay));
     }
   }
 
@@ -242,20 +277,124 @@ function deriveSignal(rsi: number | null): ScreenerEntry['signal'] {
   return 'neutral';
 }
 
-/**
- * Main screener function: fetch data, compute all indicators, return results.
- * Supports 500+ coins via batched parallel fetching.
- */
-export async function getScreenerData(symbolCount = 100): Promise<ScreenerResponse> {
-  // Return cached result if fresh enough and same count
-  if (resultCache && resultCache.count >= symbolCount && Date.now() - resultCache.ts < RESULT_CACHE_TTL) {
-    if (resultCache.count === symbolCount) return resultCache.data;
-    const cached = fromCachedResult(symbolCount);
-    if (cached) return cached;
+function buildEntryFromKlines(
+  sym: string,
+  klines: BinanceKline[],
+  ticker: BinanceTicker | undefined,
+  nowTs: number,
+): ScreenerEntry | null {
+  if (klines.length < RSI_PERIOD + 2) return null;
+
+  const closes1m = klines.map((k) => parseFloat(k[4]));
+  const highs1m = klines.map((k) => parseFloat(k[2]));
+  const lows1m = klines.map((k) => parseFloat(k[3]));
+  const volumes1m = klines.map((k) => parseFloat(k[5]));
+
+  const rsi1m = calculateRsi(closes1m, RSI_PERIOD);
+
+  const agg5m = aggregateKlines(klines, 5);
+  const closes5m = agg5m.map((c) => c.close);
+  const rsi5m = closes5m.length >= RSI_PERIOD + 1 ? calculateRsi(closes5m, RSI_PERIOD) : null;
+
+  const agg15m = aggregateKlines(klines, 15);
+  const closes15m = agg15m.map((c) => c.close);
+  const rsi15m = closes15m.length >= RSI_PERIOD + 1 ? calculateRsi(closes15m, RSI_PERIOD) : null;
+
+  let rsi1h: number | null = null;
+  const agg1h = aggregateKlines(klines, 60);
+  const closes1h = agg1h.map((c) => c.close);
+  if (closes1h.length >= RSI_PERIOD + 1) {
+    rsi1h = calculateRsi(closes1h, RSI_PERIOD);
   }
 
-  try {
+  const ema9 = latestEma(closes15m, 9);
+  const ema21 = latestEma(closes15m, 21);
+  const emaCross = detectEmaCross(closes15m, 9, 21);
+  const macd = calculateMacd(closes15m);
+  const bb = calculateBollinger(closes15m);
+  const stochRsi = calculateStochRsi(closes15m);
+
+  const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
+  let vwapStart = 0;
+  for (let j = 0; j < klines.length; j++) {
+    if (klines[j][0] >= todayUtcMs) {
+      vwapStart = j;
+      break;
+    }
+  }
+
+  const vwap = calculateVwap(
+    highs1m.slice(vwapStart),
+    lows1m.slice(vwapStart),
+    closes1m.slice(vwapStart),
+    volumes1m.slice(vwapStart),
+  );
+
+  const priceFromKline = closes1m[closes1m.length - 1];
+  const price = toNum(ticker?.lastPrice, priceFromKline);
+  const vwapDiff = vwap !== null && vwap > 0
+    ? Math.round(((price - vwap) / vwap) * 10000) / 100
+    : null;
+
+  const volumeSpike = detectVolumeSpike(volumes1m);
+  const signal = deriveSignal(rsi15m ?? rsi5m ?? rsi1m);
+
+  const strategy = computeStrategyScore({
+    rsi1m,
+    rsi5m,
+    rsi15m,
+    rsi1h,
+    macdHistogram: macd?.histogram ?? null,
+    bbPosition: bb?.position ?? null,
+    stochK: stochRsi?.k ?? null,
+    stochD: stochRsi?.d ?? null,
+    emaCross,
+    vwapDiff,
+    volumeSpike,
+    price,
+  });
+
+  return {
+    symbol: sym,
+    price,
+    change24h: toNum(ticker?.priceChangePercent, 0),
+    volume24h: toNum(ticker?.quoteVolume, 0),
+    rsi1m,
+    rsi5m,
+    rsi15m,
+    signal,
+    rsi1h,
+    ema9,
+    ema21,
+    emaCross,
+    macdLine: macd?.macdLine ?? null,
+    macdSignal: macd?.signalLine ?? null,
+    macdHistogram: macd?.histogram ?? null,
+    bbUpper: bb?.upper ?? null,
+    bbMiddle: bb?.middle ?? null,
+    bbLower: bb?.lower ?? null,
+    bbPosition: bb?.position ?? null,
+    stochK: stochRsi?.k ?? null,
+    stochD: stochRsi?.d ?? null,
+    vwap,
+    vwapDiff,
+    volumeSpike,
+    strategyScore: strategy.score,
+    strategySignal: strategy.signal,
+    strategyLabel: strategy.label,
+    updatedAt: nowTs,
+  };
+}
+
+const refreshInFlight = new Map<number, Promise<ScreenerResponse>>();
+
+function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
+  const existing = refreshInFlight.get(symbolCount);
+  if (existing) return existing;
+
+  const work = (async (): Promise<ScreenerResponse> => {
     const start = Date.now();
+    const nowTs = Date.now();
 
     // 1. Get top symbols + ticker data in parallel
     const [symbols, tickers] = await Promise.all([
@@ -263,138 +402,58 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
       fetchTickersSafe(),
     ]);
 
-    // 2. Fetch 1m + 1h klines in batched parallel
-    const [klines1mResults, klines1hResults] = await Promise.all([
-      fetchKlinesBatched(symbols, fetchKlines),
-      fetchKlinesBatched(symbols, fetchKlines1h),
-    ]);
+    // 2. Fetch klines only for symbols with stale/missing indicator cache
+    const staleBefore = nowTs - INDICATOR_CACHE_TTL;
+    let symbolsToRefresh = symbols.filter((sym) => {
+      const cached = indicatorCache.get(sym);
+      return !cached || cached.ts < staleBefore;
+    });
+
+    // Rolling refresh: cap kline fetches per cycle.
+    // Prioritise uncached (new) symbols, then oldest cached.
+    if (symbolsToRefresh.length > MAX_KLINE_FETCH) {
+      symbolsToRefresh.sort((a, b) => {
+        const ta = indicatorCache.get(a)?.ts ?? 0;
+        const tb = indicatorCache.get(b)?.ts ?? 0;
+        return ta - tb; // oldest first
+      });
+      symbolsToRefresh = symbolsToRefresh.slice(0, MAX_KLINE_FETCH);
+    }
+
+    const klines1mResults = symbolsToRefresh.length > 0
+      ? await fetchKlinesBatched(symbolsToRefresh, fetchKlines)
+      : [];
+
+    const klineResultBySymbol = new Map<string, PromiseSettledResult<BinanceKline[]>>();
+    for (let i = 0; i < symbolsToRefresh.length; i++) {
+      klineResultBySymbol.set(symbolsToRefresh[i], klines1mResults[i]);
+    }
 
     // 3. Process each symbol
     const entries: ScreenerEntry[] = [];
 
-    for (let i = 0; i < symbols.length; i++) {
-      const sym = symbols[i];
-      const result1m = klines1mResults[i];
-      const result1h = klines1hResults[i];
-
-      if (result1m.status !== 'fulfilled') continue;
-
-      const klines = result1m.value;
-      if (klines.length < RSI_PERIOD + 2) continue;
-
-      const closes1m = klines.map((k) => parseFloat(k[4]));
-      const highs1m = klines.map((k) => parseFloat(k[2]));
-      const lows1m = klines.map((k) => parseFloat(k[3]));
-      const volumes1m = klines.map((k) => parseFloat(k[5]));
-
-    // ── RSI (original, kept) ──
-      const rsi1m = calculateRsi(closes1m, RSI_PERIOD);
-
-      const agg5m = aggregateKlines(klines, 5);
-      const closes5m = agg5m.map((c) => c.close);
-      const rsi5m = closes5m.length >= RSI_PERIOD + 1
-        ? calculateRsi(closes5m, RSI_PERIOD)
-        : null;
-
-      const agg15m = aggregateKlines(klines, 15);
-      const closes15m = agg15m.map((c) => c.close);
-      const rsi15m = closes15m.length >= RSI_PERIOD + 1
-        ? calculateRsi(closes15m, RSI_PERIOD)
-        : null;
-
-    // ── RSI 1h (new) ──
-      let rsi1h: number | null = null;
-      if (result1h.status === 'fulfilled' && result1h.value.length >= RSI_PERIOD + 1) {
-        const closes1h = result1h.value.map((k) => parseFloat(k[4]));
-        rsi1h = calculateRsi(closes1h, RSI_PERIOD);
-      }
-
-    // ── EMA 9/21 on 15m closes (new) ──
-      const ema9 = latestEma(closes15m, 9);
-      const ema21 = latestEma(closes15m, 21);
-      const emaCross = detectEmaCross(closes15m, 9, 21);
-
-    // ── MACD on 15m closes (new) ──
-      const macd = calculateMacd(closes15m);
-
-    // ── Bollinger Bands on 15m closes (new) ──
-      const bb = calculateBollinger(closes15m);
-
-    // ── Stochastic RSI on 15m closes (new) ──
-      const stochRsi = calculateStochRsi(closes15m);
-
-    // ── VWAP on 1m data (daily reset at UTC midnight) ──
-      const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
-      let vwapStart = 0;
-      for (let j = 0; j < klines.length; j++) {
-        if (klines[j][0] >= todayUtcMs) { vwapStart = j; break; }
-      }
-      const vwap = calculateVwap(
-        highs1m.slice(vwapStart), lows1m.slice(vwapStart),
-        closes1m.slice(vwapStart), volumes1m.slice(vwapStart),
-      );
-      const price = closes1m[closes1m.length - 1];
-      const vwapDiff = vwap !== null && vwap > 0
-        ? Math.round(((price - vwap) / vwap) * 10000) / 100
-        : null;
-
-    // ── Volume spike (new) ──
-      const volumeSpike = detectVolumeSpike(volumes1m);
-
-    // ── Original signal (kept) ──
-      const signal = deriveSignal(rsi15m ?? rsi5m ?? rsi1m);
-
-    // ── Composite strategy score ──
-      const strategy = computeStrategyScore({
-        rsi1m, rsi5m, rsi15m, rsi1h,
-        macdHistogram: macd?.histogram ?? null,
-        bbPosition: bb?.position ?? null,
-        stochK: stochRsi?.k ?? null,
-        stochD: stochRsi?.d ?? null,
-        emaCross,
-        vwapDiff,
-        volumeSpike,
-        price,
-      });
-
+    for (const sym of symbols) {
       const ticker = tickers.get(sym);
+      const refreshResult = klineResultBySymbol.get(sym);
 
-      entries.push({
-        symbol: sym,
-        price,
-        change24h: ticker ? parseFloat(ticker.priceChangePercent) : 0,
-        volume24h: ticker ? parseFloat(ticker.quoteVolume) : 0,
-        // Original
-        rsi1m,
-        rsi5m,
-        rsi15m,
-        signal,
-        // New
-        rsi1h,
-        ema9,
-        ema21,
-        emaCross,
-        macdLine: macd?.macdLine ?? null,
-        macdSignal: macd?.signalLine ?? null,
-        macdHistogram: macd?.histogram ?? null,
-        bbUpper: bb?.upper ?? null,
-        bbMiddle: bb?.middle ?? null,
-        bbLower: bb?.lower ?? null,
-        bbPosition: bb?.position ?? null,
-        stochK: stochRsi?.k ?? null,
-        stochD: stochRsi?.d ?? null,
-        vwap,
-        vwapDiff,
-        volumeSpike,
-        strategyScore: strategy.score,
-        strategySignal: strategy.signal,
-        strategyLabel: strategy.label,
-        updatedAt: Date.now(),
-      });
+      if (refreshResult?.status === 'fulfilled') {
+        const freshEntry = buildEntryFromKlines(sym, refreshResult.value, ticker, nowTs);
+        if (freshEntry) {
+          entries.push(freshEntry);
+          indicatorCache.set(sym, { entry: freshEntry, ts: nowTs });
+          continue;
+        }
+      }
+
+      const cached = indicatorCache.get(sym);
+      if (cached) {
+        entries.push(withTickerOverlay(cached.entry, ticker, nowTs));
+      }
     }
 
-    const computeTimeMs = Date.now() - start;
+    pruneIndicatorCache();
 
+    const computeTimeMs = Date.now() - start;
     const response: ScreenerResponse = {
       data: entries,
       meta: buildMeta(entries, computeTimeMs),
@@ -403,21 +462,51 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
     // Cache the result if there is useful data; keep stale cache on total outage.
     if (response.data.length > 0) {
       resultCache = { data: response, count: symbolCount, ts: Date.now() };
+      return response;
     }
 
-    // If this run produced zero rows but we have a stale cache, return stale cache instead.
-    if (response.data.length === 0) {
-      const stale = fromCachedResult(symbolCount);
-      if (stale) return stale;
-    }
-
-    return response;
-  } catch {
     const stale = fromCachedResult(symbolCount);
     if (stale) return stale;
-    return {
-      data: [],
-      meta: buildMeta([], 0),
-    };
+
+    return response;
+  })()
+    .catch(() => {
+      const stale = fromCachedResult(symbolCount);
+      if (stale) return stale;
+      return {
+        data: [],
+        meta: buildMeta([], 0),
+      };
+    })
+    .finally(() => {
+      refreshInFlight.delete(symbolCount);
+    });
+
+  refreshInFlight.set(symbolCount, work);
+  return work;
+}
+
+/**
+ * Main screener function: fetch data, compute all indicators, return results.
+ * Supports 500+ coins via batched parallel fetching.
+ */
+export async function getScreenerData(symbolCount = 100): Promise<ScreenerResponse> {
+  // Return cached result if fresh enough and same count.
+  const resultCacheTtl = getResultCacheTtl(symbolCount);
+  if (resultCache && resultCache.count >= symbolCount && Date.now() - resultCache.ts < resultCacheTtl) {
+    if (resultCache.count === symbolCount) return resultCache.data;
+    const cached = fromCachedResult(symbolCount);
+    if (cached) return cached;
   }
+
+  // Stale-first: always return cached snapshot instantly.
+  // WebSocket keeps prices live between indicator refreshes.
+  const stale = fromCachedResult(symbolCount);
+  if (stale) {
+    void runRefresh(symbolCount);
+    return stale;
+  }
+
+  // No usable stale snapshot available; compute (deduplicated by symbolCount).
+  return runRefresh(symbolCount);
 }

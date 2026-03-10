@@ -13,10 +13,14 @@ export async function GET(request: Request) {
     );
 
     const result = await getScreenerData(count);
+    // Aggressive CDN caching — stale-first logic on the server already
+    // returns cached data instantly, so the CDN layer adds a second shield.
+    const sMaxAge = count >= 300 ? 15 : 8;
+    const swr = count >= 300 ? 120 : 60;
 
     return NextResponse.json(result, {
       headers: {
-        'Cache-Control': 's-maxage=15, stale-while-revalidate=30',
+        'Cache-Control': `public, s-maxage=${sMaxAge}, stale-while-revalidate=${swr}`,
       },
     });
   } catch (err) {

@@ -233,6 +233,7 @@ export default function ScreenerDashboard() {
   const [pairCount, setPairCount] = useState(100);
   const [countdown, setCountdown] = useState(30);
   const [lastFetchTime, setLastFetchTime] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const fetchingRef = useRef(false);
 
   // Column visibility
@@ -242,8 +243,9 @@ export default function ScreenerDashboard() {
   const [showColPicker, setShowColPicker] = useState(false);
   const colPickerRef = useRef<HTMLDivElement>(null);
 
-  // Watchlist
-  const [watchlist, setWatchlist] = useState<Set<string>>(() => new Set(loadWatchlist()));
+  // Watchlist (hydrate from localStorage after mount to avoid SSR/CSR mismatch)
+  const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
+  const [watchlistReady, setWatchlistReady] = useState(false);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
 
   // Live WebSocket prices
@@ -272,10 +274,17 @@ export default function ScreenerDashboard() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showColPicker]);
 
+  // Hydrate watchlist after mount (prevents hydration mismatch from localStorage values)
+  useEffect(() => {
+    setWatchlist(new Set(loadWatchlist()));
+    setWatchlistReady(true);
+  }, []);
+
   // Persist watchlist
   useEffect(() => {
+    if (!watchlistReady) return;
     localStorage.setItem('crypto-rsi-watchlist', JSON.stringify([...watchlist]));
-  }, [watchlist]);
+  }, [watchlist, watchlistReady]);
 
   const toggleWatchlist = useCallback((symbol: string) => {
     setWatchlist((prev) => {
@@ -303,40 +312,51 @@ export default function ScreenerDashboard() {
   }, [pairCount, refreshInterval]);
 
   // ── Fetch data ──
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (background = false) => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
+    if (background) setRefreshing(true);
 
     try {
-      setError(null);
-      const res = await fetch(`/api/screener?count=${pairCount}`);
+      if (!background) setError(null);
+      const timeoutMs = pairCount >= 500 ? 55_000 : pairCount >= 300 ? 40_000 : 25_000;
+      const res = await fetch(`/api/screener?count=${pairCount}`, {
+        signal: AbortSignal.timeout(timeoutMs),
+      });
       if (!res.ok) throw new Error(`API error ${res.status}`);
 
       const json: ScreenerResponse = await res.json();
       setData(json.data);
       setMeta(json.meta);
       setLastFetchTime(Date.now());
+      setError(null);
       setLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      // Background fetch failures are silent when we already have data
+      // — WebSocket keeps prices live between indicator refreshes
+      if (data.length === 0) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      }
       setLoading(false);
     } finally {
       fetchingRef.current = false;
+      setRefreshing(false);
     }
-  }, [pairCount]);
+  }, [pairCount, data.length]);
 
   // ── Initial fetch ──
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // ── Auto-refresh ──
+  // ── Auto-refresh (skips when tab is hidden) ──
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
     setCountdown(refreshInterval);
     const refetchTimer = setInterval(() => {
-      fetchData();
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchData(true);
       setCountdown(refreshInterval);
     }, refreshInterval * 1000);
 
@@ -349,6 +369,18 @@ export default function ScreenerDashboard() {
       clearInterval(tickTimer);
     };
   }, [refreshInterval, fetchData]);
+
+  // ── Resume refresh on tab focus ──
+  useEffect(() => {
+    const handler = () => {
+      if (!document.hidden && refreshInterval > 0 && data.length > 0) {
+        fetchData(true);
+        setCountdown(refreshInterval);
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [refreshInterval, fetchData, data.length]);
 
   // ── Sorting ──
   const handleSort = useCallback(
@@ -480,7 +512,7 @@ export default function ScreenerDashboard() {
               className="inline-flex items-center rounded-lg border border-dark-500 bg-dark-700 px-3 py-1.5 text-xs font-medium text-gray-100 hover:bg-dark-600 transition-colors"
               title="Refresh now"
             >
-              ↻ Refresh
+              {refreshing ? '⟳ …' : '↻ Refresh'}
             </button>
           </div>
         </div>
@@ -568,7 +600,7 @@ export default function ScreenerDashboard() {
               : 'bg-dark-700 text-gray-400 border-dark-600 hover:bg-dark-600'
           }`}
         >
-          ★ Watchlist{watchlist.size > 0 ? ` (${watchlist.size})` : ''}
+          ★ Watchlist{watchlistReady && watchlist.size > 0 ? ` (${watchlist.size})` : ''}
         </button>
 
         {/* Column picker */}
@@ -644,7 +676,7 @@ export default function ScreenerDashboard() {
       {error && (
         <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-center justify-between">
           <span>⚠ {error}</span>
-          <button onClick={fetchData} className="px-3 py-1 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition-colors">
+          <button onClick={() => fetchData()} className="px-3 py-1 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition-colors">
             Retry
           </button>
         </div>
