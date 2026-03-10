@@ -289,8 +289,16 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
     // ── Stochastic RSI on 15m closes (new) ──
     const stochRsi = calculateStochRsi(closes15m);
 
-    // ── VWAP on 1m data (new) ──
-    const vwap = calculateVwap(highs1m, lows1m, closes1m, volumes1m);
+    // ── VWAP on 1m data (daily reset at UTC midnight) ──
+    const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
+    let vwapStart = 0;
+    for (let j = 0; j < klines.length; j++) {
+      if (klines[j][0] >= todayUtcMs) { vwapStart = j; break; }
+    }
+    const vwap = calculateVwap(
+      highs1m.slice(vwapStart), lows1m.slice(vwapStart),
+      closes1m.slice(vwapStart), volumes1m.slice(vwapStart),
+    );
     const price = closes1m[closes1m.length - 1];
     const vwapDiff = vwap !== null && vwap > 0
       ? Math.round(((price - vwap) / vwap) * 10000) / 100
@@ -302,7 +310,7 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
     // ── Original signal (kept) ──
     const signal = deriveSignal(rsi15m ?? rsi5m ?? rsi1m);
 
-    // ── Composite strategy score (new) ──
+    // ── Composite strategy score ──
     const strategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram: macd?.histogram ?? null,
@@ -312,6 +320,7 @@ export async function getScreenerData(symbolCount = 100): Promise<ScreenerRespon
       emaCross,
       vwapDiff,
       volumeSpike,
+      price,
     });
 
     const ticker = tickers.get(sym);

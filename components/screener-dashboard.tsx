@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } from '@/lib/types';
 import { useLivePrices } from '@/hooks/use-live-prices';
 
@@ -856,8 +857,9 @@ export default function ScreenerDashboard() {
           {signalFilter !== 'all' && ` · filtered by ${signalFilter}`}
           {showWatchlistOnly && ` · watchlist only`}
         </span>
-        <span>
-          Data from {isConnected ? ' · Live WebSocket' : ' · REST API'} · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20
+        <span className="flex items-center gap-2">
+          <span>Data from Binance{isConnected ? ' · Live WebSocket' : ' · REST API'} · RSI 14 · EMA 9/21 · MACD 12/26/9 · BB 20</span>
+          <Link href="/guide" className="text-blue-500 hover:text-blue-400 transition-colors">📖 Guide</Link>
         </span>
       </footer>
     </div>

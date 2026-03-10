@@ -280,6 +280,7 @@ export function computeStrategyScore(params: {
   emaCross: 'bullish' | 'bearish' | 'none';
   vwapDiff: number | null;
   volumeSpike: boolean;
+  price: number;
 }): StrategyResult {
   let score = 0;
   let factors = 0;
@@ -302,12 +303,12 @@ export function computeStrategyScore(params: {
   rsiScore(params.rsi15m, 1.5);
   rsiScore(params.rsi1h, 2);
 
-  // MACD histogram
-  if (params.macdHistogram !== null) {
+  // MACD histogram (normalized as % of price for fair cross-asset comparison)
+  if (params.macdHistogram !== null && params.price > 0) {
     factors += 1.5;
-    const h = params.macdHistogram;
-    if (h > 0) score += Math.min(h * 200, 100) * 1.5;
-    else score += Math.max(h * 200, -100) * 1.5;
+    const hPct = (params.macdHistogram / params.price) * 100;
+    if (hPct > 0) score += Math.min(hPct * 200, 100) * 1.5;
+    else score += Math.max(hPct * 200, -100) * 1.5;
   }
 
   // Bollinger position
@@ -367,5 +368,5 @@ export function computeStrategyScore(params: {
 // ── Utility ─────────────────────────────────────────────────────
 
 function round(n: number): number {
-  return Math.round(n * 100) / 100;
+  return Math.round(n * 1e8) / 1e8;
 }
