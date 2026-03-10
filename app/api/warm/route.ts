@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
   for (const count of counts) {
     try {
-      await getScreenerData(count);
+      await getScreenerData(count, { smartMode: true });
     } catch (err) {
       console.warn(`[warm] failed for count=${count}:`, err instanceof Error ? err.message : String(err));
     }

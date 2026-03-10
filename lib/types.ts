@@ -44,6 +44,8 @@ export interface ScreenerResponse {
   data: ScreenerEntry[];
   meta: {
     total: number;
+    indicatorReady: number;
+    indicatorCoveragePct: number;
     oversold: number;
     overbought: number;
     // ── New: strategy breakdown ──
@@ -54,6 +56,8 @@ export interface ScreenerResponse {
     strongSell: number;
     computeTimeMs: number;
     fetchedAt: number;
+    smartMode: boolean;
+    refreshCap: number;
   };
 }
 

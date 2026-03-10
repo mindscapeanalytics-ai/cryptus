@@ -6,6 +6,16 @@ import {
 } from './indicators';
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
 
+interface ScreenerOptions {
+  smartMode?: boolean;
+}
+
+interface SmartTuningState {
+  dynamicCap: number;
+  lastFailureRate: number;
+  lastComputeMs: number;
+}
+
 const BINANCE_APIS = [
   'https://api.binance.com',
   'https://api1.binance.com',
@@ -48,7 +58,8 @@ let tickerCache: { data: Map<string, BinanceTicker>; ts: number } | null = null;
 const TICKER_CACHE_TTL = 30_000; // 30 seconds
 
 // ── Result cache to avoid re-computing on rapid refreshes ──
-let resultCache: { data: ScreenerResponse; count: number; ts: number } | null = null;
+const resultCache = new Map<string, { data: ScreenerResponse; count: number; smartMode: boolean; ts: number }>();
+const smartTuningByCount = new Map<number, SmartTuningState>();
 
 function getResultCacheTtl(symbolCount: number): number {
   // Shorter TTL is fine — stale-first always returns cached data instantly
@@ -57,6 +68,14 @@ function getResultCacheTtl(symbolCount: number): number {
   if (symbolCount >= 300) return 15_000;
   if (symbolCount >= 200) return 12_000;
   return 8_000;
+}
+
+function getSmartModeDefault(): boolean {
+  return process.env.SMART_MODE_DEFAULT !== '0';
+}
+
+function makeCacheKey(symbolCount: number, smartMode: boolean): string {
+  return `${symbolCount}:${smartMode ? 'smart' : 'classic'}`;
 }
 
 // ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
@@ -108,29 +127,53 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
   };
 }
 
-function buildMeta(entries: ScreenerEntry[], computeTimeMs: number, fetchedAt = Date.now()): ScreenerResponse['meta'] {
+function buildMeta(
+  entries: ScreenerEntry[],
+  computeTimeMs: number,
+  fetchedAt = Date.now(),
+  smartMode = false,
+  refreshCap = 0,
+): ScreenerResponse['meta'] {
+  const hasIndicators = (e: ScreenerEntry) => (
+    e.rsi1m !== null || e.rsi5m !== null || e.rsi15m !== null || e.macdHistogram !== null
+  );
+  const indicatorEntries = entries.filter(hasIndicators);
+  const indicatorReady = entries.filter((e) => e.rsi1m !== null || e.rsi5m !== null || e.rsi15m !== null || e.macdHistogram !== null).length;
+  const indicatorCoveragePct = entries.length > 0 ? Math.round((indicatorReady / entries.length) * 100) : 0;
+
   return {
     total: entries.length,
-    oversold: entries.filter((e) => e.signal === 'oversold').length,
-    overbought: entries.filter((e) => e.signal === 'overbought').length,
-    strongBuy: entries.filter((e) => e.strategySignal === 'strong-buy').length,
-    buy: entries.filter((e) => e.strategySignal === 'buy').length,
-    neutral: entries.filter((e) => e.strategySignal === 'neutral').length,
-    sell: entries.filter((e) => e.strategySignal === 'sell').length,
-    strongSell: entries.filter((e) => e.strategySignal === 'strong-sell').length,
+    indicatorReady,
+    indicatorCoveragePct,
+    oversold: indicatorEntries.filter((e) => e.signal === 'oversold').length,
+    overbought: indicatorEntries.filter((e) => e.signal === 'overbought').length,
+    strongBuy: indicatorEntries.filter((e) => e.strategySignal === 'strong-buy').length,
+    buy: indicatorEntries.filter((e) => e.strategySignal === 'buy').length,
+    neutral: indicatorEntries.filter((e) => e.strategySignal === 'neutral').length,
+    sell: indicatorEntries.filter((e) => e.strategySignal === 'sell').length,
+    strongSell: indicatorEntries.filter((e) => e.strategySignal === 'strong-sell').length,
     computeTimeMs,
     fetchedAt,
+    smartMode,
+    refreshCap,
   };
 }
 
-function fromCachedResult(symbolCount: number): ScreenerResponse | null {
-  if (!resultCache) return null;
+function fromCachedResult(symbolCount: number, smartMode: boolean): ScreenerResponse | null {
+  const cache = resultCache.get(makeCacheKey(symbolCount, smartMode));
+  if (!cache) return null;
   // Don't serve data older than 10 minutes
-  if (Date.now() - resultCache.ts > 600_000) return null;
-  const sliced = resultCache.data.data.slice(0, symbolCount);
+  if (Date.now() - cache.ts > 600_000) return null;
+  const sliced = cache.data.data.slice(0, symbolCount);
   return {
     data: sliced,
-    meta: buildMeta(sliced, resultCache.data.meta.computeTimeMs, resultCache.data.meta.fetchedAt),
+    meta: buildMeta(
+      sliced,
+      cache.data.meta.computeTimeMs,
+      cache.data.meta.fetchedAt,
+      smartMode,
+      cache.data.meta.refreshCap,
+    ),
   };
 }
 
@@ -454,16 +497,17 @@ function buildEntryFromKlines(
   }
 }
 
-const refreshInFlight = new Map<number, Promise<ScreenerResponse>>();
+const refreshInFlight = new Map<string, Promise<ScreenerResponse>>();
 
-function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
-  const existing = refreshInFlight.get(symbolCount);
+function runRefresh(symbolCount: number, smartMode: boolean): Promise<ScreenerResponse> {
+  const inflightKey = makeCacheKey(symbolCount, smartMode);
+  const existing = refreshInFlight.get(inflightKey);
   if (existing) return existing;
 
   const work = (async (): Promise<ScreenerResponse> => {
     const start = Date.now();
     const nowTs = Date.now();
-    console.log(`[screener] runRefresh(${symbolCount}) starting...`);
+    console.log(`[screener] runRefresh(${symbolCount}, smart=${smartMode}) starting...`);
 
     // 1. Get top symbols + ticker data in parallel
     const [symbols, tickers] = await Promise.all([
@@ -481,9 +525,19 @@ function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
 
     // Bootstrap mode: prioritise full coverage so all selected pairs get indicators quickly.
     // Rolling mode: once coverage is warm, keep each cycle bounded.
-    const refreshCap = uncachedSymbols.length > 0
-      ? (symbolCount <= 150 ? symbolCount : Math.min(symbolCount, symbolCount >= 400 ? 220 : 160))
-      : MAX_KLINE_FETCH;
+    const tuning = smartTuningByCount.get(symbolCount) ?? {
+      dynamicCap: symbolCount <= 150 ? symbolCount : symbolCount >= 400 ? 220 : 160,
+      lastFailureRate: 0,
+      lastComputeMs: 0,
+    };
+
+    const baseBootstrapCap = symbolCount <= 150 ? symbolCount : Math.min(symbolCount, symbolCount >= 400 ? 220 : 160);
+    const baseRollingCap = MAX_KLINE_FETCH;
+    const refreshCap = smartMode
+      ? (uncachedSymbols.length > 0
+        ? Math.min(symbolCount, Math.max(baseBootstrapCap, tuning.dynamicCap))
+        : Math.min(symbolCount, Math.max(baseRollingCap, tuning.dynamicCap)))
+      : (uncachedSymbols.length > 0 ? baseBootstrapCap : baseRollingCap);
 
     if (symbolsToRefresh.length > refreshCap) {
       symbolsToRefresh.sort((a, b) => {
@@ -495,7 +549,7 @@ function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
     }
 
     console.log(
-      `[screener] coverage pre-refresh: ${symbols.length - uncachedSymbols.length}/${symbols.length}, refreshing ${symbolsToRefresh.length}`,
+      `[screener] coverage pre-refresh: ${symbols.length - uncachedSymbols.length}/${symbols.length}, refreshing ${symbolsToRefresh.length}, cap=${refreshCap}`,
     );
 
     const klines1mResults = symbolsToRefresh.length > 0
@@ -560,39 +614,59 @@ function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
 
     pruneIndicatorCache();
 
-    const withIndicators = entries.filter(e => e.rsi15m !== null).length;
+    const withIndicators = entries.filter((e) => e.rsi15m !== null).length;
     const computeTimeMs = Date.now() - start;
     console.log(`[screener] Done: ${entries.length} entries (${withIndicators} with indicators, ${entries.length - withIndicators} ticker-only) in ${computeTimeMs}ms`);
 
+    if (smartMode) {
+      const failureRate = symbolsToRefresh.length > 0 ? failedCount / symbolsToRefresh.length : 0;
+      let nextCap = tuning.dynamicCap;
+      if (failureRate > 0.35 || computeTimeMs > 45_000) {
+        nextCap = Math.max(80, tuning.dynamicCap - 30);
+      } else if (failureRate < 0.15 && computeTimeMs < 25_000) {
+        nextCap = Math.min(symbolCount, tuning.dynamicCap + 20);
+      }
+      smartTuningByCount.set(symbolCount, {
+        dynamicCap: nextCap,
+        lastFailureRate: failureRate,
+        lastComputeMs: computeTimeMs,
+      });
+    }
+
     const response: ScreenerResponse = {
       data: entries,
-      meta: buildMeta(entries, computeTimeMs),
+      meta: buildMeta(entries, computeTimeMs, Date.now(), smartMode, refreshCap),
     };
 
     // Cache the result if there is useful data; keep stale cache on total outage.
     if (response.data.length > 0) {
-      resultCache = { data: response, count: symbolCount, ts: Date.now() };
+      resultCache.set(makeCacheKey(symbolCount, smartMode), {
+        data: response,
+        count: symbolCount,
+        smartMode,
+        ts: Date.now(),
+      });
       return response;
     }
 
-    const stale = fromCachedResult(symbolCount);
+    const stale = fromCachedResult(symbolCount, smartMode);
     if (stale) return stale;
 
     return response;
   })()
     .catch(() => {
-      const stale = fromCachedResult(symbolCount);
+      const stale = fromCachedResult(symbolCount, smartMode);
       if (stale) return stale;
       return {
         data: [],
-        meta: buildMeta([], 0),
+        meta: buildMeta([], 0, Date.now(), smartMode, 0),
       };
     })
     .finally(() => {
-      refreshInFlight.delete(symbolCount);
+      refreshInFlight.delete(inflightKey);
     });
 
-  refreshInFlight.set(symbolCount, work);
+  refreshInFlight.set(inflightKey, work);
   return work;
 }
 
@@ -600,23 +674,26 @@ function runRefresh(symbolCount: number): Promise<ScreenerResponse> {
  * Main screener function: fetch data, compute all indicators, return results.
  * Supports 500+ coins via batched parallel fetching.
  */
-export async function getScreenerData(symbolCount = 100): Promise<ScreenerResponse> {
+export async function getScreenerData(symbolCount = 100, options: ScreenerOptions = {}): Promise<ScreenerResponse> {
+  const smartMode = options.smartMode ?? getSmartModeDefault();
+
   // Return cached result if fresh enough and same count.
   const resultCacheTtl = getResultCacheTtl(symbolCount);
-  if (resultCache && resultCache.count >= symbolCount && Date.now() - resultCache.ts < resultCacheTtl) {
-    if (resultCache.count === symbolCount) return resultCache.data;
-    const cached = fromCachedResult(symbolCount);
+  const cachedEntry = resultCache.get(makeCacheKey(symbolCount, smartMode));
+  if (cachedEntry && cachedEntry.count >= symbolCount && Date.now() - cachedEntry.ts < resultCacheTtl) {
+    if (cachedEntry.count === symbolCount) return cachedEntry.data;
+    const cached = fromCachedResult(symbolCount, smartMode);
     if (cached) return cached;
   }
 
   // Stale-first: always return cached snapshot instantly.
   // WebSocket keeps prices live between indicator refreshes.
-  const stale = fromCachedResult(symbolCount);
+  const stale = fromCachedResult(symbolCount, smartMode);
   if (stale) {
-    void runRefresh(symbolCount);
+    void runRefresh(symbolCount, smartMode);
     return stale;
   }
 
   // No usable stale snapshot available; compute (deduplicated by symbolCount).
-  return runRefresh(symbolCount);
+  return runRefresh(symbolCount, smartMode);
 }

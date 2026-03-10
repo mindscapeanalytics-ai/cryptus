@@ -9,10 +9,12 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const rawCount = parseInt(searchParams.get('count') ?? '100', 10);
+    const smart = searchParams.get('smart');
+    const smartMode = smart === null ? process.env.SMART_MODE_DEFAULT !== '0' : smart !== '0';
     // Sanitize: NaN defaults to 100, clamp to [10, 500]
     const count = Math.min(Math.max(Number.isFinite(rawCount) ? rawCount : 100, 10), 500);
 
-    const result = await getScreenerData(count);
+    const result = await getScreenerData(count, { smartMode });
 
     // Return 503 if the service returned zero data (upstream failure)
     if (result.data.length === 0) {

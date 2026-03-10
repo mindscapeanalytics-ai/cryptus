@@ -220,6 +220,7 @@ function loadWatchlist(): string[] {
 }
 
 export default function ScreenerDashboard() {
+  const smartModeDefault = process.env.NEXT_PUBLIC_SMART_MODE_DEFAULT !== '0';
   // ── State ──
   const [data, setData] = useState<ScreenerEntry[]>([]);
   const [meta, setMeta] = useState<ScreenerResponse['meta'] | null>(null);
@@ -239,6 +240,12 @@ export default function ScreenerDashboard() {
     const saved = localStorage.getItem('crypto-rsi-pairs');
     const n = saved ? Number(saved) : 100;
     return PAIR_COUNTS.includes(n) ? n : 100;
+  });
+  const [smartMode, setSmartMode] = useState(() => {
+    if (typeof window === 'undefined') return smartModeDefault;
+    const saved = localStorage.getItem('crypto-rsi-smart-mode');
+    if (saved === null) return smartModeDefault;
+    return saved === '1';
   });
   const [countdown, setCountdown] = useState(30);
   const [lastFetchTime, setLastFetchTime] = useState(0);
@@ -325,6 +332,9 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     localStorage.setItem('crypto-rsi-pairs', String(pairCount));
   }, [pairCount]);
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-smart-mode', smartMode ? '1' : '0');
+  }, [smartMode]);
 
   // Auto-adjust refresh interval when pair count changes (500 pairs needs more time)
   useEffect(() => {
@@ -342,7 +352,7 @@ export default function ScreenerDashboard() {
     try {
       if (!background) setError(null);
       const timeoutMs = pairCount >= 500 ? 55_000 : pairCount >= 300 ? 40_000 : 25_000;
-      const res = await fetch(`/api/screener?count=${pairCount}`, {
+      const res = await fetch(`/api/screener?count=${pairCount}&smart=${smartMode ? '1' : '0'}`, {
         signal: AbortSignal.timeout(timeoutMs),
       });
 
@@ -369,7 +379,7 @@ export default function ScreenerDashboard() {
       fetchingRef.current = false;
       setRefreshing(false);
     }
-  }, [pairCount]);
+  }, [pairCount, smartMode]);
 
   // ── Initial fetch with auto-retry ──
   const retryCountRef = useRef(0);
@@ -448,9 +458,9 @@ export default function ScreenerDashboard() {
     if (signalFilter === 'oversold' || signalFilter === 'overbought') {
       items = items.filter((e) => e.signal === signalFilter);
     } else if (signalFilter !== 'all' && signalFilter !== 'neutral') {
-      items = items.filter((e) => e.strategySignal === signalFilter);
+      items = items.filter((e) => e.strategyLabel !== 'N/A' && e.strategySignal === signalFilter);
     } else if (signalFilter === 'neutral') {
-      items = items.filter((e) => e.strategySignal === 'neutral');
+      items = items.filter((e) => e.strategyLabel !== 'N/A' && e.strategySignal === 'neutral');
     }
 
     // Search filter
@@ -462,6 +472,12 @@ export default function ScreenerDashboard() {
     // Sort
     const dir = sortDir === 'asc' ? 1 : -1;
     items = [...items].sort((a, b) => {
+      if (sortKey === 'strategyScore') {
+        const aMissing = a.strategyLabel === 'N/A';
+        const bMissing = b.strategyLabel === 'N/A';
+        if (aMissing !== bMissing) return aMissing ? 1 : -1;
+      }
+
       const av = a[sortKey as keyof ScreenerEntry];
       const bv = b[sortKey as keyof ScreenerEntry];
 
@@ -542,6 +558,13 @@ export default function ScreenerDashboard() {
                 <span className="font-medium text-gray-200 tabular-nums">{indicatorReadyCount}/{data.length}</span>
               </div>
             )}
+            <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 ${smartMode
+              ? 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300'
+              : 'border-dark-600 bg-dark-800/80 text-gray-400'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${smartMode ? 'bg-cyan-300 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="font-medium">Smart {smartMode ? 'ON' : 'OFF'}</span>
+            </div>
             <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 ${
               isConnected
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
@@ -596,6 +619,9 @@ export default function ScreenerDashboard() {
 
           {/* Row 2: strategy distribution */}
           <div className="rounded-xl border border-dark-700 bg-dark-800/70 p-2.5 sm:p-3">
+            <div className="mb-2 text-[11px] text-gray-500">
+              Strategy distribution based on computed indicators: {meta.indicatorReady}/{meta.total}
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
               <MiniStatCard label="Strong Buy" value={meta.strongBuy} color="text-emerald-400" />
               <MiniStatCard label="Buy" value={meta.buy} color="text-emerald-300" />
@@ -648,6 +674,18 @@ export default function ScreenerDashboard() {
           }`}
         >
           ★ Watchlist{watchlistReady && watchlist.size > 0 ? ` (${watchlist.size})` : ''}
+        </button>
+
+        <button
+          onClick={() => setSmartMode((v) => !v)}
+          className={`px-3 py-2 text-xs rounded-lg border transition-colors ${
+            smartMode
+              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+              : 'bg-dark-700 text-gray-400 border-dark-600 hover:bg-dark-600'
+          }`}
+          title="Adaptive performance mode"
+        >
+          ⚡ Smart {smartMode ? 'On' : 'Off'}
         </button>
 
         {/* Column picker */}
