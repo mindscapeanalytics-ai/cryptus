@@ -490,10 +490,7 @@ export default function ScreenerDashboard() {
     return saved ? Number(saved) : 30;
   });
   const [pairCount, setPairCount] = useState(() => {
-    if (typeof window === 'undefined') return 100;
-    const saved = localStorage.getItem('crypto-rsi-pairs');
-    const n = saved ? Number(saved) : 100;
-    return PAIR_COUNTS.includes(n) ? n : 100;
+    return 500;
   });
   const [smartMode, setSmartMode] = useState(() => {
     if (typeof window === 'undefined') return smartModeDefault;
@@ -645,6 +642,21 @@ export default function ScreenerDashboard() {
     localStorage.setItem('crypto-rsi-watchlist', JSON.stringify([...watchlist]));
   }, [watchlist, watchlistReady]);
 
+  // Persist last-known data for "Warm Start" hydration
+  useEffect(() => {
+    if (data.length > 0) {
+      try {
+        localStorage.setItem('crypto-rsi-last-data', JSON.stringify({
+          data,
+          meta,
+          ts: Date.now()
+        }));
+      } catch (e) {
+        console.warn('[screener] Failed to save hydration data to localStorage', e);
+      }
+    }
+  }, [data, meta]);
+
   const toggleWatchlist = useCallback((symbol: string) => {
     setWatchlist((prev) => {
       const next = new Set(prev);
@@ -726,10 +738,27 @@ export default function ScreenerDashboard() {
     }
   }, [pairCount, smartMode, rsiPeriod]);
 
-  // ── Initial fetch with auto-retry ──
+  // ── Initial fetch with auto-retry and Hydration ──
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
+    // Attempt hydration from localStorage
+    const saved = localStorage.getItem('crypto-rsi-last-data');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Only hydrate if data is relatively fresh (less than 1 hour old) and correctly formatted
+        if (Date.now() - parsed.ts < 3600_000 && Array.isArray(parsed.data)) {
+          setData(parsed.data);
+          setMeta(parsed.meta);
+          setLoading(false);
+          dataLenRef.current = parsed.data.length;
+        }
+      } catch (e) {
+        console.error('[screener] Hydration failed:', e);
+      }
+    }
+
     retryCountRef.current = 0;
     const doFetch = async () => {
       await fetchData();
@@ -866,8 +895,8 @@ export default function ScreenerDashboard() {
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-blue-500/15 transition-colors duration-1000" />
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 relative z-10">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase backdrop-blur-sm">
-              Quant Intelligence Engine
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-bold tracking-widest text-blue-300 uppercase backdrop-blur-sm">
+              Mindscape Analytics LLC
             </div>
             <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white flex items-center gap-4 tracking-tighter">
               <Zap size={40} className="text-blue-400 fill-blue-400/20" />
@@ -1151,16 +1180,43 @@ export default function ScreenerDashboard() {
         </div>
       </div>
 
-      <footer className="mt-8 flex flex-col sm:flex-row items-center justify-between text-[11px] font-bold uppercase tracking-widest text-slate-600 px-4 gap-4">
-        <span>
-          Universe: {data.length} pairs · {signalFilter !== 'all' && `Mode: ${signalFilter} · `} {showWatchlistOnly && 'Star filter active'}
-        </span>
-        <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-                <div className={cn("w-2 h-2 rounded-full", isConnected ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" : "bg-slate-700")} />
-                <span>{isConnected ? "Real-time Stream active" : "REST polling mode"}</span>
+      <footer className="mt-12 py-10 border-t border-white/5">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 px-4">
+          <div className="flex flex-col items-center md:items-start gap-4">
+            <Link 
+              href="http://mindscapeanalytics.com/" 
+              target="_blank" 
+              className="group flex flex-col items-center md:items-start"
+            >
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 group-hover:text-blue-400 transition-colors mb-1">Developed By</span>
+              <span className="text-xl font-black text-white tracking-tighter">Mindscape Analytics <span className="text-blue-500 uppercase">LLC</span></span>
+            </Link>
+            <div className="text-[10px] font-bold text-slate-600 uppercase tracking-widest tabular-nums">
+              &copy; 2026 {new Date().getFullYear() !== 2026 && `- ${new Date().getFullYear()}`} Mindscape Analytics LLC · All Rights Reserved
             </div>
-            <Link href="/guide" className="text-blue-500 hover:text-blue-400 transition-colors">Documentation</Link>
+          </div>
+
+          <div className="flex flex-wrap justify-center md:justify-end items-center gap-8">
+            <div className="flex flex-col items-center md:items-end gap-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Universe</span>
+              <span className="text-xs font-bold text-slate-300 tabular-nums">{data.length} Stable Pairs</span>
+            </div>
+            <div className="h-6 w-px bg-white/5 hidden sm:block" />
+            <div className="flex flex-col items-center md:items-end gap-1">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">System Status</span>
+              <div className="flex items-center gap-2">
+                <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isConnected ? "bg-emerald-400" : "bg-slate-700")} />
+                <span className="text-xs font-bold text-slate-300">{isConnected ? "Live Engine" : "Polling"}</span>
+              </div>
+            </div>
+            <div className="h-6 w-px bg-white/5 hidden sm:block" />
+            <Link 
+              href="/guide" 
+              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-300 transition-all hover:text-white"
+            >
+              Documentation
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

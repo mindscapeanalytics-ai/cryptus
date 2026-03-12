@@ -76,6 +76,7 @@ export interface ScreenerResponse {
     fetchedAt: number;
     smartMode: boolean;
     refreshCap: number;
+    apiWeight?: number;
   };
 }
 

@@ -42,12 +42,32 @@ const FETCH_HEADERS: HeadersInit = {
   'Accept': 'application/json',
 };
 const RSI_PERIOD = 14;
-const KLINE_LIMIT = 600; // 600 1m candles (10h): Ensuring 15m MACD and StochRSI stability
+const KLINE_LIMIT = 499; // 499 candles ensures weight 1 (500+ is weight 5). Great for 15m MACD/RSI stability.
 const KLINE_LIMIT_1H = 40; // 40 1h candles: Perfect for 1h RSI (needs > 28 for Wilder stability)
 const BATCH_SIZE = 16;
 const FETCH_RETRY_COUNT = 3; // retries across rotating endpoints
 const MAX_KLINE_FETCH = 120; // cap kline fetches per cycle (rolling refresh)
-const KLINE_TIMEOUT_MS = 12_000; // 12s per kline fetch
+const KLINE_TIMEOUT_MS = 18_000; // 18s per kline fetch to smooth over congestion
+
+// ── Binance API Weight Tracking (Rate Limit Protection) ──
+let globalWeight = 0;
+let lastWeightReset = Date.now();
+const MAX_WEIGHT_PER_MIN = 1100; // conservative limit (standard is 1200)
+
+function trackWeight(weight: number) {
+  const now = Date.now();
+  if (now - lastWeightReset > 60000) {
+    globalWeight = 0;
+    lastWeightReset = now;
+  }
+  globalWeight += weight;
+}
+
+function getWeightRemaining(): number {
+  const now = Date.now();
+  if (now - lastWeightReset > 60000) return MAX_WEIGHT_PER_MIN;
+  return Math.max(0, MAX_WEIGHT_PER_MIN - globalWeight);
+}
 
 // ── In-memory symbol cache ──
 let symbolCache: { data: string[]; ts: number } | null = null;
@@ -126,14 +146,24 @@ function maybeTrafficWarm(symbolCount: number, smartMode: boolean): void {
 // ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
 const indicatorCache = new Map<string, { entry: ScreenerEntry; ts: number }>();
 const INDICATOR_CACHE_TTL = 180_000; // 3 min — indicators barely drift, WebSocket keeps prices live
-const INDICATOR_CACHE_MAX = 1500;
+const INDICATOR_CACHE_MAX = 3000;
 
 function pruneIndicatorCache() {
-  if (indicatorCache.size <= INDICATOR_CACHE_MAX) return;
-  const sorted = [...indicatorCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
-  const removeCount = indicatorCache.size - INDICATOR_CACHE_MAX;
-  for (let i = 0; i < removeCount; i++) {
-    indicatorCache.delete(sorted[i][0]);
+  const now = Date.now();
+  // Aggressive cleanup: remove anything older than TTL
+  for (const [key, value] of indicatorCache.entries()) {
+    if (now - value.ts > INDICATOR_CACHE_TTL) {
+      indicatorCache.delete(key);
+    }
+  }
+
+  // Cap cleanup: if still too large, remove oldest
+  if (indicatorCache.size > INDICATOR_CACHE_MAX) {
+    const sorted = [...indicatorCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+    const removeCount = indicatorCache.size - INDICATOR_CACHE_MAX;
+    for (let i = 0; i < removeCount; i++) {
+      indicatorCache.delete(sorted[i][0]);
+    }
   }
 }
 
@@ -209,6 +239,7 @@ function buildMeta(
     fetchedAt,
     smartMode,
     refreshCap,
+    apiWeight: globalWeight,
   };
 }
 
@@ -375,6 +406,15 @@ async function fetchWithRetry(
         await new Promise((r) => setTimeout(r, wait));
         continue;
       }
+      
+      const weightHeader = res.headers.get('x-mbx-used-weight-1m');
+      if (weightHeader) {
+        const hWeight = parseInt(weightHeader, 10);
+        if (!isNaN(hWeight)) globalWeight = Math.max(globalWeight, hWeight);
+      } else {
+        trackWeight(1);
+      }
+
       if (!res.ok) throw new Error(`${label}: HTTP ${res.status} from ${base}`);
       return res.json();
     } catch (err) {
@@ -414,29 +454,32 @@ async function fetchTickersSafe(): Promise<Map<string, BinanceTicker>> {
 }
 
 /**
- * Fetch klines in batches to avoid overwhelming Binance API.
+ * Fetch both 1m and 1h klines in a single concurrent pass per symbol.
  */
-async function fetchKlinesBatched(
-  symbols: string[],
-  fetcher: (symbol: string) => Promise<BinanceKline[]>,
-): Promise<PromiseSettledResult<BinanceKline[]>[]> {
-  const results = new Array<PromiseSettledResult<BinanceKline[]>>(symbols.length);
-  const concurrency = symbols.length >= 400 ? 32
-    : symbols.length >= 250 ? 24
-      : symbols.length >= 120 ? 16
-        : BATCH_SIZE;
+async function fetchAllKlinesBatched(
+  symbols: string[]
+): Promise<{ sym: string; res1m: PromiseSettledResult<BinanceKline[]>; res1h: PromiseSettledResult<BinanceKline[]> }[]> {
+  const results = new Array<{ sym: string; res1m: PromiseSettledResult<BinanceKline[]>; res1h: PromiseSettledResult<BinanceKline[]> }>(symbols.length);
+  const concurrency = symbols.length >= 500 ? 50
+    : symbols.length >= 400 ? 50
+      : symbols.length >= 250 ? 48
+        : symbols.length >= 120 ? 32
+          : BATCH_SIZE;
 
   let cursor = 0;
   const workers = Array.from({ length: Math.min(concurrency, symbols.length) }, async () => {
     while (true) {
       const idx = cursor++;
       if (idx >= symbols.length) return;
-      try {
-        const value = await fetcher(symbols[idx]);
-        results[idx] = { status: 'fulfilled', value };
-      } catch (reason) {
-        results[idx] = { status: 'rejected', reason };
-      }
+      const sym = symbols[idx];
+
+      // Fetch both in parallel for this symbol
+      const [res1m, res1h] = await Promise.allSettled([
+        fetchKlines(sym),
+        fetchKlines1h(sym)
+      ]);
+
+      results[idx] = { sym, res1m, res1h };
     }
   });
 
@@ -688,18 +731,26 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
     // Bootstrap mode: prioritise full coverage so all selected pairs get indicators quickly.
     // Rolling mode: once coverage is warm, keep each cycle bounded.
     const tuning = smartTuningByCount.get(symbolCount) ?? {
-      dynamicCap: symbolCount <= 150 ? symbolCount : symbolCount >= 400 ? 220 : 160,
+      dynamicCap: symbolCount >= 500 ? 500 : symbolCount >= 400 ? 400 : 160,
       lastFailureRate: 0,
       lastComputeMs: 0,
     };
 
-    const baseBootstrapCap = symbolCount <= 150 ? symbolCount : symbolCount >= 400 ? 400 : 250;
-    const baseRollingCap = symbolCount >= 400 ? 250 : 150;
-    const refreshCap = smartMode
+    const baseBootstrapCap = symbolCount;
+    const baseRollingCap = symbolCount >= 500 ? 500 : symbolCount >= 400 ? 300 : 150;
+    let refreshCap = smartMode
       ? (uncachedSymbols.length > 0
         ? Math.min(symbolCount, Math.max(baseBootstrapCap, tuning.dynamicCap))
         : Math.min(symbolCount, Math.max(baseRollingCap, tuning.dynamicCap)))
       : (uncachedSymbols.length > 0 ? baseBootstrapCap : baseRollingCap);
+
+    const weightRemaining = getWeightRemaining();
+    if (weightRemaining < 200 && symbolsToRefresh.length > 50) {
+      debugWarn(`[screener] Rate limit critical (${globalWeight}/${MAX_WEIGHT_PER_MIN}), aggressive throttling enabled`);
+      refreshCap = Math.min(refreshCap, 40);
+    } else if (weightRemaining < 500 && symbolsToRefresh.length > 100) {
+      refreshCap = Math.min(refreshCap, 80);
+    }
 
     if (symbolsToRefresh.length > refreshCap) {
       symbolsToRefresh.sort((a, b) => {
@@ -724,16 +775,9 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
     let failedCount = 0;
 
     if (symbolsToRefresh.length > 0) {
-      const [klines1mResults, klines1hResults] = await Promise.all([
-        fetchKlinesBatched(symbolsToRefresh, fetchKlines),
-        fetchKlinesBatched(symbolsToRefresh, fetchKlines1h),
-      ]);
+      const batchResults = await fetchAllKlinesBatched(symbolsToRefresh);
 
-      for (let i = 0; i < symbolsToRefresh.length; i++) {
-        const sym = symbolsToRefresh[i];
-        const res1m = klines1mResults[i];
-        const res1h = klines1hResults[i];
-
+      for (const { sym, res1m, res1h } of batchResults) {
         klineResultBySymbol1m.set(sym, res1m);
         klineResultBySymbol1h.set(sym, res1h);
 

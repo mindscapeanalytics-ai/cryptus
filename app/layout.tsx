@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'RSIQ PRO — Multi-Indicator Crypto Market Scanner',
-  description: 'Monitor 500+ crypto trading pairs with real-time RSI, MACD, Bollinger Bands, Stochastic RSI, VWAP, and composite strategy scoring.',
+  title: 'RSIQ PRO — Mindscape Analytics LLC',
+  description: 'Enterprise-grade multi-indicator crypto market scanner by Mindscape Analytics LLC. Monitor 500+ pairs with real-time RSI, MACD, and strategy scoring.',
   robots: 'index, follow',
   openGraph: {
-    title: 'RSIQ PRO',
-    description: 'Real-time multi-indicator crypto market scanner with 500+ pairs',
+    title: 'RSIQ PRO | Mindscape Analytics',
+    description: 'Real-time enterprise crypto scanner with 500+ pairs and advanced analytics.',
     type: 'website',
   },
 };
