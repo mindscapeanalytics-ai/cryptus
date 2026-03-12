@@ -3,10 +3,22 @@ import { betterFetch } from "@better-fetch/fetch";
 import type { Session } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
+  // Determine the best baseURL for internal fetch. 
+  // In PaaS like Render, fetching the public HTTPS origin from within the server often fails with SSL errors.
+  const protocol = request.headers.get("x-forwarded-proto") || "http";
+  const host = request.headers.get("host");
+  
+  // Use localhost for internal communication to avoid SSL packet noise if possible,
+  // or use the forwarded protocol to stay consistent with the server's internal listener.
+  const port = process.env.PORT || "3000";
+  const internalBaseURL = host?.includes("localhost") 
+    ? `http://${host}` 
+    : `http://127.0.0.1:${port}`;
+
   const { data: session } = await betterFetch<Session>(
     "/api/auth/get-session",
     {
-      baseURL: request.nextUrl.origin,
+      baseURL: internalBaseURL,
       headers: {
         cookie: request.headers.get("cookie") || "",
       },
