@@ -413,7 +413,7 @@ export default function IndicatorGuide() {
           </h1>
           <p className="text-sm text-gray-400 mt-2 max-w-2xl leading-relaxed">
             Complete reference for every technical indicator, signal logic, and the composite strategy scoring
-            system used in the CryptoRSI Screener. Understand exactly how buy/sell decisions are calculated.
+            system used in the RSIQ PRO. Understand exactly how buy/sell decisions are calculated.
           </p>
         </div>
       </header>

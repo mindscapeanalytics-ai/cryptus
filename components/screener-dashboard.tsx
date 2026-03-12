@@ -754,9 +754,9 @@ export default function ScreenerDashboard() {
             </div>
             <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white flex items-center gap-4 tracking-tighter">
               <Zap size={40} className="text-blue-400 fill-blue-400/20" />
-              <span>CryptoRSI <span className="text-blue-500">Pro</span></span>
+              <span>RSIQ <span className="text-blue-500 uppercase">Pro</span></span>
             </h1>
-            <div className="flex flex-wrap items-center gap-4 mt-6">
+            <div className="flex flex-wrap items-center gap-6 mt-6">
               <div className="flex flex-col">
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Market Bias</div>
                 <div className="flex items-center gap-3">
@@ -775,81 +775,80 @@ export default function ScreenerDashboard() {
                    </span>
                 </div>
               </div>
+
               <div className="h-8 w-px bg-white/5" />
-              <p className="text-xs font-medium text-slate-400 max-w-xs leading-relaxed">
-                Real-time dashboard monitoring <span className="text-blue-400 font-bold">{data.length}</span> pairs across <span className="text-blue-400 font-bold">12</span> quantitative layers.
-              </p>
+
+              <div className="flex flex-wrap gap-5">
+                {[
+                  { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
+                  { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
+                  { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
+                ].map((s) => (
+                  <button key={s.label} onClick={s.onClick} className="flex flex-col items-start group/stat">
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5 group-hover/stat:text-slate-400 transition-colors">{s.label}</span>
+                    <span className={cn("text-lg font-black tabular-nums transition-transform group-hover/stat:scale-110", s.color)}>
+                      <Counter value={s.value} />
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-start lg:justify-end gap-3 text-xs">
-            {meta && (
-              <div className="group relative inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-md px-4 py-2.5 text-slate-300 transition-all hover:bg-white/[0.06]">
-                <Activity size={14} className="text-slate-500" />
-                <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Compute</span>
-                <span className="font-black text-slate-200 tabular-nums">{meta.computeTimeMs}ms</span>
-              </div>
-            )}
-            {data.length > 0 && (
+          <div className="flex flex-col gap-4 min-w-[320px]">
+            <div className="flex flex-wrap items-center justify-start lg:justify-end gap-3 text-xs">
+              {meta && (
+                <div className="group relative inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-md px-4 py-2.5 text-slate-300 transition-all hover:bg-white/[0.06]">
+                  <Activity size={14} className="text-slate-500" />
+                  <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Compute</span>
+                  <span className="font-black text-slate-200 tabular-nums">{meta.computeTimeMs}ms</span>
+                </div>
+              )}
               <div className="inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] backdrop-blur-md px-4 py-2.5 text-slate-300">
                 <BrainCircuit size={14} className="text-blue-400" />
-                <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Layers</span>
+                <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Coverage</span>
                 <span className="font-black text-slate-200 tabular-nums">{indicatorReadyCount}/{data.length}</span>
               </div>
-            )}
-            <div className={cn(
-              "inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 transition-all backdrop-blur-md",
-              smartMode
-                ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300 shadow-[inset_0_0_12px_rgba(34,211,238,0.1)]'
-                : 'border-white/5 bg-white/[0.03] text-slate-500'
-            )}>
-              <div className={cn("h-1.5 w-1.5 rounded-full", smartMode ? 'bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)] animate-pulse' : 'bg-slate-600')} />
-              <span className="font-black tracking-tight uppercase text-[10px]">Smart {smartMode ? 'Active' : 'Static'}</span>
+              <div className={cn(
+                "inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 transition-all backdrop-blur-md",
+                isConnected
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[inset_0_0_12px_rgba(52,211,153,0.1)]'
+                  : 'border-white/10 bg-white/[0.03] text-slate-600'
+              )}>
+                <div className={cn("h-1.5 w-1.5 rounded-full", isConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse' : 'bg-slate-600')} />
+                <span className="font-black tracking-tight uppercase text-[10px]">{isConnected ? 'LIVE SYNC' : 'OFFLINE'}</span>
+              </div>
+              <button
+                onClick={() => { fetchData(); }}
+                className="group inline-flex items-center gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-6 py-2.5 text-[10px] font-black tracking-widest text-blue-300 hover:bg-blue-500/20 transition-all active:scale-95 shadow-lg shadow-blue-500/10"
+                title="Refresh now"
+              >
+                <RefreshCcw size={14} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
+                <span>{refreshing ? 'UPDATING' : `SYNC ${countdown}S`}</span>
+              </button>
             </div>
-            <div className={cn(
-              "inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 transition-all backdrop-blur-md",
-              isConnected
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 shadow-[inset_0_0_12px_rgba(52,211,153,0.1)]'
-                : 'border-white/10 bg-white/[0.03] text-slate-600'
-            )}>
-              <div className={cn("h-1.5 w-1.5 rounded-full", isConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse' : 'bg-slate-600')} />
-              <span className="font-black tracking-tight uppercase text-[10px]">{isConnected ? 'Live Sync' : 'Polling'}</span>
+
+            <div className="flex items-center justify-start lg:justify-end gap-6 bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3 backdrop-blur-xl">
+                {[
+                  { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
+                  { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
+                  { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
+                ].map((s) => (
+                  <button key={s.label} onClick={s.onClick} className="flex items-center gap-3 group/stat whitespace-nowrap">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover/stat:text-slate-400 transition-colors">{s.label}</span>
+                      <span className={cn("text-sm font-black tabular-nums tracking-tight", s.color)}>
+                        <Counter value={s.value} />
+                      </span>
+                    </div>
+                  </button>
+                ))}
             </div>
-            <button
-              onClick={() => { fetchData(); }}
-              className="group inline-flex items-center gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/10 px-6 py-2.5 text-[10px] font-black tracking-widest text-blue-300 hover:bg-blue-500/20 transition-all active:scale-95 shadow-lg shadow-blue-500/10"
-              title="Refresh now"
-            >
-              <RefreshCcw size={14} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
-              <span>{refreshing ? 'UPDATING' : `SYNC IN ${countdown}S`}</span>
-            </button>
           </div>
         </div>
       </header>
       )}
 
-      {/* ── Stats bar ── */}
-      {showHeader && (
-        <div className="space-y-4 mb-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <StatCard label="Total Pairs" value={stats.total} color="text-blue-400" helper="Universe" />
-            <StatCard label="Oversold" value={stats.oversold} color="text-emerald-400" onClick={showMostOversold} helper="RSI < 30 (Live)" />
-            <StatCard label="Overbought" value={stats.overbought} color="text-red-400" onClick={showMostOverbought} helper="RSI > 70 (Live)" />
-            <StatCard label="Strong Buy" value={stats.strongBuy} color="text-emerald-400" onClick={showStrongBuys} helper="Composite Setup" />
-          </div>
-
-          <div className="rounded-3xl border border-white/5 bg-slate-900/40 p-4 relative overflow-hidden backdrop-blur-sm">
-             <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/[0.02] to-red-500/[0.02]" />
-            <div className="relative z-10 grid grid-cols-2 md:grid-cols-5 gap-4">
-              <MiniStatCard label="Strong Buy" value={stats.strongBuy} color="text-emerald-400" />
-              <MiniStatCard label="Buy" value={stats.buy} color="text-emerald-300/70" />
-              <MiniStatCard label="Neutral" value={stats.neutral} color="text-slate-500" />
-              <MiniStatCard label="Sell" value={stats.sell} color="text-red-300/70" />
-              <MiniStatCard label="Strong Sell" value={stats.strongSell} color="text-red-400" />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Controls ── */}
       <div className="flex flex-col lg:flex-row items-center gap-4 mb-8">
