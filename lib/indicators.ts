@@ -73,10 +73,14 @@ export function calculateMacd(
   slowPeriod = 26,
   signalPeriod = 9,
 ): MacdResult | null {
+  // Stability check: MACD needs ~3-4x the slow period for a stable signal line.
+  // Slow=26, Signal=9 => roughly 35 bars.
+  if (closes.length < slowPeriod + signalPeriod) return null;
+
   const emaFast = calculateEma(closes, fastPeriod);
   const emaSlow = calculateEma(closes, slowPeriod);
 
-  if (emaSlow.length < signalPeriod + 1) return null;
+  if (emaSlow.length < signalPeriod) return null;
 
   // MACD line = fast EMA - slow EMA (aligned)
   const offset = emaFast.length - emaSlow.length;
@@ -585,9 +589,13 @@ export function computeStrategyScore(params: {
     else if (params.momentum < -2) reasons.push('Strong downward momentum');
   }
 
-  // Normalize to -100..+100, guard against NaN
-  const raw = factors > 0 ? score / factors : 0;
-  const normalized = Number.isFinite(raw) ? Math.round(Math.max(-100, Math.min(100, raw))) : 0;
+  // Final validation guard: if we have fewer than 3 significant factors, 
+  // do not issue a Strong signal. This prevents "lucky" single-indicator signals.
+  let normalized = factors > 0 ? score / factors : 0;
+  if (factors < 3 && Math.abs(normalized) > 50) {
+    normalized = normalized * 0.7; // Dampen low-confidence signals
+  }
+  normalized = Number.isFinite(normalized) ? Math.round(Math.max(-100, Math.min(100, normalized))) : 0;
 
   let signal: StrategySignal;
   let label: string;

@@ -41,7 +41,7 @@ const FETCH_HEADERS: HeadersInit = {
   'Accept': 'application/json',
 };
 const RSI_PERIOD = 14;
-const KLINE_LIMIT = 450; // 450 1m candles (~7.5h): Perfect for 15m MACD/EMA/RSI + 5m/1m
+const KLINE_LIMIT = 600; // 600 1m candles (10h): Ensuring 15m MACD and StochRSI stability
 const KLINE_LIMIT_1H = 40; // 40 1h candles: Perfect for 1h RSI (needs > 28 for Wilder stability)
 const BATCH_SIZE = 16;
 const FETCH_RETRY_COUNT = 3; // retries across rotating endpoints
