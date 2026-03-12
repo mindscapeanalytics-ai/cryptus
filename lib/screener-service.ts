@@ -722,9 +722,9 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
 
     // 2. Fetch klines only for symbols with stale/missing indicator cache
     const staleBefore = nowTs - INDICATOR_CACHE_TTL;
-    const uncachedSymbols = symbols.filter((sym) => !indicatorCache.has(sym));
+    const uncachedSymbols = symbols.filter((sym) => !indicatorCache.has(`${sym}:${rsiPeriod}`));
     let symbolsToRefresh = symbols.filter((sym) => {
-      const cached = indicatorCache.get(sym);
+      const cached = indicatorCache.get(`${sym}:${rsiPeriod}`);
       return !cached || cached.ts < staleBefore;
     });
 
@@ -755,12 +755,12 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
     if (symbolsToRefresh.length > refreshCap) {
       symbolsToRefresh.sort((a, b) => {
         // Strict priority for uncached symbols to fill the "N/A" gaps first
-        const aCached = indicatorCache.has(a);
-        const bCached = indicatorCache.has(b);
+        const aCached = indicatorCache.has(`${a}:${rsiPeriod}`);
+        const bCached = indicatorCache.has(`${b}:${rsiPeriod}`);
         if (aCached !== bCached) return aCached ? 1 : -1;
         
-        const ta = indicatorCache.get(a)?.ts ?? 0;
-        const tb = indicatorCache.get(b)?.ts ?? 0;
+        const ta = indicatorCache.get(`${a}:${rsiPeriod}`)?.ts ?? 0;
+        const tb = indicatorCache.get(`${b}:${rsiPeriod}`)?.ts ?? 0;
         return ta - tb; // oldest first
       });
       symbolsToRefresh = symbolsToRefresh.slice(0, refreshCap);
