@@ -4,7 +4,7 @@
   "description": "Crypto RSI Market Screener — real-time multi-pair RSI monitoring",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && prisma db push --accept-data-loss && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate"
