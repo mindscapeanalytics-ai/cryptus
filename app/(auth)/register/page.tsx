@@ -20,6 +20,7 @@ type RegisterValues = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const {
     register,
@@ -47,8 +48,7 @@ export default function RegisterPage() {
             setIsLoading(false);
           },
           onSuccess: () => {
-            // signUp with callbackURL usually handles redirection, 
-            // but we set loading to false just in case it takes a moment.
+            setSuccess("Account Created. Synchronizing Profile...");
             setIsLoading(false);
           }
         }
@@ -80,6 +80,12 @@ export default function RegisterPage() {
             {error && (
               <div className="p-4 rounded-xl bg-[#722f37]/20 border border-[#722f37]/30 text-[#ff4b5c] text-xs font-black uppercase tracking-widest text-center animate-in fade-in zoom-in-95 duration-300">
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="p-4 rounded-xl bg-[#39FF14]/10 border border-[#39FF14]/30 text-[#39FF14] text-xs font-black uppercase tracking-widest text-center animate-in fade-in zoom-in-95 duration-300">
+                {success}
               </div>
             )}
 

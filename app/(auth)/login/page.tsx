@@ -19,6 +19,7 @@ type LoginValues = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const {
     register,
@@ -45,7 +46,8 @@ export default function LoginPage() {
             setIsLoading(false);
           },
           onSuccess: () => {
-            // No need to set loading false here as redirect will happen
+            setSuccess("Connection Established. Accessing Terminal...");
+            // Redirect will happen automatically via callbackURL
           }
         }
       );
@@ -76,6 +78,12 @@ export default function LoginPage() {
             {error && (
               <div className="p-4 rounded-xl bg-[#722f37]/20 border border-[#722f37]/30 text-[#ff4b5c] text-xs font-black uppercase tracking-widest text-center animate-in fade-in zoom-in-95 duration-300">
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="p-4 rounded-xl bg-[#39FF14]/10 border border-[#39FF14]/30 text-[#39FF14] text-xs font-black uppercase tracking-widest text-center animate-in fade-in zoom-in-95 duration-300">
+                {success}
               </div>
             )}
 
