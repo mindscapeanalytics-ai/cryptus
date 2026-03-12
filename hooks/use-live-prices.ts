@@ -46,6 +46,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export function useLivePrices(symbols: Set<string>) {
   const [livePrices, setLivePrices] = useState<Map<string, LiveTick>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  const [reconnectTrigger, setReconnectTrigger] = useState(0);
 
   const socketsRef = useRef<Map<number, WebSocket>>(new Map());
   const bufferRef = useRef<Map<string, LiveTick>>(new Map());
@@ -275,7 +276,7 @@ export function useLivePrices(symbols: Set<string>) {
       setTimeout(() => {
         if (mountedRef.current && generationRef.current === generation) {
            // Simple trigger re-render to reconnect
-           setLivePrices((prev) => new Map(prev));
+           setReconnectTrigger((prev) => prev + 1);
         }
       }, delay);
     };
@@ -285,7 +286,7 @@ export function useLivePrices(symbols: Set<string>) {
       closeAllSockets();
       clearInterval(heartbeatTimer);
     };
-  }, [symbols, handleTicker, closeAllSockets]);
+  }, [symbols, handleTicker, closeAllSockets, reconnectTrigger]);
 
   return { livePrices, isConnected };
 }
