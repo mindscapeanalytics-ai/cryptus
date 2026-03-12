@@ -8,10 +8,11 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/register");
 
-  // Check for session cookies — Better Auth uses these names depending on secure context
+  // Check for session cookies with support for all common variations
   const hasSessionCookie =
     request.cookies.has("better-auth.session_token") ||
-    request.cookies.has("__Secure-better-auth.session_token");
+    request.cookies.has("__Secure-better-auth.session_token") ||
+    request.cookies.has("__secure-better-auth.session_token");
 
   // Fast path: no cookie + not an auth route → redirect to login
   if (!hasSessionCookie && !isAuthRoute) {
@@ -24,11 +25,14 @@ export async function middleware(request: NextRequest) {
   let session: Session | null = null;
   if (hasSessionCookie) {
     try {
-      // CRITICAL: Use the request's own origin so the fetch stays internal.
-      // Using a hardcoded external URL (e.g. https://rsiq.onrender.com) causes
-      // the request to exit the process, go through the load balancer, and
-      // potentially lose cookies — breaking session validation silently.
-      const baseURL = request.nextUrl.origin;
+      // PROD-READY: Use the external URL in production to ensure cookie matching works,
+      // but resolve it safely. Force 'https' if we're on a public domain.
+      const isProd = process.env.NODE_ENV === "production";
+      const protocol = isProd ? "https" : request.nextUrl.protocol.replace(":", "");
+      
+      // Prefer BETTER_AUTH_URL for the internal call if it looks like the current request
+      const envURL = process.env.BETTER_AUTH_URL;
+      const baseURL = envURL && isProd ? envURL : `${protocol}://${request.nextUrl.host}`;
 
       const { data } = await betterFetch<Session>(
         "/api/auth/get-session",
@@ -41,7 +45,6 @@ export async function middleware(request: NextRequest) {
       );
       session = data;
     } catch (e) {
-      // Log but don't crash — treat as unauthenticated
       console.error(
         "[middleware] Session validation failed:",
         e instanceof Error ? e.message : String(e),

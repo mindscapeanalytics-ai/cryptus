@@ -62,19 +62,6 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24,      // refresh daily
-    cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60, // 5 minutes
-    },
-  },
-
-  advanced: {
-    // Use a predictable cookie prefix so middleware can check for it.
-    // The default "__Secure-" prefix requires HTTPS and can cause issues
-    // during local dev or behind certain proxies.
-    cookiePrefix: "better-auth",
-    // Automatically use Secure cookies in production
-    useSecureCookies: process.env.NODE_ENV === "production",
   },
 
   user: {
