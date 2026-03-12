@@ -487,13 +487,13 @@ export function computeStrategyScore(params: {
   const rsiScore = (rsi: number | null, weight: number, tf: string) => {
     if (rsi === null) return;
     factors += weight;
-    if (rsi <= 20) { score += 100 * weight; reasons.push(`RSI ${tf} deep oversold`); }
-    else if (rsi <= 30) { score += 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} oversold`); }
+    if (rsi <= 20) { score += 100 * weight; reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) deep oversold`); }
+    else if (rsi <= 30) { score += 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) oversold`); }
     else if (rsi <= 40) score += 30 * weight;
     else if (rsi <= 60) score += 0;
     else if (rsi <= 70) score -= 30 * weight;
-    else if (rsi <= 80) { score -= 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} overbought`); }
-    else { score -= 100 * weight; reasons.push(`RSI ${tf} deep overbought`); }
+    else if (rsi <= 80) { score -= 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) overbought`); }
+    else { score -= 100 * weight; reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) deep overbought`); }
   };
 
   rsiScore(params.rsi1m, 0.5, '1m');
@@ -518,18 +518,18 @@ export function computeStrategyScore(params: {
   if (params.bbPosition !== null) {
     factors += 1;
     const bp = params.bbPosition;
-    if (bp <= 0.1) { score += 80 * 1; reasons.push('Near lower BB'); }
+    if (bp <= 0.1) { score += 80 * 1; reasons.push(`Near lower BB (${bp.toFixed(2)})`); }
     else if (bp <= 0.25) score += 40 * 1;
-    else if (bp >= 0.9) { score -= 80 * 1; reasons.push('Near upper BB'); }
+    else if (bp >= 0.9) { score -= 80 * 1; reasons.push(`Near upper BB (${bp.toFixed(2)})`); }
     else if (bp >= 0.75) score -= 40 * 1;
   }
 
   // Stochastic RSI
   if (params.stochK !== null && params.stochD !== null) {
     factors += 1;
-    if (params.stochK < 20 && params.stochD < 20) { score += 80 * 1; reasons.push('StochRSI oversold'); }
+    if (params.stochK < 20 && params.stochD < 20) { score += 80 * 1; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) oversold`); }
     else if (params.stochK < 30) score += 40 * 1;
-    else if (params.stochK > 80 && params.stochD > 80) { score -= 80 * 1; reasons.push('StochRSI overbought'); }
+    else if (params.stochK > 80 && params.stochD > 80) { score -= 80 * 1; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) overbought`); }
     else if (params.stochK > 70) score -= 40 * 1;
     // K crossing above D = bullish
     if (params.stochK > params.stochD && params.stochK < 50) score += 20;
@@ -546,8 +546,8 @@ export function computeStrategyScore(params: {
   // VWAP
   if (params.vwapDiff !== null) {
     factors += 0.5;
-    if (params.vwapDiff < -2) { score += 40 * 0.5; if (params.vwapDiff < -3) reasons.push('Below VWAP'); }
-    else if (params.vwapDiff > 2) { score -= 40 * 0.5; if (params.vwapDiff > 3) reasons.push('Above VWAP'); }
+    if (params.vwapDiff < -2) { score += 40 * 0.5; if (params.vwapDiff < -3) reasons.push(`Below VWAP (${params.vwapDiff}%)`); }
+    else if (params.vwapDiff > 2) { score -= 40 * 0.5; if (params.vwapDiff > 3) reasons.push(`Above VWAP (${params.vwapDiff}%)`); }
   }
 
   // Volume spike amplifies the signal

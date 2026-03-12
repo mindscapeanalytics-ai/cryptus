@@ -172,7 +172,10 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
     confluence: 0, confluenceLabel: 'No Data', rsiDivergence: 'none',
     rsiDivergenceCustom: 'none',
     momentum: null, rsiState1m: null,
+    rsiState5m: null, rsiState15m: null, rsiState1h: null,
     rsiCustom: null, rsiStateCustom: null,
+    rsiPeriodAtCreation: 14,
+    signalStartedAt: nowTs,
     updatedAt: nowTs,
   };
 }
@@ -490,6 +493,7 @@ function buildEntry(
   ticker: BinanceTicker | undefined,
   nowTs: number,
   rsiPeriod: number = 14,
+  prevEntry?: ScreenerEntry,
 ): ScreenerEntry | null {
   try {
     const validKlines = klines1m.filter((k) => k !== null && k.length >= 6);
@@ -513,12 +517,13 @@ function buildEntry(
     const rsi15m = closes15m.length >= stdPeriod + 1 ? calculateRsi(closes15m, stdPeriod) : null;
 
     let rsi1h: number | null = null;
+    let closes1h: number[] = [];
     if (klines1h && klines1h.length >= stdPeriod + 1) {
-      const closes1h = klines1h.map((k) => parseFloat(k[4]));
+      closes1h = klines1h.map((k) => parseFloat(k[4]));
       rsi1h = calculateRsi(closes1h, stdPeriod);
     } else {
       const agg1h = aggregateKlines(validKlines, 60);
-      const closes1h = agg1h.map((c) => c.close);
+      closes1h = agg1h.map((c) => c.close);
       if (closes1h.length >= stdPeriod + 1) {
         rsi1h = calculateRsi(closes1h, stdPeriod);
       }
@@ -565,6 +570,10 @@ function buildEntry(
 
     // Intelligence indicators (Standard baseline)
     const rsiState1m = calculateRsiWithState(closes1m, stdPeriod);
+    const rsiState5m = calculateRsiWithState(closes5m, stdPeriod);
+    const rsiState15m = calculateRsiWithState(closes15m, stdPeriod);
+    const rsiState1h = closes1h.length >= stdPeriod + 1 ? calculateRsiWithState(closes1h, stdPeriod) : null;
+
     const momentum = calculateROC(closes15m, 10);
     const confluenceResult = calculateConfluence({
       rsi1m, rsi5m, rsi15m, rsi1h,
@@ -594,6 +603,11 @@ function buildEntry(
 
     // Custom analysis (Isolated from strategy)
     const customDivergence = detectRsiDivergence(closes15m, rsiPeriod, 40);
+
+    let signalStartedAt = nowTs;
+    if (prevEntry && prevEntry.strategySignal === strategy.signal) {
+      signalStartedAt = prevEntry.signalStartedAt || prevEntry.updatedAt;
+    }
 
     return {
       symbol: sym,
@@ -630,8 +644,13 @@ function buildEntry(
       rsiDivergenceCustom: customDivergence,
       momentum,
       rsiState1m,
+      rsiState5m,
+      rsiState15m,
+      rsiState1h,
       rsiCustom,
       rsiStateCustom,
+      rsiPeriodAtCreation: rsiPeriod,
+      signalStartedAt,
       updatedAt: nowTs,
     };
   } catch (err) {
@@ -757,7 +776,8 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
         if (!klines1m || klines1m.length === 0) {
           debugWarn(`[screener] ${sym}: kline fetch returned empty`);
         } else {
-          const freshEntry = buildEntry(sym, klines1m, klines1h, ticker, nowTs, rsiPeriod);
+          const prevEntry = indicatorCache.get(`${sym}:${rsiPeriod}`)?.entry;
+          const freshEntry = buildEntry(sym, klines1m, klines1h, ticker, nowTs, rsiPeriod, prevEntry);
           if (freshEntry) {
             entries.push(freshEntry);
             indicatorCache.set(`${sym}:${rsiPeriod}`, { entry: freshEntry, ts: nowTs });

@@ -50,6 +50,15 @@ function formatPct(n: number | null): string {
   return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
 
+function formatTimeAgo(ts: number): string {
+  if (!ts) return '—';
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 10) return 'Just now';
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  return `${Math.floor(diff / 3600)}h`;
+}
+
 function getRsiColor(rsi: number | null): string {
   if (rsi === null) return 'text-slate-600';
   if (rsi <= 20) return 'text-emerald-400 font-bold';
@@ -119,7 +128,8 @@ const ScreenerRow = memo(function ScreenerRow({
   watchlist, 
   toggleWatchlist, 
   visibleCols,
-  useAnimations 
+  useAnimations,
+  rsiPeriod
 }: { 
   entry: ScreenerEntry; 
   idx: number; 
@@ -127,19 +137,38 @@ const ScreenerRow = memo(function ScreenerRow({
   toggleWatchlist: (s: string) => void;
   visibleCols: Set<ColumnId>;
   useAnimations: boolean;
+  rsiPeriod: number;
 }) {
   const isStarred = watchlist.has(entry.symbol);
+  
+  // Intelligence: Signal Pulse state
+  const [isFlash, setIsFlash] = useState(false);
+  const prevSignal = useRef(entry.strategySignal);
+
+  useEffect(() => {
+    if (prevSignal.current !== entry.strategySignal) {
+      setIsFlash(true);
+      const timer = setTimeout(() => setIsFlash(false), 3000); // 3s visibility
+      prevSignal.current = entry.strategySignal;
+      return () => clearTimeout(timer);
+    }
+  }, [entry.strategySignal, entry.symbol]);
 
   return (
     <motion.tr
       layout={useAnimations}
       initial={useAnimations ? { opacity: 0 } : undefined}
-      animate={{ opacity: 1 }}
+      animate={{ 
+        opacity: 1,
+        backgroundColor: isFlash 
+          ? (entry.strategySignal.includes('buy') ? 'rgba(52, 211, 153, 0.1)' : entry.strategySignal.includes('sell') ? 'rgba(248, 113, 113, 0.1)' : 'rgba(255, 255, 255, 0.05)')
+          : 'transparent'
+      }}
       exit={useAnimations ? { opacity: 0, scale: 0.98 } : undefined}
-      transition={{ duration: 0.2 }}
+      transition={{ duration: 0.3 }}
       className={cn(
-        "group transition-all duration-150 hover:bg-white/[0.02]",
-        getRsiBg(entry.rsiCustom ?? entry.rsi15m)
+        "group transition-colors duration-500 hover:bg-white/[0.02]",
+        !isFlash && getRsiBg(entry.rsiCustom ?? entry.rsi15m)
       )}
     >
       <td className="px-4 py-4 text-[10px] text-slate-700 font-black tabular-nums">{idx + 1}</td>
@@ -180,12 +209,18 @@ const ScreenerRow = memo(function ScreenerRow({
       {visibleCols.has('rsi1h') && <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono", getRsiColor(entry.rsi1h))}>{formatRsi(entry.rsi1h)}</td>}
 
       {visibleCols.has('rsiCustom') && (
-        <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono relative bg-blue-500/5", getRsiColor(entry.rsiCustom))}>
+        <td className={cn(
+          "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono relative transition-all duration-300",
+          entry.rsiPeriodAtCreation !== rsiPeriod ? "bg-slate-800/10 opacity-30" : "bg-blue-500/5",
+          getRsiColor(entry.rsiCustom)
+        )}>
           <div className="flex items-center justify-end gap-1.5 flex-wrap max-w-[120px] ml-auto">
-            {entry.isLiveRsi && <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse border border-blue-200/50" title="Real-Time Analysis" />}
+            {entry.isLiveRsi && entry.rsiPeriodAtCreation === rsiPeriod && (
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse border border-blue-200/50" title="Real-Time Analysis" />
+            )}
             
-            {/* Intelligence: Early Signal Badge */}
-            {entry.rsiCustom !== null && entry.rsi15m !== null && (
+            {/* Intelligence: Early Signal Badge - Only show if periods match to ensure formula accuracy */}
+            {entry.rsiPeriodAtCreation === rsiPeriod && entry.rsiCustom !== null && entry.rsi15m !== null && (
               <>
                 {entry.rsiCustom <= 30 && entry.rsi15m > 30 && (
                   <span className="text-[7px] px-1 bg-emerald-500/30 text-emerald-200 rounded-full animate-pulse border border-emerald-400/30" title="Early Oversold (Custom Period)">EARLY BUY</span>
@@ -196,7 +231,7 @@ const ScreenerRow = memo(function ScreenerRow({
               </>
             )}
 
-            {entry.rsiDivergenceCustom && entry.rsiDivergenceCustom !== 'none' && (
+            {entry.rsiPeriodAtCreation === rsiPeriod && entry.rsiDivergenceCustom && entry.rsiDivergenceCustom !== 'none' && (
               <span className={cn(
                 "text-[8px] px-1 rounded-sm font-black tracking-tighter uppercase",
                 entry.rsiDivergenceCustom === 'bullish' ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
@@ -204,7 +239,9 @@ const ScreenerRow = memo(function ScreenerRow({
                 {entry.rsiDivergenceCustom === 'bullish' ? 'DIV+' : 'DIV-'}
               </span>
             )}
-            <span className="drop-shadow-sm">{formatRsi(entry.rsiCustom)}</span>
+            <span className="drop-shadow-sm">
+              {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(entry.rsiCustom) : '—'}
+            </span>
           </div>
         </td>
       )}
@@ -277,9 +314,12 @@ const ScreenerRow = memo(function ScreenerRow({
       </td>
 
       {visibleCols.has('strategy') && (
-        <td className="px-3 py-4 text-right">
+        <td className="px-3 py-4 text-right min-w-[120px]">
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-slate-600 tabular-nums uppercase" title="Time since signal started">
+                {formatTimeAgo(entry.signalStartedAt)}
+              </span>
               <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
@@ -502,29 +542,46 @@ export default function ScreenerDashboard() {
       const live = livePrices.get(entry.symbol);
       if (!live || live.updatedAt <= entry.updatedAt) return entry;
 
-      // Live RSI approximation
+      // Multi-TF Live RSI approximation
       let rsi1m = entry.rsi1m;
+      let rsi5m = entry.rsi5m;
+      let rsi15m = entry.rsi15m;
+      let rsi1h = entry.rsi1h;
       let rsiCustom = entry.rsiCustom;
       let signal = entry.signal;
       let isLiveRsi = false;
       
       if (live.price > 0) {
-        if (entry.rsiState1m) {
-          rsi1m = approximateRsi(entry.rsiState1m, live.price, 14);
-        }
-        if (entry.rsiStateCustom) {
+        // Standard timeframes
+        if (entry.rsiState1m) rsi1m = approximateRsi(entry.rsiState1m, live.price, 14);
+        if (entry.rsiState5m) rsi5m = approximateRsi(entry.rsiState5m, live.price, 14);
+        if (entry.rsiState15m) rsi15m = approximateRsi(entry.rsiState15m, live.price, 14);
+        if (entry.rsiState1h) rsi1h = approximateRsi(entry.rsiState1h, live.price, 14);
+
+        // Custom period accuracy guard
+        if (entry.rsiStateCustom && entry.rsiPeriodAtCreation === rsiPeriod) {
           rsiCustom = approximateRsi(entry.rsiStateCustom, live.price, rsiPeriod);
           isLiveRsi = true;
-          // Real-time signal update based on standard period (14) for consistency
-          if (rsi1m !== null) {
-            if (rsi1m <= 30) signal = 'oversold';
-            else if (rsi1m >= 70) signal = 'overbought';
-            else signal = 'neutral';
-          }
+        }
+
+        // Instant Signal Hijack: Update signal instantly based on 15m (primary) or 1m (fallback)
+        const leadRsi = rsi15m ?? rsi1m;
+        if (leadRsi !== null) {
+          if (leadRsi <= 30) signal = 'oversold';
+          else if (leadRsi >= 70) signal = 'overbought';
+          else signal = 'neutral';
         }
       }
 
-      return { ...entry, price: live.price, change24h: live.change24h, volume24h: live.volume24h, rsi1m, rsiCustom, signal, isLiveRsi };
+      return { 
+        ...entry, 
+        price: live.price, 
+        change24h: live.change24h, 
+        volume24h: live.volume24h, 
+        rsi1m, rsi5m, rsi15m, rsi1h, rsiCustom, 
+        signal, 
+        isLiveRsi 
+      };
     });
   }, [data, livePrices, rsiPeriod]);
 
@@ -1084,6 +1141,7 @@ export default function ScreenerDashboard() {
                           toggleWatchlist={toggleWatchlist}
                           visibleCols={visibleCols}
                           useAnimations={filtered.length < 150}
+                          rsiPeriod={rsiPeriod}
                         />
                     ))}
                 </AnimatePresence>

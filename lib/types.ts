@@ -47,9 +47,14 @@ export interface ScreenerEntry {
   rsiCustom: number | null;
   rsiStateCustom: { avgGain: number; avgLoss: number; lastClose: number } | null;
   rsiDivergenceCustom: 'bullish' | 'bearish' | 'none';
+  rsiPeriodAtCreation: number; // The period used for rsiCustom and rsiStateCustom
   // ── Live RSI state (for client-side approximation) ──
   rsiState1m: { avgGain: number; avgLoss: number; lastClose: number } | null;
+  rsiState5m: { avgGain: number; avgLoss: number; lastClose: number } | null;
+  rsiState15m: { avgGain: number; avgLoss: number; lastClose: number } | null;
+  rsiState1h: { avgGain: number; avgLoss: number; lastClose: number } | null;
   isLiveRsi?: boolean;
+  signalStartedAt: number;
   updatedAt: number;
 }
 
