@@ -459,9 +459,8 @@ async function fetchAllKlinesBatched(
   symbols: string[]
 ): Promise<{ sym: string; res1m: PromiseSettledResult<BinanceKline[]>; res1h: PromiseSettledResult<BinanceKline[]> }[]> {
   const results = new Array<{ sym: string; res1m: PromiseSettledResult<BinanceKline[]>; res1h: PromiseSettledResult<BinanceKline[]> }>(symbols.length);
-  const concurrency = symbols.length >= 800 ? 64
-    : symbols.length >= 500 ? 48 // Tuned for 600 coins (Binance-safe)
-    : symbols.length >= 400 ? 40
+  const concurrency = symbols.length >= 500 ? 64 // Increased for faster Vercel execution
+    : symbols.length >= 400 ? 48
     : symbols.length >= 250 ? 32
     : symbols.length >= 120 ? 16
     : BATCH_SIZE;
@@ -747,9 +746,9 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
     const baseRollingCap = symbolCount >= 800 ? 600 : symbolCount >= 500 ? 400 : symbolCount >= 400 ? 300 : 150;
     let refreshCap = smartMode
       ? (uncachedSymbols.length > 0
-        ? Math.min(symbolCount, Math.max(baseBootstrapCap, tuning.dynamicCap))
+        ? Math.max(symbolCount, tuning.dynamicCap) // Fill gaps aggressively
         : Math.min(symbolCount, Math.max(baseRollingCap, tuning.dynamicCap)))
-      : (uncachedSymbols.length > 0 ? baseBootstrapCap : baseRollingCap);
+      : (uncachedSymbols.length > 0 ? symbolCount : baseRollingCap);
 
     const weightRemaining = getWeightRemaining();
     if (weightRemaining < 200 && symbolsToRefresh.length > 50) {

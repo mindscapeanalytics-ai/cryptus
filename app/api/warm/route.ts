@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   const startedAt = Date.now();
-  const counts = [100, 300];
+  const counts = [100, 300, 600];
 
   for (const count of counts) {
     try {
