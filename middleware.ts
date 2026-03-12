@@ -1,14 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-
-export const runtime = "nodejs";
+import { betterFetch } from "@better-fetch/fetch";
+import type { Session } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/register");
+  
+  // Optimization: If no session cookie exists, we can skip the fetch for non-auth routes
+  // Better Auth default cookie name is better-auth.session_token
+  const hasSessionCookie = request.cookies.has("better-auth.session_token") || 
+                           request.cookies.has("__secure-better-auth.session_token");
+
+  if (!hasSessionCookie && !isAuthRoute) {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("from", request.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
+
+  // If we have a cookie or it's an auth route, we might need a full check or just continue
+  let session = null;
+  if (hasSessionCookie) {
+    try {
+      const port = process.env.PORT || "10000";
+      // Use 127.0.0.1 to be more specific than localhost if needed, 
+      // but localhost is usually safer in Edge
+      const internalBaseURL = `http://localhost:${port}`;
+
+      const { data } = await betterFetch<Session>(
+        "/api/auth/get-session",
+        {
+          baseURL: internalBaseURL,
+          headers: {
+            cookie: request.headers.get("cookie") || "",
+          },
+        },
+      );
+      session = data;
+    } catch (e) {
+      console.error("[middleware] Session fetch failed:", e);
+    }
+  }
 
   if (!session) {
     if (!isAuthRoute) {
