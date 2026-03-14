@@ -2054,135 +2054,143 @@ function CoinSettingsModal({
           </button>
         </div>
 
-        <div className="p-6 sm:p-8 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 1m Period</label>
-              <input
-                type="number"
-                min={2} max={50}
-                value={config.rsi1mPeriod}
-                onChange={(e) => setConfig({ ...config, rsi1mPeriod: parseInt(e.target.value) })}
-                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
-              />
+        <div className="flex-1 overflow-y-auto max-h-[72vh] custom-scrollbar">
+          <div className="p-6 sm:p-8 space-y-5">
+            {/* RSI Periods Grid 1 */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 whitespace-nowrap">RSI 1m Period</label>
+                <input
+                  type="number"
+                  min={2} max={50}
+                  value={config.rsi1mPeriod}
+                  onChange={(e) => setConfig({ ...config, rsi1mPeriod: parseInt(e.target.value) })}
+                  className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 whitespace-nowrap">RSI 5m Period</label>
+                <input
+                  type="number"
+                  min={2} max={50}
+                  value={config.rsi5mPeriod}
+                  onChange={(e) => setConfig({ ...config, rsi5mPeriod: parseInt(e.target.value) })}
+                  className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all text-sm"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 5m Period</label>
-              <input
-                type="number"
-                min={2} max={50}
-                value={config.rsi5mPeriod}
-                onChange={(e) => setConfig({ ...config, rsi5mPeriod: parseInt(e.target.value) })}
-                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 15m Period</label>
-              <input
-                type="number"
-                min={2} max={50}
-                value={config.rsi15mPeriod}
-                onChange={(e) => setConfig({ ...config, rsi15mPeriod: parseInt(e.target.value) })}
-                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
-              />
+            {/* RSI Periods Grid 2 */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 whitespace-nowrap">RSI 15m Period</label>
+                <input
+                  type="number"
+                  min={2} max={50}
+                  value={config.rsi15mPeriod}
+                  onChange={(e) => setConfig({ ...config, rsi15mPeriod: parseInt(e.target.value) })}
+                  className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1 whitespace-nowrap">RSI 1h Period</label>
+                <input
+                  type="number"
+                  min={2} max={50}
+                  value={config.rsi1hPeriod}
+                  onChange={(e) => setConfig({ ...config, rsi1hPeriod: parseInt(e.target.value) })}
+                  className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2.5 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all text-sm"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 1h Period</label>
-              <input
-                type="number"
-                min={2} max={50}
-                value={config.rsi1hPeriod}
-                onChange={(e) => setConfig({ ...config, rsi1hPeriod: parseInt(e.target.value) })}
-                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
-              />
+
+            <div className="h-px bg-white/5" />
+
+            {/* Thresholds Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-[#FF4B5C] ml-1">Overbought</label>
+                <input
+                  type="number"
+                  min={50} max={95}
+                  value={config.overboughtThreshold}
+                  onChange={(e) => setConfig({ ...config, overboughtThreshold: parseInt(e.target.value) })}
+                  className="w-full bg-[#722f37]/5 border border-[#722f37]/20 rounded-xl px-3 py-2.5 text-[#FF4B5C] font-bold focus:outline-none focus:ring-1 focus:ring-[#FF4B5C]/30 transition-all text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase tracking-widest text-[#39FF14] ml-1">Oversold</label>
+                <input
+                  type="number"
+                  min={5} max={50}
+                  value={config.oversoldThreshold}
+                  onChange={(e) => setConfig({ ...config, oversoldThreshold: parseInt(e.target.value) })}
+                  className="w-full bg-[#39FF14]/5 border border-[#39FF14]/20 rounded-xl px-3 py-2.5 text-[#39FF14] font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all text-sm"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="h-px bg-white/5" />
+            <div className="h-px bg-white/5" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-[#FF4B5C] ml-1">Overbought Line</label>
-              <input
-                type="number"
-                min={50} max={95}
-                value={config.overboughtThreshold}
-                onChange={(e) => setConfig({ ...config, overboughtThreshold: parseInt(e.target.value) })}
-                className="w-full bg-[#722f37]/5 border border-[#722f37]/20 rounded-xl px-4 py-3 text-[#FF4B5C] font-bold focus:outline-none focus:ring-1 focus:ring-[#FF4B5C]/30 transition-all"
-              />
-            </div>
-            <div className="space-y-1.5 sm:space-y-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-[#39FF14] ml-1">Oversold Line</label>
-              <input
-                type="number"
-                min={5} max={50}
-                value={config.oversoldThreshold}
-                onChange={(e) => setConfig({ ...config, oversoldThreshold: parseInt(e.target.value) })}
-                className="w-full bg-[#39FF14]/5 border border-[#39FF14]/20 rounded-xl px-4 py-3 text-[#39FF14] font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
-              />
-            </div>
-          </div>
+            {/* Alert Toggles */}
+            <div className="space-y-3">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Active Alerts</label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: 'alertOn1m', label: '1m' },
+                  { key: 'alertOn5m', label: '5m' },
+                  { key: 'alertOn15m', label: '15M' },
+                  { key: 'alertOn1h', label: '1H' },
+                  { key: 'alertOnCustom', label: 'CUST' }
+                ].map(tf => (
+                  <button
+                    key={tf.key}
+                    disabled={loading}
+                    onClick={() => setConfig({ ...config, [tf.key]: !(config as any)[tf.key] })}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all tracking-wider border shrink-0",
+                      (config as any)[tf.key] 
+                        ? "bg-[#39FF14]/20 border-[#39FF14]/50 text-[#39FF14]" 
+                        : "bg-slate-950/50 border-white/5 text-slate-500 hover:text-white"
+                    )}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
 
-          <div className="h-px bg-white/5 my-6" />
-
-          <div className="space-y-3">
-            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Active Alerts</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: 'alertOn1m', label: '1m RSI' },
-                { key: 'alertOn5m', label: '5m RSI' },
-                { key: 'alertOn15m', label: '15m RSI' },
-                { key: 'alertOn1h', label: '1h RSI' },
-                { key: 'alertOnCustom', label: 'Custom RSI' }
-              ].map(tf => (
+              <div className="flex items-center justify-between p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 group">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <ShieldCheck size={12} />
+                    Confluence
+                  </span>
+                  <span className="text-[7px] text-slate-500 font-bold uppercase mt-0.5 leading-tight pr-4">
+                    Requires dual-timeframe extremes.
+                  </span>
+                </div>
                 <button
-                  key={tf.key}
-                  disabled={loading}
-                  onClick={() => setConfig({ ...config, [tf.key]: !(config as any)[tf.key] })}
+                  onClick={() => setConfig({ ...config, alertConfluence: !config.alertConfluence })}
                   className={cn(
-                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all tracking-wider border",
-                    (config as any)[tf.key] 
-                      ? "bg-[#39FF14]/20 border-[#39FF14]/50 text-[#39FF14]" 
-                      : "bg-slate-950/50 border-white/5 text-slate-500 hover:text-slate-300"
+                    "w-10 h-5 rounded-full p-0.5 transition-all flex items-center",
+                    config.alertConfluence ? "bg-orange-500" : "bg-slate-800"
                   )}
                 >
-                  {tf.label}
+                  <div className={cn(
+                    "w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                    config.alertConfluence ? "translate-x-5" : "translate-x-0"
+                  )} />
                 </button>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 mt-4 group">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <ShieldCheck size={12} />
-                  Confluence Mode
-                </span>
-                <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5 leading-tight pr-4">
-                  Only alert if TWO or more active timeframes align in the same zone.
-                </span>
               </div>
-              <button
-                onClick={() => setConfig({ ...config, alertConfluence: !config.alertConfluence })}
-                className={cn(
-                  "w-12 h-6 rounded-full p-1 transition-all flex items-center",
-                  config.alertConfluence ? "bg-orange-500" : "bg-slate-800"
-                )}
-              >
-                <div className={cn(
-                  "w-4 h-4 rounded-full bg-white transition-all shadow-sm",
-                  config.alertConfluence ? "translate-x-6" : "translate-x-0"
-                )} />
-              </button>
             </div>
           </div>
+        </div>
 
+        <div className="p-6 border-t border-white/5 bg-white/[0.02]">
           <button
             disabled={loading}
             onClick={handleSave}
-            className="w-full bg-[#39FF14] text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-[#39FF14]/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-[#39FF14]/10"
+            className="w-full bg-[#39FF14] text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-[#39FF14]/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#39FF14]/10"
           >
             {loading ? 'SAVING...' : 'APPLY CONFIGURATION'}
           </button>
