@@ -84,6 +84,7 @@ model CoinConfig {
   alertOn15m         Boolean  @default(false)
   alertOn1h          Boolean  @default(false)
   alertOnCustom      Boolean  @default(false)
+  alertConfluence    Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

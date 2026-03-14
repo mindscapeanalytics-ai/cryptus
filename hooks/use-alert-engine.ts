@@ -98,6 +98,7 @@ export function useAlertEngine(
       const config = coinConfigs[entry.symbol];
       const obT = config?.overboughtThreshold ?? 70;
       const osT = config?.oversoldThreshold ?? 30;
+      const confluenceMode = config?.alertConfluence ?? false;
 
       const timeframes = [
         { key: 'rsi1m', label: '1m', configKey: 'alertOn1m' },
@@ -107,32 +108,54 @@ export function useAlertEngine(
         { key: 'rsiCustom', label: 'Custom', configKey: 'alertOnCustom' }
       ];
 
-      timeframes.forEach(({ key, label, configKey }) => {
-        const isEnabled = config ? config[configKey] : false; // Strict opt-in: false if no config exists
-        
-        if (!isEnabled) return;
-        
+      // 1. Calculate and update current zone for all TFs first
+      const currentZones = new Map<string, 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT'>();
+      
+      timeframes.forEach(({ key, label }) => {
         const val = entry[key];
         if (val === null || val === undefined) return;
 
-        let currentZone: 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT' = 'NEUTRAL';
-        
-        // Apply hysteresis: If we were extreme, we need to cross back further than the threshold to become neutral
-        // This prevents flickering alerts if price dances on the line.
         const stateKey = `${entry.symbol}-${label}`;
         const previousZone = zoneState.current.get(stateKey);
+        let zone: 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT' = 'NEUTRAL';
         
         const HYSTERESIS = 0.5;
-        if (val <= osT) currentZone = 'OVERSOLD';
-        else if (val >= obT) currentZone = 'OVERBOUGHT';
-        else if (previousZone === 'OVERSOLD' && val < osT + HYSTERESIS) currentZone = 'OVERSOLD';
-        else if (previousZone === 'OVERBOUGHT' && val > obT - HYSTERESIS) currentZone = 'OVERBOUGHT';
+        if (val <= osT) zone = 'OVERSOLD';
+        else if (val >= obT) zone = 'OVERBOUGHT';
+        else if (previousZone === 'OVERSOLD' && val < osT + HYSTERESIS) zone = 'OVERSOLD';
+        else if (previousZone === 'OVERBOUGHT' && val > obT - HYSTERESIS) zone = 'OVERBOUGHT';
+        
+        currentZones.set(label, zone);
+      });
 
-        // Always record the latest known zone to the state machine array
-        zoneState.current.set(stateKey, currentZone);
+      // 2. Trigger Alerts
+      timeframes.forEach(({ label, configKey }) => {
+        const isEnabled = config ? config[configKey] : false;
+        if (!isEnabled) return;
 
-        // Edge transition logic: alert ONLY when entering an extreme zone from a different zone
-        if (previousZone !== undefined && previousZone !== currentZone && currentZone !== 'NEUTRAL') {
+        const currentZone = currentZones.get(label);
+        if (!currentZone || currentZone === 'NEUTRAL') {
+          // Update zone state even if neutral to allow later transitions
+          zoneState.current.set(`${entry.symbol}-${label}`, 'NEUTRAL');
+          return;
+        }
+
+        const stateKey = `${entry.symbol}-${label}`;
+        const previousZone = zoneState.current.get(stateKey);
+
+        // Check for Confluence if enabled
+        let hasConfluence = true;
+        if (confluenceMode) {
+          // Confluence logic: At least one OTHER enabled timeframe must be in the SAME extreme zone
+          const otherExtremes = timeframes
+            .filter(tf => tf.label !== label && config[tf.configKey])
+            .some(tf => currentZones.get(tf.label) === currentZone);
+          
+          if (!otherExtremes) hasConfluence = false;
+        }
+
+        // Edge transition logic + Confluence check
+        if (previousZone !== undefined && previousZone !== currentZone && hasConfluence) {
           const alertKey = `${entry.symbol}-${label}-${currentZone}`;
           const now = Date.now();
           const last = lastTriggered.current.get(alertKey) || 0;
@@ -140,6 +163,7 @@ export function useAlertEngine(
           if (now - last > COOLDOWN_MS) {
             lastTriggered.current.set(alertKey, now);
             
+            const val = entry[timeframes.find(t => t.label === label)!.key];
             const newAlert = {
               symbol: entry.symbol,
               timeframe: label,
@@ -149,14 +173,20 @@ export function useAlertEngine(
 
             // UI Actions
             toast[currentZone === 'OVERSOLD' ? 'success' : 'error'](
-              `${entry.symbol} ${label} RSI is ${currentZone} [${val.toFixed(1)}]`,
-              { duration: 5000 }
+              `${entry.symbol} ${label} ${confluenceMode ? 'CONFLUENCE' : 'RSI'} is ${currentZone} [${val.toFixed(1)}]`,
+              { 
+                duration: 5000,
+                description: confluenceMode ? "Aligned with other timeframes" : undefined
+              }
             );
             
             playAlertSound();
             logAlert(newAlert);
           }
         }
+
+        // Always update the state machine
+        zoneState.current.set(stateKey, currentZone);
       });
     });
   }, [data, coinConfigs, enabled, COOLDOWN_MS, logAlert, playAlertSound]);

@@ -25,16 +25,10 @@ export async function middleware(request: NextRequest) {
   let session: Session | null = null;
   if (hasSessionCookie) {
     try {
-      // PROD-READY: Use the external URL in production to ensure cookie matching works,
-      // but resolve it safely. Force 'https' if we're on a public domain.
-      const isProd = process.env.NODE_ENV === "production";
-      const protocol = isProd ? "https" : request.nextUrl.protocol.replace(":", "");
-      
-      // Use the incoming request's host to ensure internal fetches succeed 
-      // regardless of environment (local, standalone, or cloud).
-      const baseURL = `${protocol}://${request.nextUrl.host}`;
+      // Better detection of the base URL: Use the request's protocol and host.
+      const baseURL = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 
-      const { data } = await betterFetch<Session>(
+      const { data, error: fetchError } = await betterFetch<Session>(
         "/api/auth/get-session",
         {
           baseURL,
@@ -43,10 +37,18 @@ export async function middleware(request: NextRequest) {
           },
         },
       );
+
+      if (fetchError) {
+        console.warn(
+          "[middleware] Session fetch rejected:",
+          fetchError.statusText || "Unauthorized/Network Error"
+        );
+      }
+      
       session = data;
     } catch (e) {
       console.error(
-        "[middleware] Session validation failed:",
+        "[middleware] Critical session validation failure:",
         e instanceof Error ? e.message : String(e),
       );
     }

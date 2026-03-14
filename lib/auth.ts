@@ -9,8 +9,13 @@ const resolvedAppUrl =
   process.env.BETTER_AUTH_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-  process.env.RENDER_EXTERNAL_URL || // Render injects this automatically
+  process.env.RENDER_EXTERNAL_URL ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:3000" : null) ||
   "http://localhost:3000";
+
+if (process.env.NODE_ENV !== "test") {
+  console.log(`[auth] Initializing with baseURL: ${resolvedAppUrl}`);
+}
 
 function normalizeOrigin(value: string | undefined): string | null {
   if (!value) return null;

@@ -212,8 +212,16 @@ const ScreenerRow = memo(function ScreenerRow({
         <span className="font-black text-white text-sm tracking-tight">{entry.symbol.replace('USDT', '')}</span>
         <span className="text-slate-700 text-[10px] font-black uppercase ml-1 opacity-50">USDT</span>
       </td>
-      <td className="px-3 py-4 text-right text-sm text-slate-200 tabular-nums font-bold font-mono">
-        ${formatPrice(entry.price)}
+      <td className="px-3 py-4 text-right tabular-nums font-bold font-mono">
+        <motion.span
+          key={`${entry.symbol}-price-${entry.price}`}
+          initial={{ opacity: 0.5, color: '#39FF14' }}
+          animate={{ opacity: 1, color: '#e2e8f0' }}
+          transition={{ duration: 0.4 }}
+          className="text-white"
+        >
+          ${formatPrice(entry.price)}
+        </motion.span>
       </td>
       <td className={cn(
         "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
@@ -296,9 +304,14 @@ const ScreenerRow = memo(function ScreenerRow({
                 {entry.rsiDivergenceCustom === 'bullish' ? 'DIV+' : 'DIV-'}
               </span>
             )}
-            <span className="drop-shadow-sm">
+            <motion.span 
+              key={`${entry.symbol}-rsi-${entry.rsiCustom}`}
+              initial={entry.isLiveRsi ? { scale: 1.1, filter: 'brightness(1.5)' } : {}}
+              animate={{ scale: 1, filter: 'brightness(1)' }}
+              className="drop-shadow-sm"
+            >
               {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(entry.rsiCustom) : '—'}
-            </span>
+            </motion.span>
           </div>
         </td>
       )}
@@ -660,7 +673,10 @@ const ScreenerCard = memo(function ScreenerCard({
       </div>
 
       {/* 2. RSI Indicators (Scrollable Area) */}
-      <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-5 px-4 mx-2">
+      <div 
+        onClick={() => onOpenSettings(entry.symbol)}
+        className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-5 px-4 mx-2 cursor-pointer active:scale-95 transition-transform"
+      >
         <div className="flex flex-col items-center shrink-0">
           <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">1m</span>
           <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi1m))}>{formatRsi(entry.rsi1m)}</span>
@@ -795,6 +811,7 @@ export default function ScreenerDashboard() {
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showAlertPanel, setShowAlertPanel] = useState(false);
+  const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('strategyScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -852,55 +869,41 @@ export default function ScreenerDashboard() {
   }, [data]);
   const { livePrices, isConnected } = useLivePrices(symbolSet);
 
-  // Merge live prices with server data
+  // Optimized merge logic: Only clone the array and objects if there are ACTUAL live price updates
+  // This prevents all 500+ rows from re-rendering on EVERY WebSocket flush if nothing changed.
   const mergedData = useMemo(() => {
     if (livePrices.size === 0) return data;
-    return data.map((entry) => {
+    
+    let changedAny = false;
+    const next = data.map((entry) => {
       const live = livePrices.get(entry.symbol);
+      // Skip if no live update or if the live update is older than our current row data
       if (!live || live.updatedAt <= entry.updatedAt) return entry;
 
-      // Multi-TF Live RSI approximation
-      let rsi1m = entry.rsi1m;
-      let rsi5m = entry.rsi5m;
-      let rsi15m = entry.rsi15m;
-      let rsi1h = entry.rsi1h;
-      let signal = entry.signal;
+      changedAny = true;
+      const config = coinConfigs[entry.symbol];
+      const r1mP = config?.rsi1mPeriod ?? 14;
+      const r5mP = config?.rsi5mPeriod ?? 14;
+      const r15mP = config?.rsi15mPeriod ?? 14;
+      const r1hP = config?.rsi1hPeriod ?? 14;
+      const obT = config?.overboughtThreshold ?? 70;
+      const osT = config?.oversoldThreshold ?? 30;
+
+      let { rsi1m, rsi5m, rsi15m, rsi1h, signal } = entry;
       let isLiveRsi = false;
 
-      if (live.price > 0) {
-        const config = coinConfigs[entry.symbol];
-        const r1mP = config?.rsi1mPeriod ?? 14;
-        const r5mP = config?.rsi5mPeriod ?? 14;
-        const r15mP = config?.rsi15mPeriod ?? 14;
-        const r1hP = config?.rsi1hPeriod ?? 14;
-        const obT = config?.overboughtThreshold ?? 70;
-        const osT = config?.oversoldThreshold ?? 30;
+      // Real-time Multi-TF RSI Approximation (Wilder's smoothing via previous state)
+      if (entry.rsiState1m) { rsi1m = approximateRsi(entry.rsiState1m, live.price, r1mP); isLiveRsi = true; }
+      if (entry.rsiState5m) { rsi5m = approximateRsi(entry.rsiState5m, live.price, r5mP); isLiveRsi = true; }
+      if (entry.rsiState15m) { rsi15m = approximateRsi(entry.rsiState15m, live.price, r15mP); isLiveRsi = true; }
+      if (entry.rsiState1h) { rsi1h = approximateRsi(entry.rsiState1h, live.price, r1hP); isLiveRsi = true; }
 
-        // Standard timeframes
-        if (entry.rsiState1m) {
-          rsi1m = approximateRsi(entry.rsiState1m, live.price, r1mP);
-          isLiveRsi = true;
-        }
-        if (entry.rsiState5m) {
-          rsi5m = approximateRsi(entry.rsiState5m, live.price, r5mP);
-          isLiveRsi = true;
-        }
-        if (entry.rsiState15m) {
-          rsi15m = approximateRsi(entry.rsiState15m, live.price, r15mP);
-          isLiveRsi = true;
-        }
-        if (entry.rsiState1h) {
-          rsi1h = approximateRsi(entry.rsiState1h, live.price, r1hP);
-          isLiveRsi = true;
-        }
-
-        // Instant Signal Hijack: Update signal instantly based on 15m (primary) or 1m (fallback)
-        const leadRsi = rsi15m ?? rsi1m;
-        if (leadRsi !== null) {
-          if (leadRsi <= osT) signal = 'oversold';
-          else if (leadRsi >= obT) signal = 'overbought';
-          else signal = 'neutral';
-        }
+      // Instant Signal Hijack based on lead RSI (15m primary, 1m fallback)
+      const leadRsi = rsi15m ?? rsi1m;
+      if (leadRsi !== null) {
+        if (leadRsi <= osT) signal = 'oversold';
+        else if (leadRsi >= obT) signal = 'overbought';
+        else signal = 'neutral';
       }
 
       return {
@@ -910,23 +913,27 @@ export default function ScreenerDashboard() {
         volume24h: live.volume24h,
         rsi1m, rsi5m, rsi15m, rsi1h,
         signal,
-        isLiveRsi
+        isLiveRsi,
+        updatedAt: live.updatedAt
       };
     });
+
+    return changedAny ? next : data;
   }, [data, livePrices, coinConfigs]);
 
-  // Calculate custom RSI and merge it with the rest of the data
   const dataWithCustomRsi = useMemo(() => {
-    return mergedData.map(entry => {
-      let rsiCustom = entry.rsiCustom;
-      let isLiveRsi = entry.isLiveRsi;
-
-      if (entry.price > 0 && entry.rsiStateCustom && entry.rsiPeriodAtCreation === rsiPeriod) {
-        rsiCustom = approximateRsi(entry.rsiStateCustom, entry.price, rsiPeriod);
-        isLiveRsi = true;
+    // Optimization: avoid mapping if mergedData hasn't changed its reference since last run
+    const next = mergedData.map(entry => {
+      if (!entry.isLiveRsi || entry.rsiPeriodAtCreation !== rsiPeriod || !entry.rsiStateCustom) {
+        return entry;
       }
-      return { ...entry, rsiCustom, isLiveRsi };
+      const rsiCustom = approximateRsi(entry.rsiStateCustom, entry.price, rsiPeriod);
+      // Return same reference if custom RSI hasn't shifted meaningfully
+      if (rsiCustom === entry.rsiCustom) return entry;
+      return { ...entry, rsiCustom };
     });
+    
+    return next;
   }, [mergedData, rsiPeriod]);
 
   const { alerts, setAlerts } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
@@ -1654,38 +1661,52 @@ export default function ScreenerDashboard() {
         </div>
       )}
       {!isMobile && (
-        <footer className="mt-12 pt-8 border-t border-white/5 relative z-10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 opacity-80">
-            <Link href="/" className="group">
-              <div className="flex flex-col items-center md:items-start transition-transform group-hover:scale-105">
-                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-[#39FF14] transition-colors">By</span>
-                <span className="text-sm font-black text-white tracking-tighter">Mindscape Analytics <span className="text-[#39FF14] uppercase">LLC</span></span>
-              </div>
-            </Link>
-            <div className="h-4 w-px bg-white/10 hidden sm:block" />
-            <div className="text-[8px] font-bold text-slate-600 uppercase tracking-widest tabular-nums hidden sm:block">
-              &copy; 2026 {new Date().getFullYear() !== 2026 && `- ${new Date().getFullYear()}`} All Rights Reserved
-            </div>
-          </div>
+        <footer className="mt-16 py-10 border-t border-white/10 relative z-10">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 px-4 opacity-60 hover:opacity-100 transition-opacity duration-500">
+            {/* Left side: Brand + Critical Stats */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-10 gap-y-4">
+              <Link href="/" className="group flex items-center gap-3">
+                <div className="flex flex-col">
+                  <span className="text-[7px] font-black uppercase tracking-[0.3em] text-slate-500 group-hover:text-[#39FF14] transition-colors leading-none mb-1">Developed By</span>
+                  <span className="text-[13px] font-black text-white tracking-tighter leading-none">
+                    Mindscape Analytics <span className="text-[#39FF14]">LLC</span>
+                  </span>
+                </div>
+              </Link>
 
-          <div className="flex items-center gap-4 mt-6">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Universe</span>
-              <span className="text-[10px] font-bold text-slate-300 tabular-nums">{data.length} Stable Pairs</span>
+              <div className="h-6 w-px bg-white/10 hidden xl:block" />
+
+              <div className="flex items-center gap-8">
+                <div className="flex flex-col">
+                  <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 leading-none mb-1">Universe</span>
+                  <span className="text-[10px] font-bold text-slate-300 tabular-nums leading-none tracking-tight">{data.length} STABLE PAIRS</span>
+                </div>
+                
+                <div className="flex flex-col">
+                  <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 leading-none mb-1">Engine Status</span>
+                  <div className="flex items-center gap-1.5 leading-none">
+                    <div className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")} />
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tight">{isConnected ? "Live Network" : "Polling Mode"}</span>
+                  </div>
+                </div>
+
+                <Link
+                  href="/guide"
+                  className="flex flex-col group/doc"
+                >
+                  <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 leading-none mb-1 group-hover/doc:text-[#39FF14] transition-colors">Resources</span>
+                  <span className="text-[10px] font-bold text-slate-400 group-hover/doc:text-white transition-colors tracking-tight">DOCUMENTATION</span>
+                </Link>
+              </div>
             </div>
-            <div className="h-4 w-px bg-white/10" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Status</span>
-              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isConnected ? "bg-[#39FF14]" : "bg-slate-700")} />
-              <span className="text-[10px] font-bold text-slate-300">{isConnected ? "Live Engine" : "Polling"}</span>
+
+            {/* Right side: Copyright & Legal */}
+            <div className="flex flex-col items-center md:items-end">
+              <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-700 mb-1 leading-none">Global Terminal v1.0</span>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest tabular-nums leading-none">
+                &copy; {new Date().getFullYear()} ALL RIGHTS RESERVED
+              </div>
             </div>
-            <div className="h-4 w-px bg-white/10" />
-            <Link
-              href="/guide"
-              className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
-            >
-              Documentation
-            </Link>
           </div>
         </footer>
       )}
@@ -1725,6 +1746,22 @@ export default function ScreenerDashboard() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showGlobalSettings && (
+          <GlobalSettingsModal 
+            onClose={() => setShowGlobalSettings(false)}
+            visibleCols={visibleCols}
+            toggleCol={toggleCol}
+            rsiPeriod={rsiPeriod}
+            setRsiPeriod={setRsiPeriod}
+            refreshInterval={refreshInterval}
+            setRefreshInterval={setRefreshInterval}
+            pairCount={pairCount}
+            setPairCount={setPairCount}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Mobile-only Bottom Navigation Dock */}
       <BottomDock 
         onOpenAlerts={() => {
@@ -1738,7 +1775,7 @@ export default function ScreenerDashboard() {
         }}
         onOpenSettings={() => {
            setActiveTab('settings');
-           setShowColPicker(true);
+           setShowGlobalSettings(true);
         }}
         onGoHome={() => {
            setActiveTab('home');
@@ -1775,11 +1812,9 @@ function CoinSettingsModal({
     rsi1hPeriod: currentConfig?.rsi1hPeriod ?? 14,
     overboughtThreshold: currentConfig?.overboughtThreshold ?? 70,
     oversoldThreshold: currentConfig?.oversoldThreshold ?? 30,
-    alertOn1m: currentConfig?.alertOn1m ?? false,
-    alertOn5m: currentConfig?.alertOn5m ?? false,
-    alertOn15m: currentConfig?.alertOn15m ?? false,
     alertOn1h: currentConfig?.alertOn1h ?? false,
     alertOnCustom: currentConfig?.alertOnCustom ?? false,
+    alertConfluence: currentConfig?.alertConfluence ?? false,
   });
 
   const handleSave = async () => {
@@ -1914,6 +1949,30 @@ function CoinSettingsModal({
                   {tf.label}
                 </button>
               ))}
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 mt-4 group">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <ShieldCheck size={12} />
+                  Confluence Mode
+                </span>
+                <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5 leading-tight pr-4">
+                  Only alert if TWO or more active timeframes align in the same zone.
+                </span>
+              </div>
+              <button
+                onClick={() => setConfig({ ...config, alertConfluence: !config.alertConfluence })}
+                className={cn(
+                  "w-12 h-6 rounded-full p-1 transition-all flex items-center",
+                  config.alertConfluence ? "bg-orange-500" : "bg-slate-800"
+                )}
+              >
+                <div className={cn(
+                  "w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                  config.alertConfluence ? "translate-x-6" : "translate-x-0"
+                )} />
+              </button>
             </div>
           </div>
 
@@ -2051,6 +2110,158 @@ function AlertHistoryPanel({ alerts, onClose }: { alerts: any[]; onClose: () => 
           )}
         </AnimatePresence>
       </div>
+    </motion.div>
+  );
+}
+
+// ─── Global Settings Modal (Mobile) ───────────────────────────
+
+function GlobalSettingsModal({
+  onClose,
+  visibleCols,
+  toggleCol,
+  rsiPeriod,
+  setRsiPeriod,
+  refreshInterval,
+  setRefreshInterval,
+  pairCount,
+  setPairCount
+}: {
+  onClose: () => void;
+  visibleCols: Set<string>;
+  toggleCol: (id: ColumnId) => void;
+  rsiPeriod: number;
+  setRsiPeriod: (p: number) => void;
+  refreshInterval: number;
+  setRefreshInterval: (v: number) => void;
+  pairCount: number;
+  setPairCount: (v: number) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/90 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="w-full max-w-lg bg-[#080F1B] border-t sm:border border-white/10 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-white/5 flex items-center justify-between sticky top-0 bg-[#080F1B]/95 backdrop-blur-md z-10">
+          <div>
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <Settings size={20} className="text-[#39FF14]" />
+              System <span className="text-[#39FF14]">Settings</span>
+            </h2>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+            <ChevronDown size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-8 custom-scrollbar pb-12">
+          {/* Column Picker */}
+          <section className="space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Visible Columns</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {OPTIONAL_COLUMNS.map((col) => (
+                <button
+                  key={col.id}
+                  onClick={() => toggleCol(col.id)}
+                  className={cn(
+                    "flex items-center gap-2.5 px-3 py-3 rounded-2xl border transition-all text-left",
+                    visibleCols.has(col.id) ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/[0.02] border-white/5 text-slate-500"
+                  )}
+                >
+                  <div className={cn("w-4 h-4 rounded-md border flex items-center justify-center shrink-0", visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-800")}>
+                    {visibleCols.has(col.id) && <ShieldCheck size={12} className="text-black" />}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-tight leading-none">{col.label}</span>
+                    <span className="text-[7px] font-bold text-slate-700 uppercase mt-0.5">{col.group}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <div className="h-px bg-white/5" />
+
+          {/* RSI Selection */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between ml-1">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Global RSI Period</h3>
+              <span className="px-3 py-1 rounded-lg bg-[#39FF14]/10 text-[#39FF14] text-xs font-black tabular-nums">{rsiPeriod}</span>
+            </div>
+            <div className="flex items-center gap-4 px-2">
+              <input
+                type="range"
+                min="7"
+                max="35"
+                step="1"
+                value={rsiPeriod}
+                onChange={(e) => setRsiPeriod(Number(e.target.value))}
+                className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#39FF14]"
+              />
+            </div>
+          </section>
+
+          <div className="h-px bg-white/5" />
+
+          {/* Performance Settings */}
+          <section className="grid grid-cols-2 gap-6">
+             <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Refresh</h3>
+                <div className="grid grid-cols-1 gap-1.5">
+                   {REFRESH_OPTIONS.map((opt) => (
+                     <button
+                        key={opt.value}
+                        onClick={() => setRefreshInterval(opt.value)}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl text-[10px] font-black border transition-all uppercase tracking-widest",
+                          refreshInterval === opt.value ? "bg-white text-black border-white" : "bg-white/5 border-white/5 text-slate-500"
+                        )}
+                     >
+                       {opt.label}
+                     </button>
+                   ))}
+                </div>
+             </div>
+             <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Pairs</h3>
+                <div className="grid grid-cols-1 gap-1.5">
+                   {PAIR_COUNTS.map((cnt) => (
+                     <button
+                        key={cnt}
+                        onClick={() => setPairCount(cnt)}
+                        className={cn(
+                          "px-4 py-2.5 rounded-xl text-[10px] font-black border transition-all uppercase tracking-widest",
+                          pairCount === cnt ? "bg-white text-black border-white" : "bg-white/5 border-white/5 text-slate-500"
+                        )}
+                     >
+                       {cnt} Units
+                     </button>
+                   ))}
+                </div>
+             </div>
+          </section>
+        </div>
+        
+        <div className="p-6 border-t border-white/5 bg-white/[0.02]">
+           <button 
+             onClick={onClose}
+             className="w-full bg-[#39FF14] text-black font-black uppercase tracking-[0.2em] py-5 rounded-3xl shadow-xl shadow-[#39FF14]/10 active:scale-95 transition-all text-xs"
+           >
+             Save & Close
+           </button>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }

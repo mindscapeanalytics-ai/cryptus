@@ -23,7 +23,7 @@ interface CombinedStreamMessage {
 }
 
 const WS_BASE = 'wss://stream.binance.com:9443/stream?streams=';
-let FLUSH_INTERVAL_MS = 1500; // Increased base for smoothness
+let FLUSH_INTERVAL_MS = 800; // Faster default for premium feel
 const RECONNECT_DELAYS = [1000, 2000, 5000, 10000, 30000];
 const MAX_WS_CONNECTIONS = Math.max(1, Number(process.env.NEXT_PUBLIC_MAX_WS_CONNECTIONS ?? '3'));
 const STREAMS_PER_CONNECTION = Math.max(50, Number(process.env.NEXT_PUBLIC_STREAMS_PER_WS ?? '180'));
@@ -62,10 +62,10 @@ export function useLivePrices(symbols: Set<string>) {
 
   // Dynamically adjust flush interval for smoothness at scale
   useEffect(() => {
-    if (symbols.size > 800) FLUSH_INTERVAL_MS = 2500;
-    else if (symbols.size > 500) FLUSH_INTERVAL_MS = 2000;
-    else if (symbols.size > 200) FLUSH_INTERVAL_MS = 1500;
-    else FLUSH_INTERVAL_MS = 1000;
+    if (symbols.size > 800) FLUSH_INTERVAL_MS = 1500;
+    else if (symbols.size > 500) FLUSH_INTERVAL_MS = 1000;
+    else if (symbols.size > 200) FLUSH_INTERVAL_MS = 800;
+    else FLUSH_INTERVAL_MS = 500;
   }, [symbols.size]);
 
   // Flush buffered ticks to React state at a throttled interval using RAF for smoothness
