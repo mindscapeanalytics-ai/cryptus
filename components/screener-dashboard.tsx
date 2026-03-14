@@ -17,7 +17,8 @@ import Image from 'next/image';
 import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } from '@/lib/types';
 import { useLivePrices } from '@/hooks/use-live-prices';
 import { useAlertEngine } from '@/hooks/use-alert-engine';
-import { approximateRsi } from '@/lib/rsi';
+import { approximateRsi, approximateEma } from '@/lib/rsi';
+import { toast } from 'sonner';
 
 // ─── Formatting helpers ────────────────────────────────────────
 
@@ -215,10 +216,14 @@ const ScreenerRow = memo(function ScreenerRow({
       <td className="px-3 py-4 text-right tabular-nums font-bold font-mono">
         <motion.span
           key={`${entry.symbol}-price-${entry.price}`}
-          initial={{ opacity: 0.5, color: '#39FF14' }}
-          animate={{ opacity: 1, color: '#e2e8f0' }}
-          transition={{ duration: 0.4 }}
-          className="text-white"
+          initial={{ 
+            opacity: entry.lastPriceChange ? 0.4 : 1, 
+            scale: entry.lastPriceChange ? 0.95 : 1,
+            color: entry.lastPriceChange && entry.lastPriceChange > 0 ? '#39FF14' : entry.lastPriceChange && entry.lastPriceChange < 0 ? '#FF4B5C' : '#e2e8f0'
+          }}
+          animate={{ opacity: 1, scale: 1, color: '#e2e8f0' }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-white inline-block"
         >
           ${formatPrice(entry.price)}
         </motion.span>
@@ -273,6 +278,17 @@ const ScreenerRow = memo(function ScreenerRow({
         />
       )}
 
+      {visibleCols.has('ema9') && (
+        <td className="px-3 py-4 text-right text-xs tabular-nums font-bold font-mono text-slate-300">
+          ${entry.ema9 ? formatPrice(entry.ema9) : '—'}
+        </td>
+      )}
+      {visibleCols.has('ema21') && (
+        <td className="px-3 py-4 text-right text-xs tabular-nums font-bold font-mono text-slate-400">
+          ${entry.ema21 ? formatPrice(entry.ema21) : '—'}
+        </td>
+      )}
+
       {visibleCols.has('rsiCustom') && (
         <td className={cn(
           "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono relative transition-all duration-300",
@@ -315,7 +331,6 @@ const ScreenerRow = memo(function ScreenerRow({
           </div>
         </td>
       )}
-
       {visibleCols.has('emaCross') && (
         <td className="px-3 py-4 text-right text-[10px] font-black uppercase">
           <span className={cn(
@@ -335,6 +350,17 @@ const ScreenerRow = memo(function ScreenerRow({
           entry.macdHistogram === null ? "text-slate-700" : entry.macdHistogram > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
         )}>
           {formatNum(entry.macdHistogram, 4)}
+        </td>
+      )}
+
+      {visibleCols.has('bbUpper') && (
+        <td className="px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono text-[#FF4B5C]/70">
+          ${entry.bbUpper ? formatPrice(entry.bbUpper) : '—'}
+        </td>
+      )}
+      {visibleCols.has('bbLower') && (
+        <td className="px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono text-[#39FF14]/70">
+          ${entry.bbLower ? formatPrice(entry.bbLower) : '—'}
         </td>
       )}
 
@@ -367,6 +393,23 @@ const ScreenerRow = memo(function ScreenerRow({
         <td className="px-3 py-4 text-right text-[10px] font-black uppercase">
           {entry.rsiDivergence === 'bullish' ? <span className="text-[#39FF14]">Bull Div</span> :
             entry.rsiDivergence === 'bearish' ? <span className="text-[#FF4B5C]">Bear Div</span> : '—'}
+        </td>
+      )}
+
+      {visibleCols.has('vwapDiff') && (
+        <td className={cn(
+          "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
+          entry.vwapDiff === null ? "text-slate-700" : entry.vwapDiff > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
+        )}>
+          {formatPct(entry.vwapDiff)}
+        </td>
+      )}
+      {visibleCols.has('volumeSpike') && (
+        <td className={cn(
+          "px-3 py-4 text-right text-[10px] font-black uppercase",
+          entry.volumeSpike === true ? "text-[#39FF14]" : "text-slate-600"
+        )}>
+          {entry.volumeSpike ? 'SPIKE' : 'Normal'}
         </td>
       )}
 
@@ -561,7 +604,7 @@ function SkeletonRows({ cols }: { cols: number }) {
 
 type ColumnId =
   | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h' | 'rsiCustom'
-  | 'emaCross' | 'macdHistogram' | 'bbPosition' | 'stochK'
+  | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
   | 'vwapDiff' | 'volumeSpike' | 'strategy'
   | 'confluence' | 'divergence' | 'momentum';
 
@@ -578,8 +621,12 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'rsi15m', label: 'RSI 15m', group: 'RSI Std', defaultVisible: true },
   { id: 'rsi1h', label: 'RSI 1h', group: 'RSI Std', defaultVisible: true },
   { id: 'rsiCustom', label: 'RSI Custom', group: 'RSI Active', defaultVisible: true },
+  { id: 'ema9', label: 'EMA 9', group: 'Moving Avg', defaultVisible: false },
+  { id: 'ema21', label: 'EMA 21', group: 'Moving Avg', defaultVisible: false },
   { id: 'emaCross', label: 'Trend', group: 'Indicators', defaultVisible: true },
   { id: 'macdHistogram', label: 'MACD', group: 'Indicators', defaultVisible: true },
+  { id: 'bbUpper', label: 'BB Upper', group: 'Volatility', defaultVisible: false },
+  { id: 'bbLower', label: 'BB Lower', group: 'Volatility', defaultVisible: false },
   { id: 'bbPosition', label: 'BB Pos', group: 'Volatility', defaultVisible: false },
   { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: false },
   { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: false },
@@ -633,6 +680,7 @@ const ScreenerCard = memo(function ScreenerCard({
   onOpenSettings,
   coinConfigs,
   onSaveConfig,
+  visibleCols,
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -642,9 +690,13 @@ const ScreenerCard = memo(function ScreenerCard({
   onOpenSettings: (symbol: string) => void;
   coinConfigs: Record<string, any>;
   onSaveConfig: (symbol: string, config: any) => void;
+  visibleCols: Set<ColumnId> | undefined;
 }) {
   const isStarred = watchlist.has(entry.symbol);
   
+  // Dynamic columns to show in the small indicator area
+  const activeIndicators = OPTIONAL_COLUMNS.filter(c => visibleCols?.has(c.id));
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -655,7 +707,7 @@ const ScreenerCard = memo(function ScreenerCard({
       )}
     >
       {/* 1. Asset & Meta */}
-      <div className="flex items-center gap-2 w-[120px] shrink-0">
+      <div className="flex items-center gap-2 w-[110px] shrink-0">
         <span className="text-[9px] font-black text-slate-700 w-4 tabular-nums">#{idx}</span>
         <button
           onClick={() => toggleWatchlist(entry.symbol)}
@@ -668,40 +720,66 @@ const ScreenerCard = memo(function ScreenerCard({
             <span className="font-black text-white text-sm tracking-tight">{entry.symbol.replace('USDT', '')}</span>
             <span className="text-[7px] font-black text-slate-600">USDT</span>
           </div>
-          <div className="text-[7px] font-black text-[#39FF14]/50 uppercase tracking-widest">Binance Perp</div>
+          <div className="text-[7px] font-black text-[#39FF14]/50 uppercase tracking-widest leading-none">Binance Perp</div>
         </div>
       </div>
 
-      {/* 2. RSI Indicators (Scrollable Area) */}
+      {/* 2. Scalable Indicators Area */}
       <div 
         onClick={() => onOpenSettings(entry.symbol)}
-        className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-5 px-4 mx-2 cursor-pointer active:scale-95 transition-transform"
+        className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 px-3 mx-2 cursor-pointer active:scale-95 transition-transform"
       >
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">1m</span>
-          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi1m))}>{formatRsi(entry.rsi1m)}</span>
-        </div>
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">5m</span>
-          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi5m))}>{formatRsi(entry.rsi5m)}</span>
-        </div>
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">15m</span>
-          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi15m))}>{formatRsi(entry.rsi15m)}</span>
-        </div>
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">1h</span>
-          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi1h))}>{formatRsi(entry.rsi1h)}</span>
-        </div>
-        <div className="flex flex-col items-center shrink-0">
-          <span className="text-[6px] font-black text-[#39FF14]/60 uppercase mb-0.5">Custom</span>
-          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsiCustom))}>{formatRsi(entry.rsiCustom)}</span>
-        </div>
+        {activeIndicators.length === 0 ? (
+          <div className="flex-1 flex justify-center italic text-[8px] text-slate-700 uppercase font-black tracking-widest">No Indicators Selected</div>
+        ) : (
+          activeIndicators.map(col => {
+            const val = entry[col.id as keyof ScreenerEntry];
+            const isRsi = col.id.startsWith('rsi');
+            
+            return (
+              <div key={col.id} className="flex flex-col items-center shrink-0 min-w-[32px]">
+                <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">{col.label.replace('RSI ', '')}</span>
+                {isRsi ? (
+                   <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(val as number))}>{formatRsi(val as number)}</span>
+                ) : col.id === 'strategy' ? (
+                   <StrategyBadge signal={entry.strategySignal} label={entry.strategyLabel} />
+                ) : col.id === 'divergence' ? (
+                   <span className={cn("text-[8px] font-black uppercase", entry.rsiDivergence === 'bullish' ? "text-[#39FF14]" : entry.rsiDivergence === 'bearish' ? "text-[#FF4B5C]" : "text-slate-700")}>
+                      {entry.rsiDivergence === 'bullish' ? 'DIV+' : entry.rsiDivergence === 'bearish' ? 'DIV-' : '—'}
+                   </span>
+                ) : col.id === 'vwapDiff' ? (
+                   <span className={cn("text-[10px] font-black tabular-nums font-mono", (val as number) > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+                      {formatPct(val as number)}
+                   </span>
+                ) : col.id === 'volumeSpike' ? (
+                   <span className={cn("text-[10px] font-black uppercase", val === true ? "text-[#39FF14]" : "text-slate-700")}>
+                      {val === true ? 'SPIKE' : 'NORM'}
+                   </span>
+                ) : col.id === 'ema9' || col.id === 'ema21' || col.id === 'bbUpper' || col.id === 'bbLower' ? (
+                   <span className="text-[9px] font-bold text-slate-300 tabular-nums">
+                      ${typeof val === 'number' ? formatPrice(val) : '—'}
+                   </span>
+                ) : (
+                   <span className={cn(
+                     "text-[9px] font-bold tabular-nums transition-colors duration-300",
+                     entry.isLiveRsi ? "text-[#39FF14]" : "text-slate-300"
+                   )}>
+                      {typeof val === 'number' 
+                        ? val.toFixed(col.id === 'macdHistogram' ? 4 : 1) 
+                        : typeof val === 'string'
+                        ? val
+                        : '—'}
+                   </span>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* 3. Market Info (Right) */}
-      <div className="flex items-center gap-4 text-right shrink-0">
-        <div className="flex flex-col items-end min-w-[70px]">
+      <div className="flex items-center gap-3 text-right shrink-0">
+        <div className="flex flex-col items-end min-w-[65px]">
           <span className="text-sm font-black text-white font-mono tracking-tighter">${formatPrice(entry.price)}</span>
           <div className={cn("text-[9px] font-black font-mono flex items-center gap-0.5", entry.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
              {entry.change24h > 0 ? '+' : ''}{entry.change24h.toFixed(2)}%
@@ -709,10 +787,13 @@ const ScreenerCard = memo(function ScreenerCard({
         </div>
         
         <button
-          onClick={() => onOpenSettings(entry.symbol)}
-          className="p-2 bg-white/5 rounded-xl text-slate-600 hover:text-white transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSettings(entry.symbol);
+          }}
+          className="p-1.5 bg-white/5 rounded-xl text-slate-600 hover:text-[#39FF14] transition-colors"
         >
-          <Settings size={14} />
+          <Settings size={12} />
         </button>
       </div>
 
@@ -808,8 +889,14 @@ export default function ScreenerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [alertsEnabled, setAlertsEnabled] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [alertsEnabled, setAlertsEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('crypto-rsi-alerts-enabled') !== '0';
+  });
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('crypto-rsi-sound-enabled') !== '0';
+  });
   const [showAlertPanel, setShowAlertPanel] = useState(false);
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
@@ -850,9 +937,18 @@ export default function ScreenerDashboard() {
   const dataLenRef = useRef(0);
 
   // Column visibility
-  const [visibleCols, setVisibleCols] = useState<Set<ColumnId>>(() =>
-    new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id)),
-  );
+  const [visibleCols, setVisibleCols] = useState<Set<ColumnId>>(() => {
+    if (typeof window === 'undefined') return new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id));
+    const saved = localStorage.getItem('crypto-rsi-visible-cols');
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved));
+      } catch {
+        // Fallback
+      }
+    }
+    return new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id));
+  });
   const [showColPicker, setShowColPicker] = useState(false);
   const colPickerRef = useRef<HTMLDivElement>(null);
 
@@ -889,7 +985,7 @@ export default function ScreenerDashboard() {
       const obT = config?.overboughtThreshold ?? 70;
       const osT = config?.oversoldThreshold ?? 30;
 
-      let { rsi1m, rsi5m, rsi15m, rsi1h, signal } = entry;
+      let { rsi1m, rsi5m, rsi15m, rsi1h, signal, ema9, ema21, emaCross, bbPosition } = entry;
       let isLiveRsi = false;
 
       // Real-time Multi-TF RSI Approximation (Wilder's smoothing via previous state)
@@ -897,6 +993,22 @@ export default function ScreenerDashboard() {
       if (entry.rsiState5m) { rsi5m = approximateRsi(entry.rsiState5m, live.price, r5mP); isLiveRsi = true; }
       if (entry.rsiState15m) { rsi15m = approximateRsi(entry.rsiState15m, live.price, r15mP); isLiveRsi = true; }
       if (entry.rsiState1h) { rsi1h = approximateRsi(entry.rsiState1h, live.price, r1hP); isLiveRsi = true; }
+
+      // Real-time EMA & Trend approximation
+      if (ema9 !== null) ema9 = approximateEma(ema9, live.price, 9);
+      if (ema21 !== null) ema21 = approximateEma(ema21, live.price, 21);
+      
+      if (ema9 !== null && ema21 !== null) {
+        emaCross = ema9 > ema21 ? 'bullish' : 'bearish';
+      }
+
+      // Real-time BB Position hijack (if we have upper/lower bands from last API fetch)
+      if (entry.bbUpper !== null && entry.bbLower !== null) {
+        const range = entry.bbUpper - entry.bbLower;
+        if (range > 0) {
+          bbPosition = (live.price - entry.bbLower) / range;
+        }
+      }
 
       // Instant Signal Hijack based on lead RSI (15m primary, 1m fallback)
       const leadRsi = rsi15m ?? rsi1m;
@@ -912,8 +1024,10 @@ export default function ScreenerDashboard() {
         change24h: live.change24h,
         volume24h: live.volume24h,
         rsi1m, rsi5m, rsi15m, rsi1h,
+        ema9, ema21, emaCross, bbPosition,
         signal,
         isLiveRsi,
+        lastPriceChange: live.price - entry.price,
         updatedAt: live.updatedAt
       };
     });
@@ -936,7 +1050,16 @@ export default function ScreenerDashboard() {
     return next;
   }, [mergedData, rsiPeriod]);
 
-  const { alerts, setAlerts } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
+  const { alerts, setAlerts, triggerTestAlert, clearAlertHistory } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
+
+  // Persist alert settings
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-alerts-enabled', alertsEnabled ? '1' : '0');
+  }, [alertsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-sound-enabled', soundEnabled ? '1' : '0');
+  }, [soundEnabled]);
 
   // ─── Real-time Stats Engine ──────────────────────────────────
   const stats = useMemo(() => {
@@ -1017,6 +1140,11 @@ export default function ScreenerDashboard() {
     localStorage.setItem('crypto-rsi-watchlist', JSON.stringify([...watchlist]));
   }, [watchlist, watchlistReady]);
 
+  // Persist column visibility
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-visible-cols', JSON.stringify([...visibleCols]));
+  }, [visibleCols]);
+
   // Persist last-known data for "Warm Start" hydration
   useEffect(() => {
     if (data.length > 0) {
@@ -1066,6 +1194,10 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     localStorage.setItem('crypto-rsi-period', String(rsiPeriod));
   }, [rsiPeriod]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-visible-cols', JSON.stringify([...visibleCols]));
+  }, [visibleCols]);
 
   // Auto-adjust refresh interval when pair count changes (500 pairs needs more time)
   useEffect(() => {
@@ -1471,7 +1603,7 @@ export default function ScreenerDashboard() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+          <div className="flex items-center gap-2 w-full sm:w-auto pb-1 sm:pb-0">
             <button
               onClick={() => setShowWatchlistOnly((v) => !v)}
               className={cn(
@@ -1512,25 +1644,80 @@ export default function ScreenerDashboard() {
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-3 z-50 bg-[#0A0F1B] border border-white/10 rounded-2xl shadow-xl p-3 min-w-[200px]"
+                    className="absolute right-0 top-full mt-4 z-[100] bg-[#0A0F1B]/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-5 min-w-[300px] sm:min-w-[480px] overflow-hidden"
                   >
-                    <div className="grid grid-cols-1 gap-1">
-                      {OPTIONAL_COLUMNS.map((col) => (
-                        <button
-                          key={col.id}
-                          onClick={() => toggleCol(col.id)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left",
-                            visibleCols.has(col.id) ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-500 hover:bg-white/5"
-                          )}
-                        >
-                          <div className={cn("w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all", visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700")}>
-                            {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-white" />}
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                         <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Screener Columns</span>
+                         <div className="flex gap-2.5">
+                           <button 
+                             onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.map(c => c.id)))}
+                             className="px-2 py-1 text-[9px] font-black text-[#39FF14] hover:bg-[#39FF14]/10 rounded-md transition-all uppercase"
+                           >
+                             All
+                           </button>
+                           <button 
+                             onClick={() => setVisibleCols(new Set())}
+                             className="px-2 py-1 text-[9px] font-black text-[#FF4B5C] hover:bg-[#FF4B5C]/10 rounded-md transition-all uppercase"
+                           >
+                             None
+                           </button>
+                           <button 
+                             onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)))}
+                             className="px-2 py-1 text-[9px] font-black text-slate-400 hover:bg-white/5 rounded-md transition-all uppercase"
+                           >
+                             Reset
+                           </button>
+                         </div>
+                      </div>
+
+                      <div className="max-h-[450px] overflow-y-auto no-scrollbar pr-1 flex flex-col gap-5">
+                        {Array.from(new Set(OPTIONAL_COLUMNS.map(c => c.group))).map(group => (
+                          <div key={group} className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 px-1">
+                              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{group}</span>
+                              <div className="h-[1px] flex-1 bg-white/5" />
+                              <button 
+                                onClick={() => {
+                                  const groupIds = OPTIONAL_COLUMNS.filter(c => c.group === group).map(c => c.id);
+                                  setVisibleCols(prev => {
+                                    const next = new Set(prev);
+                                    const allInGroupSelected = groupIds.every(id => next.has(id));
+                                    if (allInGroupSelected) groupIds.forEach(id => next.delete(id));
+                                    else groupIds.forEach(id => next.add(id));
+                                    return next;
+                                  });
+                                }}
+                                className="text-[8px] font-bold text-slate-600 hover:text-slate-400 uppercase transition-colors"
+                              >
+                                {OPTIONAL_COLUMNS.filter(c => c.group === group).every(c => visibleCols.has(c.id)) ? 'Deselect' : 'Select'}
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {OPTIONAL_COLUMNS.filter(c => c.group === group).map((col) => (
+                                <button
+                                  key={col.id}
+                                  onClick={() => toggleCol(col.id)}
+                                  className={cn(
+                                    "flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left",
+                                    visibleCols.has(col.id) 
+                                      ? "bg-[#39FF14]/[0.08] text-[#39FF14] border-[#39FF14]/20 shadow-[0_0_15px_-5px_#39FF1433]" 
+                                      : "text-slate-500 border-white/5 hover:bg-white/5 hover:border-white/10"
+                                  )}
+                                >
+                                  <div className={cn(
+                                    "w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all shrink-0", 
+                                    visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700"
+                                  )}>
+                                    {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-[#0A0F1B]" strokeWidth={3} />}
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-tight truncate leading-none">{col.label}</span>
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-tight">{col.label}</span>
-                          <span className="text-[8px] font-black text-slate-700 ml-auto uppercase tracking-tighter">{col.group}</span>
-                        </button>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1577,8 +1764,9 @@ export default function ScreenerDashboard() {
                    rsiPeriod={rsiPeriod}
                    onOpenSettings={(s) => setSelectedCoinForConfig(s)}
                    coinConfigs={coinConfigs}
-                   onSaveConfig={handleSaveConfig}
-                 />
+                    onSaveConfig={handleSaveConfig}
+                    visibleCols={visibleCols}
+                  />
                ))}
              </AnimatePresence>
            )}
@@ -1600,24 +1788,20 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('rsi5m') && <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('rsi15m') && <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('rsi1h') && <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                  {visibleCols.has('rsiCustom') && (
-                    <SortHeader
-                      label={`RSI (${rsiPeriod})`}
-                      sortKey="rsiCustom"
-                      currentKey={sortKey}
-                      currentDir={sortDir}
-                      onSort={handleSort}
-                      align="right"
-                    />
-                  )}
-
+                  {visibleCols.has('rsiCustom') && <SortHeader label={`RSI (${rsiPeriod})`} sortKey="rsiCustom" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('ema9') && <SortHeader label="EMA 9" sortKey="ema9" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('ema21') && <SortHeader label="EMA 21" sortKey="ema21" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('emaCross') && <SortHeader label="Trend" sortKey="emaCross" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('macdHistogram') && <SortHeader label="MACD" sortKey="macdHistogram" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('bbUpper') && <SortHeader label="BB Up" sortKey="bbUpper" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('bbLower') && <SortHeader label="BB Low" sortKey="bbLower" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('bbPosition') && <SortHeader label="BB Pos" sortKey="bbPosition" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('stochK') && <SortHeader label="Stoch" sortKey="stochK" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('confluence') && <SortHeader label="Confluence" sortKey="confluence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('divergence') && <SortHeader label="Diverg" sortKey="rsiDivergence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('momentum') && <SortHeader label="Momentum" sortKey="momentum" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('vwapDiff') && <SortHeader label="VWAP %" sortKey="vwapDiff" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('volumeSpike') && <SortHeader label="Vol Spike" sortKey="volumeSpike" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
@@ -1728,12 +1912,19 @@ export default function ScreenerDashboard() {
                 if (res.ok) {
                   const updated = await res.json();
                   setCoinConfigs(prev => ({ ...prev, [selectedCoinForConfig]: updated }));
+                  
+                  toast.success(`${selectedCoinForConfig.replace('USDT', '')} Configuration applied.`, {
+                    description: "Filters and alerts have been updated in real-time.",
+                    duration: 3000
+                  });
+                  
                   setSelectedCoinForConfig(null);
                   // Refresh data to reflect changes immediately
                   fetchData(true);
                 }
               } catch (err) {
                 console.error('Failed to save config:', err);
+                toast.error("Failed to apply configuration.");
               }
             }}
           />
@@ -1742,7 +1933,11 @@ export default function ScreenerDashboard() {
 
       <AnimatePresence>
         {showAlertPanel && (
-          <AlertHistoryPanel alerts={alerts} onClose={() => setShowAlertPanel(false)} />
+          <AlertHistoryPanel 
+            alerts={alerts} 
+            onClose={() => setShowAlertPanel(false)} 
+            onClear={clearAlertHistory}
+          />
         )}
       </AnimatePresence>
 
@@ -1758,6 +1953,11 @@ export default function ScreenerDashboard() {
             setRefreshInterval={setRefreshInterval}
             pairCount={pairCount}
             setPairCount={setPairCount}
+            alertsEnabled={alertsEnabled}
+            setAlertsEnabled={setAlertsEnabled}
+            soundEnabled={soundEnabled}
+            setSoundEnabled={setSoundEnabled}
+            triggerTestAlert={triggerTestAlert}
           />
         )}
       </AnimatePresence>
@@ -1812,6 +2012,9 @@ function CoinSettingsModal({
     rsi1hPeriod: currentConfig?.rsi1hPeriod ?? 14,
     overboughtThreshold: currentConfig?.overboughtThreshold ?? 70,
     oversoldThreshold: currentConfig?.oversoldThreshold ?? 30,
+    alertOn1m: currentConfig?.alertOn1m ?? false,
+    alertOn5m: currentConfig?.alertOn5m ?? false,
+    alertOn15m: currentConfig?.alertOn15m ?? false,
     alertOn1h: currentConfig?.alertOn1h ?? false,
     alertOnCustom: currentConfig?.alertOnCustom ?? false,
     alertConfluence: currentConfig?.alertConfluence ?? false,
@@ -2048,7 +2251,7 @@ function MiniStatCard({ label, value, color }: { label: string; value: number; c
 
 // ─── Alert History Panel ───────────────────────────────────────
 
-function AlertHistoryPanel({ alerts, onClose }: { alerts: any[]; onClose: () => void }) {
+function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClose: () => void; onClear: () => void }) {
   return (
     <motion.div
       initial={{ y: '100%' }}
@@ -2058,10 +2261,20 @@ function AlertHistoryPanel({ alerts, onClose }: { alerts: any[]; onClose: () => 
       className="fixed bottom-0 left-0 right-0 top-0 sm:top-auto sm:right-0 sm:h-screen w-full sm:w-80 bg-slate-900/95 backdrop-blur-xl border-t sm:border-t-0 sm:border-l border-white/10 z-[100] shadow-2xl overflow-hidden flex flex-col rounded-t-[2rem] sm:rounded-none"
     >
       <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between">
-        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
-          <Bell size={16} className="text-[#39FF14]" />
-          Alert History
-        </h3>
+        <div className="flex items-center gap-4">
+          <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+            <Bell size={16} className="text-[#39FF14]" />
+            Alert History
+          </h3>
+          {alerts.length > 0 && (
+            <button 
+              onClick={onClear}
+              className="px-2 py-1 rounded-md bg-[#FF4B5C]/10 text-[#FF4B5C] text-[8px] font-black uppercase tracking-widest hover:bg-[#FF4B5C]/20 transition-all border border-[#FF4B5C]/20"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
         <button onClick={onClose} className="p-2 text-slate-500 hover:text-white transition-colors">
           <ChevronUp size={20} className="rotate-90" />
         </button>
@@ -2125,7 +2338,12 @@ function GlobalSettingsModal({
   refreshInterval,
   setRefreshInterval,
   pairCount,
-  setPairCount
+  setPairCount,
+  alertsEnabled,
+  setAlertsEnabled,
+  soundEnabled,
+  setSoundEnabled,
+  triggerTestAlert
 }: {
   onClose: () => void;
   visibleCols: Set<string>;
@@ -2136,7 +2354,25 @@ function GlobalSettingsModal({
   setRefreshInterval: (v: number) => void;
   pairCount: number;
   setPairCount: (v: number) => void;
+  alertsEnabled: boolean;
+  setAlertsEnabled: (v: boolean) => void;
+  soundEnabled: boolean;
+  setSoundEnabled: (v: boolean) => void;
+  triggerTestAlert: () => void;
 }) {
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const requestPermission = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -2188,6 +2424,84 @@ function GlobalSettingsModal({
                   </div>
                 </button>
               ))}
+            </div>
+          </section>
+
+          <div className="h-px bg-white/5" />
+
+          {/* Alert Global Settings */}
+          <section className="space-y-6">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Alerts & Notifications</h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all group">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <Bell size={12} className="text-[#39FF14]" />
+                    Global RSI Alerts
+                  </span>
+                  <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Master switch for all real-time alerts</span>
+                </div>
+                <button
+                  onClick={() => setAlertsEnabled(!alertsEnabled)}
+                  className={cn(
+                    "w-12 h-6 rounded-full p-1 transition-all flex items-center",
+                    alertsEnabled ? "bg-[#39FF14]" : "bg-slate-800"
+                  )}
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                    alertsEnabled ? "translate-x-6" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all group">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                    <Zap size={12} className="text-[#39FF14]" />
+                    Chime Notifications
+                  </span>
+                  <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Play high-fidelity sound on alert</span>
+                </div>
+                <button
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  className={cn(
+                    "w-12 h-6 rounded-full p-1 transition-all flex items-center",
+                    soundEnabled ? "bg-[#39FF14]" : "bg-slate-800"
+                  )}
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                    soundEnabled ? "translate-x-6" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <button
+                  onClick={triggerTestAlert}
+                  className="px-4 py-3 rounded-2xl bg-slate-800 border border-white/5 text-[10px] font-black text-slate-300 uppercase tracking-widest hover:bg-slate-700 hover:text-white transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Activity size={12} />
+                  Test Flow
+                </button>
+                
+                {notificationPermission !== 'granted' ? (
+                  <button
+                    onClick={requestPermission}
+                    className="px-4 py-3 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/30 text-[10px] font-black text-[#39FF14] uppercase tracking-widest hover:bg-[#39FF14]/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <ShieldCheck size={12} />
+                    Enable Native
+                  </button>
+                ) : (
+                  <div className="px-4 py-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-[8px] font-black text-emerald-500 uppercase tracking-widest flex items-center justify-center gap-2 opacity-60">
+                    <ShieldCheck size={12} />
+                    OS Granted
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 

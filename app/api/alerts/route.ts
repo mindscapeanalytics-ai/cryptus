@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAlertLog, getRecentAlerts } from '@/lib/alert-log';
+import { createAlertLog, getRecentAlerts, clearAlertLogs } from '@/lib/alert-log';
 import { auth } from '@/lib/auth';
 
 export async function GET() {
@@ -23,6 +23,21 @@ export async function POST(request: Request) {
     return NextResponse.json(alert);
   } catch (err) {
     console.error('[alerts-api] POST error:', err);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    await clearAlertLogs();
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[alerts-api] DELETE error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

@@ -4,8 +4,8 @@
   "description": "Crypto RSI Market Screener — real-time multi-pair RSI monitoring",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/build.js",
-    "start": "node -r dotenv/config .next/standalone/server.js",
+    "build": "next build",
+    "start": "next start",
     "lint": "next lint",
     "postinstall": "prisma generate"
   },
@@ -28,6 +28,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",

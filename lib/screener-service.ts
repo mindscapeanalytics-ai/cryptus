@@ -148,6 +148,26 @@ const indicatorCache = new Map<string, { entry: ScreenerEntry; ts: number }>();
 const INDICATOR_CACHE_TTL = 300_000; // 5 min — indicators drift slowly, WebSocket keeps prices live
 const INDICATOR_CACHE_MAX = 5000;
 
+/**
+ * Force-evict a specific symbol from all caches.
+ * Used when a user updates their specific coin configuration.
+ */
+export function invalidateSymbolCache(symbol: string) {
+  // 1. Remove from indicator cache for any combination of cache keys
+  // Since we don't know all rsiPeriods that might be cached, we iterate and match the symbol prefix.
+  const prefix = `${symbol}:`;
+  for (const key of indicatorCache.keys()) {
+    if (key.startsWith(prefix)) {
+      indicatorCache.delete(key);
+    }
+  }
+
+  // 2. Clear aggregate result cache so the next master fetch computes fresh
+  resultCache.clear();
+  
+  debugLog(`[screener] Cache invalidated for ${symbol}`);
+}
+
 function pruneIndicatorCache() {
   const now = Date.now();
   // Aggressive cleanup: remove anything older than TTL

@@ -34,3 +34,12 @@ export async function getRecentAlerts(limit = 50) {
     return [];
   }
 }
+
+export async function clearAlertLogs() {
+  try {
+    return await prisma.alertLog.deleteMany();
+  } catch (err) {
+    console.error('[alert-log] Failed to clear alerts:', err);
+    throw err;
+  }
+}

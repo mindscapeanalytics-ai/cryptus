@@ -4,6 +4,18 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'RSIQ Pro — Mindscape Analytics LLC',
   description: 'Enterprise-grade multi-indicator crypto market scanner by Mindscape Analytics LLC. Monitor 500+ pairs with real-time RSI, MACD, and strategy scoring.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'RSIQ Pro',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    apple: '/logo/rsiq-pro-icon.png',
+  },
   robots: 'index, follow',
   openGraph: {
     title: 'RSIQ Pro | Mindscape Analytics',
@@ -19,12 +31,14 @@ export const viewport: Viewport = {
 };
 
 import { Toaster } from 'sonner';
+import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased bg-[#0a0e17]" suppressHydrationWarning>
         {children}
+        <PWAInstallPrompt />
         <Toaster theme="dark" position="top-right" closeButton richColors />
       </body>
     </html>

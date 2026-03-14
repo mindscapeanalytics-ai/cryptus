@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
+
 export interface Alert {
   id: string;
   symbol: string;
@@ -29,13 +35,15 @@ export function useAlertEngine(
     if (!soundEnabled || typeof window === 'undefined') return;
     try {
       if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
       const ctx = audioCtxRef.current;
       
       if (ctx.state === 'suspended') {
-        await ctx.resume();
+        await ctx.resume().catch(() => {});
       }
+      
+      if (ctx.state !== 'running') return;
 
       const playTone = (freq: number, startTime: number, duration: number, vol: number) => {
         const osc = ctx.createOscillator();
@@ -61,14 +69,25 @@ export function useAlertEngine(
       };
 
       const now = ctx.currentTime;
-      playTone(880, now, 0.4, 0.1);      
-      playTone(1318.51, now + 0.05, 0.3, 0.05); 
-      playTone(1760, now + 0.1, 0.2, 0.02);    
+      playTone(880, now, 0.4, 0.15);      
+      playTone(1108.73, now + 0.08, 0.35, 0.08); 
+      playTone(1318.51, now + 0.16, 0.3, 0.05); 
+      playTone(1760, now + 0.24, 0.25, 0.03);    
       
     } catch (e) {
       console.warn('[alerts] Audio generation failed:', e);
     }
   }, [soundEnabled]);
+
+  const triggerNativeNotification = useCallback((title: string, body: string) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, {
+        body,
+        icon: '/logo/logo-rsi.png'
+      });
+    }
+  }, []);
 
   const logAlert = useCallback(async (alert: Omit<Alert, 'id' | 'createdAt'>) => {
     try {
@@ -182,6 +201,10 @@ export function useAlertEngine(
             
             playAlertSound();
             logAlert(newAlert);
+            triggerNativeNotification(
+              `${entry.symbol} ${currentZone}`,
+              `${label} RSI is ${val.toFixed(1)}`
+            );
           }
         }
 
@@ -201,5 +224,29 @@ export function useAlertEngine(
       .catch(e => console.error('[alerts] History fetch failed:', e));
   }, []);
 
-  return { alerts, setAlerts };
+  const triggerTestAlert = useCallback(() => {
+    const testLabel = "TEST";
+    toast.success("RSIQ Alert System: Sound & Notification Check", {
+      description: "Verifying your personalized alert settings."
+    });
+    playAlertSound();
+    triggerNativeNotification("RSIQ PRO Test", "Alert system is functional!");
+  }, [playAlertSound, triggerNativeNotification]);
+
+  const clearAlertHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/alerts', { method: 'DELETE' });
+      if (res.ok) {
+        setAlerts([]);
+        toast.success("Alert history cleared successfully.");
+      } else {
+        throw new Error('Failed to clear alerts');
+      }
+    } catch (e) {
+      console.error('[alerts] Clear history failed:', e);
+      toast.error("Failed to clear alert history.");
+    }
+  }, []);
+
+  return { alerts, setAlerts, triggerTestAlert, clearAlertHistory };
 }

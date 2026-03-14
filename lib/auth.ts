@@ -8,6 +8,7 @@ import { prisma } from "./prisma";
 const resolvedAppUrl =
   process.env.BETTER_AUTH_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
   process.env.RENDER_EXTERNAL_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:3000" : null) ||

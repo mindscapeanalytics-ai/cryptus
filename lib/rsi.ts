@@ -109,3 +109,15 @@ export function approximateRsi(
   const rs = avgGain / avgLoss;
   return Math.round(Math.max(0, Math.min(100, 100 - 100 / (1 + rs))) * 100) / 100;
 }
+/**
+ * Approximate EMA from a previous EMA value + new live price.
+ * Used for real-time trend updates.
+ */
+export function approximateEma(
+  prevEma: number,
+  livePrice: number,
+  period: number = 9,
+): number {
+  const alpha = 2 / (period + 1);
+  return livePrice * alpha + prevEma * (1 - alpha);
+}

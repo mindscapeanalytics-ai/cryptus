@@ -6,7 +6,7 @@ type Session = typeof auth.$Infer.Session;
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/register");
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/login") || pathname.startsWith("/register");
 
   // Check for session cookies with support for all common variations
   const hasSessionCookie =
@@ -14,8 +14,8 @@ export async function middleware(request: NextRequest) {
     request.cookies.has("__Secure-better-auth.session_token") ||
     request.cookies.has("__secure-better-auth.session_token");
 
-  // Fast path: no cookie + not an auth route → redirect to login
-  if (!hasSessionCookie && !isAuthRoute) {
+  // Fast path: no cookie + not a public route → redirect to login
+  if (!hasSessionCookie && !isPublicRoute) {
     const url = new URL("/login", request.url);
     url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
@@ -55,15 +55,16 @@ export async function middleware(request: NextRequest) {
   }
 
   // Unauthenticated user on a protected page → redirect to login
-  if (!session && !isAuthRoute) {
+  if (!session && !isPublicRoute) {
     const url = new URL("/login", request.url);
     url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user on an auth page → redirect to dashboard
-  if (session && isAuthRoute) {
-    return NextResponse.redirect(new URL("/", request.url));
+  // Authenticated user on an auth page → redirect to terminal
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/register");
+  if (session && isAuthPage) {
+    return NextResponse.redirect(new URL("/terminal", request.url));
   }
 
   return NextResponse.next();
@@ -79,6 +80,6 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      * - assets (images, fonts, etc.)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|assets).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|assets|images).*)",
   ],
 };

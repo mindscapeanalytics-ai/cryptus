@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAllCoinConfigs, updateCoinConfig } from '@/lib/coin-config';
+import { invalidateSymbolCache } from '@/lib/screener-service';
 import { auth } from '@/lib/auth';
 
 export async function GET() {
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
     }
 
     const updated = await updateCoinConfig(body);
+    
+    // Invalidate caches so the next fetch uses the fresh config
+    invalidateSymbolCache(body.symbol);
+    
     return NextResponse.json(updated);
   } catch (err) {
     console.error('[config-api] POST error:', err);

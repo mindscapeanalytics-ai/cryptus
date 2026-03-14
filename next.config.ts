@@ -1,4 +1,16 @@
 import type { NextConfig } from "next";
+import withPWAInit from "@ducanh2912/next-pwa";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development" && process.env.PWA_DEBUG !== "true",
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: true,
+  workboxOptions: {
+    // Custom workbox options
+  },
+});
 
 const nextConfig: NextConfig = {
   // Standalone output creates a self-contained build — ideal for Render, Railway, etc.
@@ -49,4 +61,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
