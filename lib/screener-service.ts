@@ -6,6 +6,7 @@ import {
   detectRsiDivergence, calculateROC, calculateConfluence,
 } from './indicators';
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
+import { getAllCoinConfigs, type CoinConfig } from './coin-config';
 
 interface ScreenerOptions {
   smartMode?: boolean;
@@ -527,10 +528,14 @@ function aggregateKlines(
   return result;
 }
 
-function deriveSignal(rsi: number | null): ScreenerEntry['signal'] {
+function deriveSignal(
+  rsi: number | null,
+  overbought: number = 70,
+  oversold: number = 30
+): ScreenerEntry['signal'] {
   if (rsi === null) return 'neutral';
-  if (rsi < 30) return 'oversold';
-  if (rsi > 70) return 'overbought';
+  if (rsi < oversold) return 'oversold';
+  if (rsi > overbought) return 'overbought';
   return 'neutral';
 }
 
@@ -542,6 +547,7 @@ function buildEntry(
   nowTs: number,
   rsiPeriod: number = 14,
   prevEntry?: ScreenerEntry,
+  config?: CoinConfig,
 ): ScreenerEntry | null {
   try {
     const validKlines = klines1m.filter((k) => k !== null && k.length >= 6);
@@ -552,29 +558,33 @@ function buildEntry(
     const lows1m = validKlines.map((k) => parseFloat(k[3]));
     const volumes1m = validKlines.map((k) => parseFloat(k[5]));
 
-    // Industry Standard RSIs (Period 14)
     const stdPeriod = 14;
-    const rsi1m = calculateRsi(closes1m, stdPeriod);
+    const r1mP = config?.rsi1mPeriod ?? stdPeriod;
+    const r5mP = config?.rsi5mPeriod ?? stdPeriod;
+    const r15mP = config?.rsi15mPeriod ?? stdPeriod;
+    const r1hP = config?.rsi1hPeriod ?? stdPeriod;
+
+    const rsi1m = calculateRsi(closes1m, r1mP);
 
     const aggCache = new Map<number, any[]>();
     const agg5m = aggregateKlines(validKlines, 5, aggCache);
     const closes5m = agg5m.map((c) => c.close);
-    const rsi5m = closes5m.length >= stdPeriod + 1 ? calculateRsi(closes5m, stdPeriod) : null;
+    const rsi5m = closes5m.length >= r5mP + 1 ? calculateRsi(closes5m, r5mP) : null;
 
     const agg15m = aggregateKlines(validKlines, 15, aggCache);
     const closes15m = agg15m.map((c) => c.close);
-    const rsi15m = closes15m.length >= stdPeriod + 1 ? calculateRsi(closes15m, stdPeriod) : null;
+    const rsi15m = closes15m.length >= r15mP + 1 ? calculateRsi(closes15m, r15mP) : null;
 
     let rsi1h: number | null = null;
     let closes1h: number[] = [];
-    if (klines1h && klines1h.length >= stdPeriod + 1) {
+    if (klines1h && klines1h.length >= r1hP + 1) {
       closes1h = klines1h.map((k) => parseFloat(k[4]));
-      rsi1h = calculateRsi(closes1h, stdPeriod);
+      rsi1h = calculateRsi(closes1h, r1hP);
     } else {
       const agg1h = aggregateKlines(validKlines, 60, aggCache);
       closes1h = agg1h.map((c) => c.close);
-      if (closes1h.length >= stdPeriod + 1) {
-        rsi1h = calculateRsi(closes1h, stdPeriod);
+      if (closes1h.length >= r1hP + 1) {
+        rsi1h = calculateRsi(closes1h, r1hP);
       }
     }
 
@@ -613,15 +623,15 @@ function buildEntry(
 
     const volumeSpike = detectVolumeSpike(volumes1m);
     
-    // Main signals and strategy ALWAYS use industry standard 14 for consistency
-    const signal = deriveSignal(rsi15m ?? rsi1m);
-    const stdRsiDivergence = detectRsiDivergence(closes15m, stdPeriod, 40);
+    // Signals use custom thresholds if provided, else standard 70/30
+    const signal = deriveSignal(rsi15m ?? rsi1m, config?.overboughtThreshold, config?.oversoldThreshold);
+    const stdRsiDivergence = detectRsiDivergence(closes15m, r15mP, 40);
 
-    // Intelligence indicators (Standard baseline)
-    const rsiState1m = calculateRsiWithState(closes1m, stdPeriod);
-    const rsiState5m = calculateRsiWithState(closes5m, stdPeriod);
-    const rsiState15m = calculateRsiWithState(closes15m, stdPeriod);
-    const rsiState1h = closes1h.length >= stdPeriod + 1 ? calculateRsiWithState(closes1h, stdPeriod) : null;
+    // Intelligence indicators (Using coin-specific periods)
+    const rsiState1m = calculateRsiWithState(closes1m, r1mP);
+    const rsiState5m = calculateRsiWithState(closes5m, r5mP);
+    const rsiState15m = calculateRsiWithState(closes15m, r15mP);
+    const rsiState1h = closes1h.length >= r1hP + 1 ? calculateRsiWithState(closes1h, r1hP) : null;
 
     const momentum = calculateROC(closes15m, 10);
     const confluenceResult = calculateConfluence({
@@ -720,10 +730,11 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
     const nowTs = Date.now();
     debugLog(`[screener] runRefresh(${symbolCount}, smart=${smartMode}) starting...`);
 
-    // 1. Get top symbols + ticker data in parallel
-    const [symbols, tickers] = await Promise.all([
+    // 1. Get top symbols + ticker data + custom configs in parallel
+    const [symbols, tickers, coinConfigs] = await Promise.all([
       getTopSymbols(symbolCount),
       fetchTickersSafe(),
+      getAllCoinConfigs(),
     ]);
 
     // 2. Fetch klines only for symbols with stale/missing indicator cache
@@ -789,12 +800,13 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
 
         if (res1m.status === 'rejected' && res1h.status === 'rejected') {
           failedCount++;
+          debugWarn(`[kline] Both 1m and 1h failed for ${sym}. Reason 1m: ${res1m.reason}, 1h: ${res1h.reason}`);
         }
       }
     }
 
     if (failedCount > 0) {
-      console.warn(`[screener] ${failedCount}/${symbolsToRefresh.length} kline fetches failed`);
+      console.warn(`[screener] ${failedCount}/${symbolsToRefresh.length} kline fetches failed or were throttled. Check BINANCE_APIS connectivity.`);
       // Log first few failure reasons for diagnosis
       let logged = 0;
       for (const sym of symbolsToRefresh) {
@@ -827,10 +839,19 @@ function runRefresh(symbolCount: number, smartMode: boolean, rsiPeriod: number =
           debugWarn(`[screener] ${sym}: kline fetch returned empty`);
         } else {
           const prevEntry = indicatorCache.get(`${sym}:${rsiPeriod}`)?.entry;
-          const freshEntry = buildEntry(sym, klines1m, klines1h, ticker, nowTs, rsiPeriod, prevEntry);
-          if (freshEntry) {
-            entries.push(freshEntry);
-            indicatorCache.set(`${sym}:${rsiPeriod}`, { entry: freshEntry, ts: nowTs });
+          const entry = buildEntry(
+            sym,
+            klines1m,
+            klines1h,
+            ticker,
+            nowTs,
+            rsiPeriod,
+            prevEntry,
+            coinConfigs.get(sym),
+          );
+          if (entry) {
+            entries.push(entry);
+            indicatorCache.set(`${sym}:${rsiPeriod}`, { entry: entry, ts: nowTs });
             continue;
           }
         }

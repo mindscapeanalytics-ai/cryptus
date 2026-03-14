@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } from '@/lib/types';
 import { useLivePrices } from '@/hooks/use-live-prices';
+import { useAlertEngine } from '@/hooks/use-alert-engine';
 import { approximateRsi } from '@/lib/rsi';
 
 // ─── Formatting helpers ────────────────────────────────────────
@@ -127,7 +128,10 @@ const ScreenerRow = memo(function ScreenerRow({
   toggleWatchlist,
   visibleCols,
   useAnimations,
-  rsiPeriod
+  rsiPeriod,
+  onOpenSettings,
+  coinConfigs,
+  onSaveConfig
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -136,6 +140,9 @@ const ScreenerRow = memo(function ScreenerRow({
   visibleCols: Set<ColumnId>;
   useAnimations: boolean;
   rsiPeriod: number;
+  onOpenSettings: (symbol: string) => void;
+  coinConfigs: Record<string, any>;
+  onSaveConfig: (symbol: string, config: any) => Promise<void>;
 }) {
   const isStarred = watchlist.has(entry.symbol);
 
@@ -221,10 +228,42 @@ const ScreenerRow = memo(function ScreenerRow({
         {formatVolume(entry.volume24h)}
       </td>
 
-      {visibleCols.has('rsi1m') && <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono", getRsiColor(entry.rsi1m))}>{formatRsi(entry.rsi1m)}</td>}
-      {visibleCols.has('rsi5m') && <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono", getRsiColor(entry.rsi5m))}>{formatRsi(entry.rsi5m)}</td>}
-      {visibleCols.has('rsi15m') && <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono", getRsiColor(entry.rsi15m))}>{formatRsi(entry.rsi15m)}</td>}
-      {visibleCols.has('rsi1h') && <td className={cn("px-3 py-4 text-right text-sm tabular-nums font-bold font-mono", getRsiColor(entry.rsi1h))}>{formatRsi(entry.rsi1h)}</td>}
+      {visibleCols.has('rsi1m') && (
+        <EditableRsiCell
+          symbol={entry.symbol}
+          rsi={entry.rsi1m}
+          field="rsi1mPeriod"
+          currentConfig={coinConfigs[entry.symbol]}
+          onSave={onSaveConfig}
+        />
+      )}
+      {visibleCols.has('rsi5m') && (
+        <EditableRsiCell
+          symbol={entry.symbol}
+          rsi={entry.rsi5m}
+          field="rsi5mPeriod"
+          currentConfig={coinConfigs[entry.symbol]}
+          onSave={onSaveConfig}
+        />
+      )}
+      {visibleCols.has('rsi15m') && (
+        <EditableRsiCell
+          symbol={entry.symbol}
+          rsi={entry.rsi15m}
+          field="rsi15mPeriod"
+          currentConfig={coinConfigs[entry.symbol]}
+          onSave={onSaveConfig}
+        />
+      )}
+      {visibleCols.has('rsi1h') && (
+        <EditableRsiCell
+          symbol={entry.symbol}
+          rsi={entry.rsi1h}
+          field="rsi1hPeriod"
+          currentConfig={coinConfigs[entry.symbol]}
+          onSave={onSaveConfig}
+        />
+      )}
 
       {visibleCols.has('rsiCustom') && (
         <td className={cn(
@@ -352,6 +391,15 @@ const ScreenerRow = memo(function ScreenerRow({
           </div>
         </td>
       )}
+      <td className="px-3 py-4 text-right">
+        <button
+          onClick={() => onOpenSettings(entry.symbol)}
+          className="p-2 text-slate-600 hover:text-[#39FF14] hover:bg-[#39FF14]/10 rounded-lg transition-all active:scale-90"
+          title="Customize RSI"
+        >
+          <Settings size={14} />
+        </button>
+      </td>
     </motion.tr>
   );
 });
@@ -405,6 +453,76 @@ function SortHeader({
         )}
       </span>
     </th>
+  );
+}
+
+// ─── Editable RSI Cell (Inline Editing) ──────────────────────────
+
+function EditableRsiCell({
+  symbol,
+  rsi,
+  field,
+  currentConfig,
+  onSave
+}: {
+  symbol: string;
+  rsi: number | null;
+  field: string;
+  currentConfig?: any;
+  onSave: (symbol: string, config: any) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(currentConfig?.[field] ?? 14);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const handleSave = async () => {
+    const period = Math.min(Math.max(val, 2), 50);
+    await onSave(symbol, { ...currentConfig, [field]: period });
+    setEditing(false);
+  };
+
+  const currentPeriod = currentConfig?.[field] ?? 14;
+
+  if (editing) {
+    return (
+      <td className="px-1 py-4 text-right">
+        <input
+          ref={inputRef}
+          type="number"
+          value={val}
+          onChange={(e) => setVal(parseInt(e.target.value) || 0)}
+          onBlur={handleSave}
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          className="w-12 bg-slate-950 border border-[#39FF14]/50 rounded px-1 py-0.5 text-xs text-center text-white font-mono font-bold"
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      onClick={() => setEditing(true)}
+      className={cn(
+        "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono cursor-pointer group/cell relative transition-all",
+        currentPeriod !== 14 ? "bg-[#39FF14]/[0.03]" : "hover:bg-white/[0.03]",
+        getRsiColor(rsi)
+      )}
+    >
+      <div className="flex flex-col items-end leading-none">
+        <span>{formatRsi(rsi)}</span>
+        <span className="text-[7px] text-slate-600 font-black opacity-0 group-hover/cell:opacity-100 transition-opacity">P:{currentPeriod}</span>
+      </div>
+      {currentPeriod !== 14 && (
+        <div className="absolute top-1 right-1 w-1 h-1 rounded-full bg-[#39FF14]/40" title={`Custom Period: ${currentPeriod}`} />
+      )}
+    </td>
   );
 }
 
@@ -482,6 +600,117 @@ const SIGNAL_FILTERS: { label: string; value: SignalFilter }[] = [
   { label: 'Overbought', value: 'overbought' },
 ];
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 1280);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return isMobile;
+}
+
+const ScreenerCard = memo(function ScreenerCard({
+  entry,
+  idx,
+  watchlist,
+  toggleWatchlist,
+  rsiPeriod,
+  onOpenSettings,
+  coinConfigs,
+  onSaveConfig,
+}: {
+  entry: ScreenerEntry;
+  idx: number;
+  watchlist: Set<string>;
+  toggleWatchlist: (s: string) => void;
+  rsiPeriod: number;
+  onOpenSettings: (symbol: string) => void;
+  coinConfigs: Record<string, any>;
+  onSaveConfig: (symbol: string, config: any) => void;
+}) {
+  const isStarred = watchlist.has(entry.symbol);
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={cn(
+        "relative flex items-center justify-between p-3 border-b border-white/[0.03] bg-[#050A14]/40 active:bg-slate-800/40 transition-colors",
+        getRsiBg(entry.rsiCustom ?? entry.rsi15m)
+      )}
+    >
+      {/* 1. Asset & Meta */}
+      <div className="flex items-center gap-2 w-[120px] shrink-0">
+        <span className="text-[9px] font-black text-slate-700 w-4 tabular-nums">#{idx}</span>
+        <button
+          onClick={() => toggleWatchlist(entry.symbol)}
+          className={cn("transition-all shrink-0", isStarred ? "text-yellow-400" : "text-slate-800")}
+        >
+          <Star size={12} fill={isStarred ? "currentColor" : "none"} />
+        </button>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1">
+            <span className="font-black text-white text-sm tracking-tight">{entry.symbol.replace('USDT', '')}</span>
+            <span className="text-[7px] font-black text-slate-600">USDT</span>
+          </div>
+          <div className="text-[7px] font-black text-[#39FF14]/50 uppercase tracking-widest">Binance Perp</div>
+        </div>
+      </div>
+
+      {/* 2. RSI Indicators (Scrollable Area) */}
+      <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-5 px-4 mx-2">
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">1m</span>
+          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi1m))}>{formatRsi(entry.rsi1m)}</span>
+        </div>
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">5m</span>
+          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi5m))}>{formatRsi(entry.rsi5m)}</span>
+        </div>
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">15m</span>
+          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi15m))}>{formatRsi(entry.rsi15m)}</span>
+        </div>
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">1h</span>
+          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsi1h))}>{formatRsi(entry.rsi1h)}</span>
+        </div>
+        <div className="flex flex-col items-center shrink-0">
+          <span className="text-[6px] font-black text-[#39FF14]/60 uppercase mb-0.5">Custom</span>
+          <span className={cn("text-[10px] font-black tabular-nums font-mono", getRsiColor(entry.rsiCustom))}>{formatRsi(entry.rsiCustom)}</span>
+        </div>
+      </div>
+
+      {/* 3. Market Info (Right) */}
+      <div className="flex items-center gap-4 text-right shrink-0">
+        <div className="flex flex-col items-end min-w-[70px]">
+          <span className="text-sm font-black text-white font-mono tracking-tighter">${formatPrice(entry.price)}</span>
+          <div className={cn("text-[9px] font-black font-mono flex items-center gap-0.5", entry.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+             {entry.change24h > 0 ? '+' : ''}{entry.change24h.toFixed(2)}%
+          </div>
+        </div>
+        
+        <button
+          onClick={() => onOpenSettings(entry.symbol)}
+          className="p-2 bg-white/5 rounded-xl text-slate-600 hover:text-white transition-colors"
+        >
+          <Settings size={14} />
+        </button>
+      </div>
+
+      {/* Animated Pulse for Signal */}
+      {entry.signal !== 'neutral' && (
+        <div className={cn(
+          "absolute inset-y-0 right-0 w-0.5",
+          entry.signal === 'oversold' ? "bg-[#39FF14]/40" : "bg-[#FF4B5C]/40"
+        )} />
+      )}
+    </motion.div>
+  );
+});
+
 function loadWatchlist(): string[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -490,6 +719,64 @@ function loadWatchlist(): string[] {
     return [];
   }
 }
+
+const BottomDock = memo(function BottomDock({
+  onOpenAlerts,
+  onOpenWatchlist,
+  onOpenSettings,
+  onGoHome,
+  activeTab = 'home',
+  alertCount,
+}: {
+  onOpenAlerts: () => void;
+  onOpenWatchlist: () => void;
+  onOpenSettings: () => void;
+  onGoHome: () => void;
+  activeTab?: 'home' | 'alerts' | 'watchlist' | 'settings';
+  alertCount: number;
+}) {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[200] lg:hidden px-4 mb-8">
+      <div className="rounded-3xl border border-white/10 bg-[#080F1B]/95 backdrop-blur-2xl shadow-[0_-12px_40px_rgba(0,0,0,1)] p-2 flex items-center justify-between pointer-events-auto">
+        {[
+          { id: 'home', icon: LayoutGrid, label: 'Home', onClick: onGoHome },
+          { id: 'watchlist', icon: Star, label: 'Watchlist', onClick: onOpenWatchlist },
+          { id: 'alerts', icon: Bell, label: 'Alerts', onClick: onOpenAlerts, count: alertCount },
+          { id: 'settings', icon: Settings, label: 'Settings', onClick: onOpenSettings },
+        ].map((item) => {
+          const Icon = item.icon;
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={item.onClick}
+              className={cn(
+                "relative flex flex-col items-center justify-center py-2 px-5 rounded-2xl transition-all active:scale-90",
+                isActive ? "text-[#39FF14] bg-[#39FF14]/10" : "text-slate-500 hover:text-slate-300"
+              )}
+            >
+              <div className="relative">
+                <Icon size={18} fill={isActive && (item.id === 'watchlist' || item.id === 'alerts') ? "currentColor" : "none"} />
+                {item.count ? (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#FF4B5C] rounded-full border-2 border-[#090F1A] text-[7px] font-black text-white flex items-center justify-center shadow-lg">
+                    {item.count > 9 ? '9+' : item.count}
+                  </span>
+                ) : null}
+              </div>
+              <span className="text-[8px] font-black uppercase mt-1 tracking-widest">{item.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="activeDockDot"
+                  className="absolute -bottom-0.5 w-1 h-1 bg-[#39FF14] rounded-full shadow-[0_0_8px_rgba(57,255,20,0.8)]"
+                />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 export default function ScreenerDashboard() {
   const router = useRouter();
@@ -500,10 +787,14 @@ export default function ScreenerDashboard() {
   const smartModeDefault = process.env.NEXT_PUBLIC_SMART_MODE_DEFAULT !== '0';
   // ── State ──
   const [data, setData] = useState<ScreenerEntry[]>([]);
+  const isMobile = useIsMobile();
   const [meta, setMeta] = useState<ScreenerResponse['meta'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showAlertPanel, setShowAlertPanel] = useState(false);
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('strategyScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
@@ -535,6 +826,9 @@ export default function ScreenerDashboard() {
   });
   const [countdown, setCountdown] = useState(30);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'home' | 'alerts' | 'watchlist' | 'settings'>('home');
+  const [coinConfigs, setCoinConfigs] = useState<Record<string, any>>({});
+  const [selectedCoinForConfig, setSelectedCoinForConfig] = useState<string | null>(null);
   const fetchingRef = useRef(false);
   const dataLenRef = useRef(0);
 
@@ -574,17 +868,37 @@ export default function ScreenerDashboard() {
       let isLiveRsi = false;
 
       if (live.price > 0) {
+        const config = coinConfigs[entry.symbol];
+        const r1mP = config?.rsi1mPeriod ?? 14;
+        const r5mP = config?.rsi5mPeriod ?? 14;
+        const r15mP = config?.rsi15mPeriod ?? 14;
+        const r1hP = config?.rsi1hPeriod ?? 14;
+        const obT = config?.overboughtThreshold ?? 70;
+        const osT = config?.oversoldThreshold ?? 30;
+
         // Standard timeframes
-        if (entry.rsiState1m) rsi1m = approximateRsi(entry.rsiState1m, live.price, 14);
-        if (entry.rsiState5m) rsi5m = approximateRsi(entry.rsiState5m, live.price, 14);
-        if (entry.rsiState15m) rsi15m = approximateRsi(entry.rsiState15m, live.price, 14);
-        if (entry.rsiState1h) rsi1h = approximateRsi(entry.rsiState1h, live.price, 14);
+        if (entry.rsiState1m) {
+          rsi1m = approximateRsi(entry.rsiState1m, live.price, r1mP);
+          isLiveRsi = true;
+        }
+        if (entry.rsiState5m) {
+          rsi5m = approximateRsi(entry.rsiState5m, live.price, r5mP);
+          isLiveRsi = true;
+        }
+        if (entry.rsiState15m) {
+          rsi15m = approximateRsi(entry.rsiState15m, live.price, r15mP);
+          isLiveRsi = true;
+        }
+        if (entry.rsiState1h) {
+          rsi1h = approximateRsi(entry.rsiState1h, live.price, r1hP);
+          isLiveRsi = true;
+        }
 
         // Instant Signal Hijack: Update signal instantly based on 15m (primary) or 1m (fallback)
         const leadRsi = rsi15m ?? rsi1m;
         if (leadRsi !== null) {
-          if (leadRsi <= 30) signal = 'oversold';
-          else if (leadRsi >= 70) signal = 'overbought';
+          if (leadRsi <= osT) signal = 'oversold';
+          else if (leadRsi >= obT) signal = 'overbought';
           else signal = 'neutral';
         }
       }
@@ -599,7 +913,7 @@ export default function ScreenerDashboard() {
         isLiveRsi
       };
     });
-  }, [data, livePrices]);
+  }, [data, livePrices, coinConfigs]);
 
   // Calculate custom RSI and merge it with the rest of the data
   const dataWithCustomRsi = useMemo(() => {
@@ -614,6 +928,8 @@ export default function ScreenerDashboard() {
       return { ...entry, rsiCustom, isLiveRsi };
     });
   }, [mergedData, rsiPeriod]);
+
+  const { alerts, setAlerts } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
 
   // ─── Real-time Stats Engine ──────────────────────────────────
   const stats = useMemo(() => {
@@ -650,6 +966,25 @@ export default function ScreenerDashboard() {
   const indicatorReadyCount = useMemo(() => (
     dataWithCustomRsi.filter((e) => e.rsi1m !== null || e.rsi5m !== null || e.rsi15m !== null || e.macdHistogram !== null).length
   ), [dataWithCustomRsi]);
+
+  const handleSaveConfig = async (symbol: string, newConfig: any) => {
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ symbol, ...newConfig }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCoinConfigs(prev => ({ ...prev, [symbol]: updated }));
+        fetchData(true);
+      }
+    } catch (err) {
+      console.error('[screener] Failed to save config:', err);
+    }
+  };
 
   // Close column picker on click outside
   useEffect(() => {
@@ -774,6 +1109,15 @@ export default function ScreenerDashboard() {
   // ── Initial fetch with auto-retry and Hydration ──
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  
+  // Load coin configurations on mount
+  useEffect(() => {
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(json => setCoinConfigs(json))
+      .catch(err => console.error('[screener] Failed to load configs:', err));
+  }, []);
+
   useEffect(() => {
     // Attempt hydration from localStorage
     const saved = localStorage.getItem('crypto-rsi-last-data');
@@ -795,6 +1139,15 @@ export default function ScreenerDashboard() {
     retryCountRef.current = 0;
     const doFetch = async () => {
       await fetchData();
+      try {
+        const configRes = await fetch('/api/config');
+        if (configRes.ok) {
+          const cfg = await configRes.json();
+          setCoinConfigs(cfg);
+        }
+      } catch (e) {
+        console.error('[screener] Config fetch failed:', e);
+      }
       if (dataLenRef.current === 0 && retryCountRef.current < 3) {
         retryCountRef.current++;
         const delay = retryCountRef.current * 3000;
@@ -921,15 +1274,17 @@ export default function ScreenerDashboard() {
   const colCount = 7 + OPTIONAL_COLUMNS.filter((c) => visibleCols.has(c.id)).length;
 
   return (
-    <div className="max-w-[1800px] mx-auto px-4 py-8">
+    <div className="max-w-[1800px] mx-auto px-4 pt-4 pb-32 lg:py-8">
       {/* ── Header ── */}
       {showHeader && (
         <header className="mb-6 rounded-3xl border border-white/5 bg-[#080F1B] p-6 sm:p-8 shadow-lg relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-96 h-96 bg-[#39FF14]/[0.02] rounded-full -mr-20 -mt-20 group-hover:bg-[#39FF14]/[0.04] transition-colors duration-1000" />
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 relative z-10">
+          
+          {/* Desktop Header Layout */}
+          <div className="hidden lg:flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 relative z-10">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase backdrop-blur-sm group/logo transition-all hover:bg-white/10">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase backdrop-blur-sm transition-all hover:bg-white/10">
                   Mindscape Analytics LLC
                 </div>
                 {session && (
@@ -937,117 +1292,143 @@ export default function ScreenerDashboard() {
                     <div className="w-5 h-5 rounded-full bg-[#39FF14]/20 flex items-center justify-center">
                       <UserIcon size={12} className="text-[#39FF14] group-hover/auth:text-[#32e012] transition-colors" />
                     </div>
-                    <span className="text-[10px] font-bold text-slate-300 pr-1">{session.user.name || session.user.email}</span>
+                    <span className="text-[10px] font-bold text-slate-300 pr-1 truncate">
+                      {session.user.name || session.user.email}
+                    </span>
                     <button
                       onClick={async () => {
                         setIsLoggingOut(true);
                         await signOut({
                           fetchOptions: {
-                            onSuccess: () => {
-                              router.push('/login');
-                            },
-                          },
+                            onSuccess: () => { router.push('/login'); }
+                          }
                         });
                       }}
                       disabled={isLoggingOut}
-                      className="p-1 rounded-full hover:bg-[#FF4B5C]/20 text-slate-400 hover:text-[#FF4B5C] disabled:opacity-50 transition-colors cursor-pointer"
-                      title="Sign Out"
+                      className="p-1 rounded-full hover:bg-[#FF4B5C]/20 text-slate-400 hover:text-[#FF4B5C] transition-colors"
                     >
                       <LogOut size={12} />
                     </button>
                   </div>
                 )}
               </div>
-              <h1 className="mt-4 text-3xl sm:text-5xl font-black text-white tracking-tighter">
+              <h1 className="mt-4 text-5xl font-black text-white tracking-tighter">
                 RSIQ <span className="text-[#39FF14]">Pro</span>
               </h1>
               <div className="flex flex-wrap items-center gap-6 mt-6">
-                <div className="flex flex-col">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Market Bias</div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
-                      <div
-                        className="h-full bg-[#39FF14] transition-all duration-1000"
-                        style={{ width: `${Math.max(0, 50 + stats.bias / 2)}%` }}
-                      />
-                      <div
-                        className="h-full bg-red-500 transition-all duration-1000"
-                        style={{ width: `${Math.max(0, 50 - stats.bias / 2)}%` }}
-                      />
+                <div className="flex flex-col flex-1 min-w-[120px]">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 leading-none">Market Bias</div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden flex max-w-[120px]">
+                      <div className="h-full bg-[#39FF14]" style={{ width: `${Math.max(0, 50 + stats.bias/2)}%` }} />
+                      <div className="h-full bg-red-500" style={{ width: `${Math.max(0, 50 - stats.bias/2)}%` }} />
                     </div>
-                    <span className={cn("text-xs font-black tabular-nums", stats.bias > 0 ? "text-emerald-400" : stats.bias < 0 ? "text-red-400" : "text-slate-500")}>
+                    <span className={cn("text-xs font-black tabular-nums tracking-tighter", stats.bias >= 0 ? "text-[#39FF14]" : "text-red-500")}>
                       {stats.bias > 0 ? '+' : ''}{stats.bias}%
                     </span>
                   </div>
                 </div>
 
-                <div className="h-8 w-px bg-white/5" />
-
-                <div className="flex flex-wrap gap-5">
-                  {[
-                    { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
-                    { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
-                    { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
-                  ].map((s) => (
-                    <button key={s.label} onClick={s.onClick} className="flex flex-col items-start group/stat">
-                      <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5 group-hover/stat:text-slate-400 transition-colors">{s.label}</span>
-                      <span className={cn("text-lg font-black tabular-nums transition-transform group-hover/stat:scale-110", s.color)}>
-                        <Counter value={s.value} />
-                      </span>
-                    </button>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <motion.button onClick={() => setAlertsEnabled(!alertsEnabled)} whileTap={{ scale: 0.9 }} className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}>
+                    <Bell size={16} fill={alertsEnabled ? "currentColor" : "none"} />
+                    {alerts.length > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#FF4B5C] rounded-full" />}
+                  </motion.button>
+                  <motion.button onClick={() => setSoundEnabled(!soundEnabled)} whileTap={{ scale: 0.9 }} className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}>
+                    <Zap size={16} fill={soundEnabled ? "currentColor" : "none"} />
+                  </motion.button>
+                  <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-10 h-10 rounded-2xl border border-white/10 bg-white/[0.02] text-slate-400 flex items-center justify-center shadow-sm">
+                    <Clock size={16} />
+                  </motion.button>
                 </div>
+
+                <div className="h-4 w-px bg-white/5 mx-1" />
+                <div className={cn("inline-flex items-center gap-2 rounded-2xl border px-3 py-2 transition-all", isConnected ? 'border-[#39FF14]/20 bg-[#39FF14]/5 text-[#39FF14]' : 'border-white/5 bg-white/[0.02] text-slate-600')}>
+                  <div className={cn("h-1 w-1 rounded-full", isConnected ? 'bg-[#39FF14]' : 'bg-slate-600')} />
+                  <span className="font-black tracking-tight uppercase text-[9px]">{isConnected ? 'LIVE' : 'OFFLINE'}</span>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] px-3 py-2 text-slate-400">
+                  <LayoutGrid size={12} className="text-slate-600" />
+                  <span className="font-black tracking-tight text-[9px] tabular-nums">{data.length}</span>
+                </div>
+                <button onClick={() => fetchData()} className="group inline-flex items-center gap-2 rounded-2xl border border-[#39FF14]/20 bg-[#39FF14]/5 px-4 py-2 text-[9px] font-black tracking-widest text-[#39FF14] hover:bg-[#39FF14]/10 transition-all active:scale-95">
+                  <RefreshCcw size={12} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
+                  <span>{refreshing ? 'UPDATING' : `${countdown}S`}</span>
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 min-w-[320px]">
-              <div className="flex flex-wrap items-center justify-start lg:justify-end gap-3 text-xs">
-                {meta && (
-                  <div className="group relative inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-2.5 text-slate-300 transition-all hover:bg-white/[0.06]">
-                    <Activity size={14} className="text-slate-500" />
-                    <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Compute</span>
-                    <span className="font-black text-slate-200 tabular-nums">{meta.computeTimeMs}ms</span>
-                  </div>
-                )}
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-2.5 text-slate-300">
-                  <BrainCircuit size={14} className="text-[#39FF14]" />
-                  <span className="text-slate-500 font-bold uppercase tracking-widest text-[9px]">Coverage</span>
-                  <span className="font-black text-slate-200 tabular-nums">{indicatorReadyCount}/{data.length}</span>
-                </div>
-                <div className={cn(
-                  "inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 transition-all text-xs",
-                  isConnected
-                    ? 'border-[#39FF14]/20 bg-[#39FF14]/5 text-[#39FF14]'
-                    : 'border-white/5 bg-white/[0.02] text-slate-600'
-                )}>
-                  <div className={cn("h-1.5 w-1.5 rounded-full", isConnected ? 'bg-[#39FF14]' : 'bg-slate-600')} />
-                  <span className="font-black tracking-tight uppercase text-[10px]">{isConnected ? 'LIVE SYNC' : 'OFFLINE'}</span>
-                </div>
-                <button
-                  onClick={() => { fetchData(); }}
-                  className="group inline-flex items-center gap-2 rounded-2xl border border-[#39FF14]/20 bg-[#39FF14]/5 px-6 py-2.5 text-[10px] font-black tracking-widest text-[#39FF14] hover:bg-[#39FF14]/10 transition-all active:scale-95"
-                  title="Refresh now"
-                >
-                  <RefreshCcw size={14} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
-                  <span>{refreshing ? 'UPDATING' : `SYNC ${countdown}S`}</span>
+            <div className="flex items-center justify-between lg:justify-end gap-6 bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-2.5">
+              {[
+                { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
+                { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
+                { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
+              ].map((s) => (
+                <button key={s.label} onClick={s.onClick} className="flex flex-col items-end group/stat">
+                   <span className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-500 mb-1 leading-none">{s.label}</span>
+                   <span className={cn("text-sm font-black tabular-nums tracking-tight leading-none", s.color)}><Counter value={s.value} /></span>
                 </button>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              <div className="flex items-center justify-start lg:justify-end gap-6 bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-3">
-                {[
-                  { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
-                  { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
-                  { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
-                ].map((s) => (
-                  <button key={s.label} onClick={s.onClick} className="flex items-center gap-3 group/stat whitespace-nowrap">
-                    <div className="flex flex-col items-end">
-                      <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover/stat:text-slate-400 transition-colors">{s.label}</span>
-                      <span className={cn("text-sm font-black tabular-nums tracking-tight", s.color)}>
-                        <Counter value={s.value} />
-                      </span>
-                    </div>
-                  </button>
-                ))}
+          {/* Mobile App Bar */}
+          <div className="lg:hidden flex flex-col gap-6 relative z-10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#39FF14]/20 to-emerald-900/40 border border-[#39FF14]/30 flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.15)] ring-1 ring-[#39FF14]/20">
+                  <Activity size={24} className="text-[#39FF14]" />
+                </div>
+                <div>
+                   <h1 className="text-2xl font-black text-white tracking-widest leading-none">RSIQ <span className="text-[#39FF14]">PRO</span></h1>
+                   <div className="flex items-center gap-2 mt-1.5">
+                     <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(57,255,20,0.5)]", isConnected ? "bg-[#39FF14] animate-pulse" : "bg-slate-700")} />
+                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{isConnected ? "LIVE" : "OFFLINE"}</span>
+                     <div className="w-1 h-1 rounded-full bg-slate-800" />
+                     <span className="text-[8px] font-black text-[#39FF14] tabular-nums">{data.length} PAIRS</span>
+                   </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => fetchData()} className={cn("w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-400 active:scale-90 transition-all shadow-lg", refreshing && "animate-spin text-[#39FF14]")}>
+                   <RefreshCcw size={20} />
+                </button>
+                {session && (
+                   <button className="w-12 h-12 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center shadow-lg">
+                     <UserIcon size={22} className="text-[#39FF14]" />
+                   </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3.5">
+              <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 flex flex-col gap-3 shadow-inner">
+                 <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Market Bias</span>
+                 <div className="flex items-center justify-between gap-3">
+                   <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                     <div className="h-full bg-[#39FF14]" style={{ width: `${Math.max(0, 50 + stats.bias/2)}%` }} />
+                     <div className="h-full bg-red-500" style={{ width: `${Math.max(0, 50 - stats.bias/2)}%` }} />
+                   </div>
+                   <span className={cn("text-[11px] font-black tabular-nums font-mono", stats.bias >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+                     {stats.bias > 0 ? '+' : ''}{stats.bias}%
+                   </span>
+                 </div>
+              </div>
+              <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 flex flex-col gap-2.5 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black text-slate-600 uppercase">Oversold</span>
+                    <span className="text-xs font-black text-[#39FF14] font-mono">{stats.oversold}</span>
+                  </div>
+                  <div className="h-px bg-white/5" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black text-slate-600 uppercase">Overbought</span>
+                    <span className="text-xs font-black text-[#FF4B5C] font-mono">{stats.overbought}</span>
+                  </div>
+                  <div className="h-px bg-white/5" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black text-slate-600 uppercase">Strong Buy</span>
+                    <span className="text-xs font-black text-blue-400 font-mono">{stats.strongBuy}</span>
+                  </div>
               </div>
             </div>
           </div>
@@ -1055,27 +1436,27 @@ export default function ScreenerDashboard() {
       )}
 
 
-      <div className="flex flex-col lg:flex-row items-center gap-4 mb-8">
-        <div className="relative flex-1 w-full lg:w-auto overflow-hidden rounded-2xl border border-white/5 bg-slate-900/40">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-8">
+        <div className="relative flex-1 rounded-2xl border border-white/5 bg-slate-900/40 focus-within:border-[#39FF14]/20 transition-all">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search crypto pair..."
-            className="w-full pl-12 pr-4 py-4 text-sm bg-transparent text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#39FF14]/20 font-medium"
+            placeholder="Search symbols..."
+            className="w-full pl-11 pr-4 py-3 text-xs bg-transparent text-white placeholder:text-slate-600 focus:outline-none font-medium"
           />
-          <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
+          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-slate-900/40 rounded-2xl border border-white/5 p-1">
+          <div className="flex bg-slate-900/40 rounded-2xl border border-white/5 p-1 overflow-x-auto no-scrollbar max-w-[calc(100vw-32px)] sm:max-w-none">
             {['all', 'strong-buy', 'buy', 'neutral', 'sell', 'strong-sell'].map((v) => (
               <button
                 key={v}
                 onClick={() => setSignalFilter(v as SignalFilter)}
                 className={cn(
-                  "px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-xl",
-                  signalFilter === v ? "bg-white/5 text-white" : "text-slate-500 hover:text-slate-300"
+                  "px-3 sm:px-4 py-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all rounded-xl whitespace-nowrap",
+                  signalFilter === v ? "bg-white/10 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
                 )}
               >
                 {v === 'all' ? 'All' : v.replace('strong-', 'S-')}
@@ -1083,74 +1464,74 @@ export default function ScreenerDashboard() {
             ))}
           </div>
 
-          <button
-            onClick={() => setShowWatchlistOnly((v) => !v)}
-            className={cn(
-              "px-5 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all",
-              showWatchlistOnly
-                ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-            )}
-            title="Toggle Watchlist"
-          >
-            <Star size={14} className={cn("inline mr-2", showWatchlistOnly && "fill-current")} />
-            Watchlist {watchlist.size > 0 && `(${watchlist.size})`}
-          </button>
-
-          <button
-            onClick={() => setShowHeader((v) => !v)}
-            className={cn(
-              "px-5 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all",
-              showHeader
-                ? "bg-[#39FF14]/5 text-[#39FF14] border-[#39FF14]/20"
-                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-            )}
-            title="Toggle Premium Header"
-          >
-            <LayoutList size={14} className="inline mr-2" />
-            Header
-          </button>
-
-          <div className="relative group" ref={colPickerRef}>
+          <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
             <button
-              onClick={() => setShowColPicker(!showColPicker)}
-              className="px-5 py-3 text-[10px] font-bold uppercase tracking-widest rounded-2xl border border-white/5 bg-slate-900/40 text-slate-500 hover:bg-slate-800/60 transition-all"
-            >
-              <LayoutGrid size={14} className="inline mr-2" />
-              Columns
-            </button>
-            <AnimatePresence>
-              {showColPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-3 z-50 bg-[#0A0F1B] border border-white/10 rounded-2xl shadow-xl p-4 min-w-[240px]"
-                >
-                  <div className="grid grid-cols-1 gap-1">
-                    {OPTIONAL_COLUMNS.map((col) => (
-                      <button
-                        key={col.id}
-                        onClick={() => toggleCol(col.id)}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left",
-                          visibleCols.has(col.id) ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-500 hover:bg-white/5"
-                        )}
-                      >
-                        <div className={cn("w-4 h-4 rounded-md border flex items-center justify-center transition-all", visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700")}>
-                          {visibleCols.has(col.id) && <ShieldCheck size={12} className="text-white" />}
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-tight">{col.label}</span>
-                        <span className="text-[9px] font-medium text-slate-600 ml-auto">{col.group}</span>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
+              onClick={() => setShowWatchlistOnly((v) => !v)}
+              className={cn(
+                "flex-1 sm:flex-none px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
+                showWatchlistOnly
+                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                  : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
               )}
-            </AnimatePresence>
+            >
+              <Star size={12} className={cn("inline mr-1.5", showWatchlistOnly && "fill-current")} />
+              Watchlist
+            </button>
+
+            <button
+              onClick={() => setShowHeader((v) => !v)}
+              className={cn(
+                "flex-1 sm:flex-none px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
+                showHeader
+                  ? "bg-[#39FF14]/5 text-[#39FF14] border-[#39FF14]/20"
+                  : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
+              )}
+            >
+              <LayoutList size={12} className="inline mr-1.5" />
+              Header
+            </button>
+
+            <div className="relative group flex-1 sm:flex-none" ref={colPickerRef}>
+              <button
+                onClick={() => setShowColPicker(!showColPicker)}
+                className="w-full px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border border-white/5 bg-slate-900/40 text-slate-500 hover:bg-slate-800/60 transition-all whitespace-nowrap"
+              >
+                <LayoutGrid size={12} className="inline mr-1.5" />
+                Cols
+              </button>
+              <AnimatePresence>
+                {showColPicker && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-3 z-50 bg-[#0A0F1B] border border-white/10 rounded-2xl shadow-xl p-3 min-w-[200px]"
+                  >
+                    <div className="grid grid-cols-1 gap-1">
+                      {OPTIONAL_COLUMNS.map((col) => (
+                        <button
+                          key={col.id}
+                          onClick={() => toggleCol(col.id)}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left",
+                            visibleCols.has(col.id) ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-500 hover:bg-white/5"
+                          )}
+                        >
+                          <div className={cn("w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all", visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700")}>
+                            {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-white" />}
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-tight">{col.label}</span>
+                          <span className="text-[8px] font-black text-slate-700 ml-auto uppercase tracking-tighter">{col.group}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-900/40 border border-white/5 rounded-2xl px-5 py-3">
+          <div className="hidden lg:flex items-center gap-3 bg-slate-900/40 border border-white/5 rounded-2xl px-5 py-3">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">RSI Period</span>
             <input
               type="range"
@@ -1165,118 +1546,387 @@ export default function ScreenerDashboard() {
         </div>
       </div>
 
-      {/* ── Table ── */}
-      <div className="rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden shadow-lg">
-        <div className="overflow-x-auto overflow-y-auto max-h-[800px] custom-scrollbar">
-          <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-20 bg-[#0A0F1B]/95 border-b border-white/5">
-              <tr>
-                <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-600 text-left w-12 tracking-widest">#</th>
-                <th className="px-2 py-4 text-[10px] font-black text-slate-600 text-center w-8 uppercase tracking-widest">★</th>
-                <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
-                <SortHeader label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortHeader label="24h Change" sortKey="change24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                <SortHeader label="Volume" sortKey="volume24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-
-                {visibleCols.has('rsi1m') && <SortHeader label="RSI 1m" sortKey="rsi1m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('rsi5m') && <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('rsi15m') && <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('rsi1h') && <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('rsiCustom') && (
-                  <SortHeader
-                    label={`RSI (${rsiPeriod})`}
-                    sortKey="rsiCustom"
-                    currentKey={sortKey}
-                    currentDir={sortDir}
-                    onSort={handleSort}
-                    align="right"
-                  />
-                )}
-
-                {visibleCols.has('emaCross') && <SortHeader label="Trend" sortKey="emaCross" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('macdHistogram') && <SortHeader label="MACD" sortKey="macdHistogram" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('bbPosition') && <SortHeader label="BB Pos" sortKey="bbPosition" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('stochK') && <SortHeader label="Stoch" sortKey="stochK" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('confluence') && <SortHeader label="Confluence" sortKey="confluence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('divergence') && <SortHeader label="Diverg" sortKey="rsiDivergence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                {visibleCols.has('momentum') && <SortHeader label="Momentum" sortKey="momentum" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-
-                <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
-                {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {loading ? (
-                <SkeletonRows cols={colCount} />
-              ) : filtered.length === 0 ? (
+      {/* ── Main List (Table or Cards) ── */}
+      {isMobile ? (
+        <div className="flex flex-col pb-32">
+           {loading ? (
+             Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="h-44 rounded-3xl skeleton border border-white/5 opacity-40" />
+             ))
+           ) : filtered.length === 0 ? (
+              <div className="col-span-full py-24 text-center opacity-50 flex flex-col items-center gap-4">
+                <Search size={48} className="text-slate-700" />
+                <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No matches found</p>
+              </div>
+           ) : (
+             <AnimatePresence mode="popLayout">
+               {filtered.map((entry, idx) => (
+                 <ScreenerCard
+                   key={entry.symbol}
+                   entry={entry}
+                   idx={idx + 1}
+                   watchlist={watchlist}
+                   toggleWatchlist={toggleWatchlist}
+                   rsiPeriod={rsiPeriod}
+                   onOpenSettings={(s) => setSelectedCoinForConfig(s)}
+                   coinConfigs={coinConfigs}
+                   onSaveConfig={handleSaveConfig}
+                 />
+               ))}
+             </AnimatePresence>
+           )}
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden shadow-lg mb-8">
+          <div className="overflow-x-auto overflow-y-auto max-h-[800px] custom-scrollbar">
+            <table className="w-full border-collapse">
+              <thead className="sticky top-0 z-20 bg-[#0A0F1B]/95 border-b border-white/5">
                 <tr>
-                  <td colSpan={colCount} className="px-6 py-24 text-center">
-                    <div className="flex flex-col items-center gap-4 opacity-50">
-                      <Search size={48} className="text-slate-700" />
-                      <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No matches found</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                <AnimatePresence mode="popLayout" initial={false}>
-                  {filtered.map((entry, idx) => (
-                    <ScreenerRow
-                      key={entry.symbol}
-                      entry={entry}
-                      idx={idx}
-                      watchlist={watchlist}
-                      toggleWatchlist={toggleWatchlist}
-                      visibleCols={visibleCols}
-                      useAnimations={useAnimations}
-                      rsiPeriod={rsiPeriod}
+                  <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-600 text-left w-12 tracking-widest">#</th>
+                  <th className="px-2 py-4 text-[10px] font-black text-slate-600 text-center w-8 uppercase tracking-widest">★</th>
+                  <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <SortHeader label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortHeader label="24h Change" sortKey="change24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  <SortHeader label="Volume" sortKey="volume24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+
+                  {visibleCols.has('rsi1m') && <SortHeader label="RSI 1m" sortKey="rsi1m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('rsi5m') && <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('rsi15m') && <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('rsi1h') && <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('rsiCustom') && (
+                    <SortHeader
+                      label={`RSI (${rsiPeriod})`}
+                      sortKey="rsiCustom"
+                      currentKey={sortKey}
+                      currentDir={sortDir}
+                      onSort={handleSort}
+                      align="right"
                     />
-                  ))}
-                </AnimatePresence>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  )}
 
-      <footer className="mt-4 py-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 px-4">
-        <div className="flex items-center gap-3">
-          <Link
-            href="http://mindscapeanalytics.com/"
-            target="_blank"
-            className="group flex flex-col items-start"
-          >
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-[#39FF14] transition-colors">By</span>
-              <span className="text-sm font-black text-white tracking-tighter">Mindscape Analytics <span className="text-[#39FF14] uppercase">LLC</span></span>
+                  {visibleCols.has('emaCross') && <SortHeader label="Trend" sortKey="emaCross" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('macdHistogram') && <SortHeader label="MACD" sortKey="macdHistogram" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('bbPosition') && <SortHeader label="BB Pos" sortKey="bbPosition" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('stochK') && <SortHeader label="Stoch" sortKey="stochK" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('confluence') && <SortHeader label="Confluence" sortKey="confluence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('divergence') && <SortHeader label="Diverg" sortKey="rsiDivergence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  {visibleCols.has('momentum') && <SortHeader label="Momentum" sortKey="momentum" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+
+                  <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
+                  {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+                  <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500">Edit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {loading ? (
+                  <SkeletonRows cols={colCount} />
+                ) : filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={colCount} className="px-6 py-24 text-center">
+                      <div className="flex flex-col items-center gap-4 opacity-50">
+                        <Search size={48} className="text-slate-700" />
+                        <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No matches found</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {filtered.map((entry, idx) => (
+                      <ScreenerRow
+                        key={entry.symbol}
+                        entry={entry}
+                        idx={idx}
+                        watchlist={watchlist}
+                        toggleWatchlist={toggleWatchlist}
+                        visibleCols={visibleCols}
+                        useAnimations={useAnimations}
+                        rsiPeriod={rsiPeriod}
+                        onOpenSettings={(s) => setSelectedCoinForConfig(s)}
+                        coinConfigs={coinConfigs}
+                        onSaveConfig={handleSaveConfig}
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {!isMobile && (
+        <footer className="mt-12 pt-8 border-t border-white/5 relative z-10">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 opacity-80">
+            <Link href="/" className="group">
+              <div className="flex flex-col items-center md:items-start transition-transform group-hover:scale-105">
+                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-[#39FF14] transition-colors">By</span>
+                <span className="text-sm font-black text-white tracking-tighter">Mindscape Analytics <span className="text-[#39FF14] uppercase">LLC</span></span>
+              </div>
+            </Link>
+            <div className="h-4 w-px bg-white/10 hidden sm:block" />
+            <div className="text-[8px] font-bold text-slate-600 uppercase tracking-widest tabular-nums hidden sm:block">
+              &copy; 2026 {new Date().getFullYear() !== 2026 && `- ${new Date().getFullYear()}`} All Rights Reserved
             </div>
-          </Link>
-          <div className="h-4 w-px bg-white/10 hidden sm:block" />
-          <div className="text-[8px] font-bold text-slate-600 uppercase tracking-widest tabular-nums hidden sm:block">
-            &copy; 2026 {new Date().getFullYear() !== 2026 && `- ${new Date().getFullYear()}`} All Rights Reserved
           </div>
+
+          <div className="flex items-center gap-4 mt-6">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Universe</span>
+              <span className="text-[10px] font-bold text-slate-300 tabular-nums">{data.length} Stable Pairs</span>
+            </div>
+            <div className="h-4 w-px bg-white/10" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Status</span>
+              <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isConnected ? "bg-[#39FF14]" : "bg-slate-700")} />
+              <span className="text-[10px] font-bold text-slate-300">{isConnected ? "Live Engine" : "Polling"}</span>
+            </div>
+            <div className="h-4 w-px bg-white/10" />
+            <Link
+              href="/guide"
+              className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+            >
+              Documentation
+            </Link>
+          </div>
+        </footer>
+      )}
+
+      {/* ── Coin Settings Modal ── */}
+      <AnimatePresence>
+        {selectedCoinForConfig && (
+          <CoinSettingsModal
+            symbol={selectedCoinForConfig}
+            currentConfig={coinConfigs[selectedCoinForConfig]}
+            onClose={() => setSelectedCoinForConfig(null)}
+            onSave={async (newConfig) => {
+              try {
+                const res = await fetch('/api/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ symbol: selectedCoinForConfig, ...newConfig }),
+                });
+                if (res.ok) {
+                  const updated = await res.json();
+                  setCoinConfigs(prev => ({ ...prev, [selectedCoinForConfig]: updated }));
+                  setSelectedCoinForConfig(null);
+                  // Refresh data to reflect changes immediately
+                  fetchData(true);
+                }
+              } catch (err) {
+                console.error('Failed to save config:', err);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showAlertPanel && (
+          <AlertHistoryPanel alerts={alerts} onClose={() => setShowAlertPanel(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile-only Bottom Navigation Dock */}
+      <BottomDock 
+        onOpenAlerts={() => {
+           setActiveTab('alerts');
+           setShowAlertPanel(true);
+        }}
+        onOpenWatchlist={() => {
+           setActiveTab('watchlist');
+           setShowWatchlistOnly(true);
+           window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenSettings={() => {
+           setActiveTab('settings');
+           setShowColPicker(true);
+        }}
+        onGoHome={() => {
+           setActiveTab('home');
+           setShowWatchlistOnly(false);
+           setSignalFilter('all');
+           setSearch('');
+           window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        activeTab={activeTab}
+        alertCount={alerts.length}
+      />
+    </div>
+  );
+}
+
+// ─── Coin Settings Modal Component ─────────────────────────────
+
+function CoinSettingsModal({
+  symbol,
+  currentConfig,
+  onClose,
+  onSave
+}: {
+  symbol: string;
+  currentConfig: any;
+  onClose: () => void;
+  onSave: (config: any) => Promise<void>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [config, setConfig] = useState({
+    rsi1mPeriod: currentConfig?.rsi1mPeriod ?? 14,
+    rsi5mPeriod: currentConfig?.rsi5mPeriod ?? 14,
+    rsi15mPeriod: currentConfig?.rsi15mPeriod ?? 14,
+    rsi1hPeriod: currentConfig?.rsi1hPeriod ?? 14,
+    overboughtThreshold: currentConfig?.overboughtThreshold ?? 70,
+    oversoldThreshold: currentConfig?.oversoldThreshold ?? 30,
+    alertOn1m: currentConfig?.alertOn1m ?? false,
+    alertOn5m: currentConfig?.alertOn5m ?? false,
+    alertOn15m: currentConfig?.alertOn15m ?? false,
+    alertOn1h: currentConfig?.alertOn1h ?? false,
+    alertOnCustom: currentConfig?.alertOnCustom ?? false,
+  });
+
+  const handleSave = async () => {
+    setLoading(true);
+    await onSave(config);
+    setLoading(false);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+          <div>
+            <h2 className="text-xl font-black text-white flex items-center gap-2">
+              <Settings size={20} className="text-[#39FF14]" />
+              {symbol.replace('USDT', '')} <span className="text-slate-500 font-bold text-sm">Settings</span>
+            </h2>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Customize RSI periods and thresholds</p>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <LogOut size={20} className="rotate-180" />
+          </button>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Universe</span>
-            <span className="text-[10px] font-bold text-slate-300 tabular-nums">{data.length} Stable Pairs</span>
+        <div className="p-6 sm:p-8 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 1m Period</label>
+              <input
+                type="number"
+                min={2} max={50}
+                value={config.rsi1mPeriod}
+                onChange={(e) => setConfig({ ...config, rsi1mPeriod: parseInt(e.target.value) })}
+                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 5m Period</label>
+              <input
+                type="number"
+                min={2} max={50}
+                value={config.rsi5mPeriod}
+                onChange={(e) => setConfig({ ...config, rsi5mPeriod: parseInt(e.target.value) })}
+                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
+              />
+            </div>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Status</span>
-            <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isConnected ? "bg-[#39FF14]" : "bg-slate-700")} />
-            <span className="text-[10px] font-bold text-slate-300">{isConnected ? "Live Engine" : "Polling"}</span>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 15m Period</label>
+              <input
+                type="number"
+                min={2} max={50}
+                value={config.rsi15mPeriod}
+                onChange={(e) => setConfig({ ...config, rsi15mPeriod: parseInt(e.target.value) })}
+                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">RSI 1h Period</label>
+              <input
+                type="number"
+                min={2} max={50}
+                value={config.rsi1hPeriod}
+                onChange={(e) => setConfig({ ...config, rsi1hPeriod: parseInt(e.target.value) })}
+                className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-4 py-3 text-white font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
+              />
+            </div>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <Link
-            href="/guide"
-            className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors"
+
+          <div className="h-px bg-white/5" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-[#FF4B5C] ml-1">Overbought Line</label>
+              <input
+                type="number"
+                min={50} max={95}
+                value={config.overboughtThreshold}
+                onChange={(e) => setConfig({ ...config, overboughtThreshold: parseInt(e.target.value) })}
+                className="w-full bg-[#722f37]/5 border border-[#722f37]/20 rounded-xl px-4 py-3 text-[#FF4B5C] font-bold focus:outline-none focus:ring-1 focus:ring-[#FF4B5C]/30 transition-all"
+              />
+            </div>
+            <div className="space-y-1.5 sm:space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-[#39FF14] ml-1">Oversold Line</label>
+              <input
+                type="number"
+                min={5} max={50}
+                value={config.oversoldThreshold}
+                onChange={(e) => setConfig({ ...config, oversoldThreshold: parseInt(e.target.value) })}
+                className="w-full bg-[#39FF14]/5 border border-[#39FF14]/20 rounded-xl px-4 py-3 text-[#39FF14] font-bold focus:outline-none focus:ring-1 focus:ring-[#39FF14]/30 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="h-px bg-white/5 my-6" />
+
+          <div className="space-y-3">
+            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Active Alerts</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'alertOn1m', label: '1m RSI' },
+                { key: 'alertOn5m', label: '5m RSI' },
+                { key: 'alertOn15m', label: '15m RSI' },
+                { key: 'alertOn1h', label: '1h RSI' },
+                { key: 'alertOnCustom', label: 'Custom RSI' }
+              ].map(tf => (
+                <button
+                  key={tf.key}
+                  disabled={loading}
+                  onClick={() => setConfig({ ...config, [tf.key]: !(config as any)[tf.key] })}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all tracking-wider border",
+                    (config as any)[tf.key] 
+                      ? "bg-[#39FF14]/20 border-[#39FF14]/50 text-[#39FF14]" 
+                      : "bg-slate-950/50 border-white/5 text-slate-500 hover:text-slate-300"
+                  )}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            disabled={loading}
+            onClick={handleSave}
+            className="w-full bg-[#39FF14] text-black font-black uppercase tracking-widest py-4 rounded-xl hover:bg-[#39FF14]/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed mt-4 shadow-lg shadow-[#39FF14]/10"
           >
-            Documentation
-          </Link>
+            {loading ? 'SAVING...' : 'APPLY CONFIGURATION'}
+          </button>
         </div>
-      </footer>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -1336,3 +1986,72 @@ function MiniStatCard({ label, value, color }: { label: string; value: number; c
     </div>
   );
 }
+
+// ─── Alert History Panel ───────────────────────────────────────
+
+function AlertHistoryPanel({ alerts, onClose }: { alerts: any[]; onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      className="fixed bottom-0 left-0 right-0 top-0 sm:top-auto sm:right-0 sm:h-screen w-full sm:w-80 bg-slate-900/95 backdrop-blur-xl border-t sm:border-t-0 sm:border-l border-white/10 z-[100] shadow-2xl overflow-hidden flex flex-col rounded-t-[2rem] sm:rounded-none"
+    >
+      <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between">
+        <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+          <Bell size={16} className="text-[#39FF14]" />
+          Alert History
+        </h3>
+        <button onClick={onClose} className="p-2 text-slate-500 hover:text-white transition-colors">
+          <ChevronUp size={20} className="rotate-90" />
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+        <AnimatePresence initial={false}>
+          {alerts.length === 0 ? (
+            <div className="text-center py-20 text-slate-600 text-[10px] font-bold uppercase tracking-widest">
+              No alerts triggered yet
+            </div>
+          ) : (
+            alerts.map((alert) => (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={cn(
+                  "p-4 rounded-xl border border-white/5 bg-white/[0.03] relative overflow-hidden group",
+                  alert.type === 'OVERSOLD' ? "hover:border-[#39FF14]/30" : "hover:border-[#FF4B5C]/30"
+                )}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-white">{alert.symbol.replace('USDT', '')}</span>
+                    {Date.now() - (typeof alert.createdAt === 'string' ? new Date(alert.createdAt).getTime() : alert.createdAt) < 60000 && (
+                      <span className="px-1.5 py-0.5 rounded-full bg-[#39FF14]/20 text-[#39FF14] text-[7px] font-black uppercase animate-pulse">NEW</span>
+                    )}
+                  </div>
+                  <span className="text-[8px] font-bold text-slate-500">{formatTimeAgo(typeof alert.createdAt === 'string' ? new Date(alert.createdAt).getTime() : alert.createdAt)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                    alert.type === 'OVERSOLD' ? "bg-[#39FF14]/20 text-[#39FF14]" : "bg-[#FF4B5C]/20 text-[#FF4B5C]"
+                  )}>
+                    {alert.type}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-300">{alert.timeframe} RSI: {alert.value.toFixed(1)}</span>
+                </div>
+                <div className={cn(
+                  "absolute top-0 right-0 w-1 h-full",
+                  alert.type === 'OVERSOLD' ? "bg-[#39FF14]/30" : "bg-[#FF4B5C]/30"
+                )} />
+              </motion.div>
+            ))
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
+

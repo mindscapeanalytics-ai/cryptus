@@ -4,8 +4,8 @@
   "description": "Crypto RSI Market Screener — real-time multi-pair RSI monitoring",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push --accept-data-loss && next build",
-    "start": "node .next/standalone/server.js",
+    "build": "prisma generate ; prisma db push --accept-data-loss ; next build ; if (Test-Path .next/static) { Copy-Item -Path .next/static -Destination .next/standalone/.next/static -Recurse -Force } ; if (Test-Path public) { Copy-Item -Path public -Destination .next/standalone/public -Recurse -Force } ; if (Test-Path .env) { Copy-Item -Path .env -Destination .next/standalone/.env -Force } ; if (Test-Path .env.local) { Copy-Item -Path .env.local -Destination .next/standalone/.env.local -Force }",
+    "start": "node -r dotenv/config .next/standalone/server.js",
     "lint": "next lint",
     "postinstall": "prisma generate"
   },
@@ -44,6 +44,7 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.71.2",
     "sharp": "^0.34.5",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.1",
     "zod": "^4.3.6"
   }

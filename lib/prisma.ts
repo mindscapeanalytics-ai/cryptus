@@ -10,10 +10,18 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient() {
   const connectionString = (process.env.DATABASE_URL || "").trim();
   
+  if (!connectionString) {
+    console.error("\x1b[31m[PRISMA ERROR] DATABASE_URL is not defined.\x1b[0m");
+    console.warn("[PRISMA WARNING] Check if .env files are correctly loaded in standalone mode.");
+  }
+
   // Reuse pool in development to prevent connection leaks
   const pool = globalForPrisma.pool || new Pool({ 
     connectionString,
-    ssl: { rejectUnauthorized: false } // Silence warning and ensure secure connection
+    ssl: { rejectUnauthorized: false }, // Silence warning and ensure secure connection
+    connectionTimeoutMillis: 60000, // 60s timeout for cold starts
+    idleTimeoutMillis: 30000,
+    max: 10, // Cap connections for serverless stability
   });
   if (process.env.NODE_ENV !== "production") globalForPrisma.pool = pool;
 

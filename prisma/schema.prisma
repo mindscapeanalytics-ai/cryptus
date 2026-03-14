@@ -71,3 +71,32 @@ model Verification {
   @@index([identifier])
   @@map("verification")
 }
+model CoinConfig {
+  symbol             String   @id
+  rsi1mPeriod        Int      @default(14)
+  rsi5mPeriod        Int      @default(14)
+  rsi15mPeriod       Int      @default(14)
+  rsi1hPeriod        Int      @default(14)
+  overboughtThreshold Int      @default(70)
+  oversoldThreshold   Int      @default(30)
+  alertOn1m          Boolean  @default(false)
+  alertOn5m          Boolean  @default(false)
+  alertOn15m         Boolean  @default(false)
+  alertOn1h          Boolean  @default(false)
+  alertOnCustom      Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("coin_config")
+}
+
+model AlertLog {
+  id        String   @id @default(uuid())
+  symbol    String
+  timeframe String   // 1m, 5m, 15m, 1h, custom
+  value     Float
+  type      String   // OVERSOLD, OVERBOUGHT
+  createdAt DateTime @default(now())
+
+  @@map("alert_log")
+}

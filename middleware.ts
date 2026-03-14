@@ -30,9 +30,9 @@ export async function middleware(request: NextRequest) {
       const isProd = process.env.NODE_ENV === "production";
       const protocol = isProd ? "https" : request.nextUrl.protocol.replace(":", "");
       
-      // Prefer BETTER_AUTH_URL for the internal call if it looks like the current request
-      const envURL = process.env.BETTER_AUTH_URL;
-      const baseURL = envURL && isProd ? envURL : `${protocol}://${request.nextUrl.host}`;
+      // Use the incoming request's host to ensure internal fetches succeed 
+      // regardless of environment (local, standalone, or cloud).
+      const baseURL = `${protocol}://${request.nextUrl.host}`;
 
       const { data } = await betterFetch<Session>(
         "/api/auth/get-session",

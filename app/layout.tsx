@@ -18,11 +18,14 @@ export const viewport: Viewport = {
   themeColor: '#0a0e17',
 };
 
+import { Toaster } from 'sonner';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen antialiased" suppressHydrationWarning>
+      <body className="min-h-screen antialiased bg-[#0a0e17]" suppressHydrationWarning>
         {children}
+        <Toaster theme="dark" position="top-right" closeButton richColors />
       </body>
     </html>
   );
