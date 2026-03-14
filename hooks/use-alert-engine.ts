@@ -31,6 +31,21 @@ export function useAlertEngine(
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 
+  const resumeAudioContext = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+      console.log("[alerts] AudioContext active:", audioCtxRef.current.state);
+    } catch (e) {
+      console.error("[alerts] Failed to resume audio:", e);
+    }
+  }, []);
+
   const playAlertSound = useCallback(async () => {
     if (!soundEnabled || typeof window === 'undefined') return;
     try {
@@ -45,15 +60,15 @@ export function useAlertEngine(
       
       if (ctx.state !== 'running') return;
 
-      const playTone = (freq: number, startTime: number, duration: number, vol: number) => {
+      const playTone = (freq: number, startTime: number, duration: number, vol: number, type: OscillatorType = 'sine') => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         
-        osc.type = 'sine';
+        osc.type = type;
         osc.frequency.setValueAtTime(freq, startTime);
         
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(vol, startTime + 0.02);
+        gain.gain.linearRampToValueAtTime(vol, startTime + 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
         
         osc.connect(gain);
@@ -65,14 +80,19 @@ export function useAlertEngine(
         setTimeout(() => {
           osc.disconnect();
           gain.disconnect();
-        }, (duration + 0.1) * 1000);
+        }, (duration + 0.5) * 1000);
       };
 
       const now = ctx.currentTime;
-      playTone(880, now, 0.4, 0.15);      
-      playTone(1108.73, now + 0.08, 0.35, 0.08); 
-      playTone(1318.51, now + 0.16, 0.3, 0.05); 
-      playTone(1760, now + 0.24, 0.25, 0.03);    
+      
+      // Enterprise "Harmonic Bloom" Chime
+      // High-end attack
+      playTone(1046.50, now, 0.6, 0.12, 'sine'); // C6
+      playTone(1318.51, now + 0.05, 0.5, 0.08, 'sine'); // E6
+      playTone(1567.98, now + 0.1, 0.4, 0.06, 'sine'); // G6
+      
+      // Soft bed
+      playTone(523.25, now, 0.8, 0.05, 'sine'); // C5
       
     } catch (e) {
       console.warn('[alerts] Audio generation failed:', e);
@@ -84,7 +104,8 @@ export function useAlertEngine(
     if (Notification.permission === 'granted') {
       new Notification(title, {
         body,
-        icon: '/logo/logo-rsi.png'
+        icon: '/logo/mindscape-analytics.png', // Premium logo
+        silent: true // We handle audio ourselves for better control
       });
     }
   }, []);
@@ -98,7 +119,6 @@ export function useAlertEngine(
       });
       if (res.ok) {
         const saved = await res.json();
-        // Ensure createdAt is numeric for unified sorting/rendering
         const normalized = {
           ...saved,
           createdAt: typeof saved.createdAt === 'string' ? new Date(saved.createdAt).getTime() : saved.createdAt
@@ -115,6 +135,10 @@ export function useAlertEngine(
 
     data.forEach(entry => {
       const config = coinConfigs[entry.symbol];
+      
+      // CRITICAL: If no config exists for this coin, skip entirely
+      if (!config) return;
+
       const obT = config?.overboughtThreshold ?? 70;
       const osT = config?.oversoldThreshold ?? 30;
       const confluenceMode = config?.alertConfluence ?? false;
@@ -127,7 +151,6 @@ export function useAlertEngine(
         { key: 'rsiCustom', label: 'Custom', configKey: 'alertOnCustom' }
       ];
 
-      // 1. Calculate and update current zone for all TFs first
       const currentZones = new Map<string, 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT'>();
       
       timeframes.forEach(({ key, label }) => {
@@ -147,14 +170,12 @@ export function useAlertEngine(
         currentZones.set(label, zone);
       });
 
-      // 2. Trigger Alerts
       timeframes.forEach(({ label, configKey }) => {
-        const isEnabled = config ? config[configKey] : false;
+        const isEnabled = config[configKey] === true; // Explicitly check for true
         if (!isEnabled) return;
 
         const currentZone = currentZones.get(label);
         if (!currentZone || currentZone === 'NEUTRAL') {
-          // Update zone state even if neutral to allow later transitions
           zoneState.current.set(`${entry.symbol}-${label}`, 'NEUTRAL');
           return;
         }
@@ -162,10 +183,8 @@ export function useAlertEngine(
         const stateKey = `${entry.symbol}-${label}`;
         const previousZone = zoneState.current.get(stateKey);
 
-        // Check for Confluence if enabled
         let hasConfluence = true;
         if (confluenceMode) {
-          // Confluence logic: At least one OTHER enabled timeframe must be in the SAME extreme zone
           const otherExtremes = timeframes
             .filter(tf => tf.label !== label && config[tf.configKey])
             .some(tf => currentZones.get(tf.label) === currentZone);
@@ -173,7 +192,6 @@ export function useAlertEngine(
           if (!otherExtremes) hasConfluence = false;
         }
 
-        // Edge transition logic + Confluence check
         if (previousZone !== undefined && previousZone !== currentZone && hasConfluence) {
           const alertKey = `${entry.symbol}-${label}-${currentZone}`;
           const now = Date.now();
@@ -182,20 +200,20 @@ export function useAlertEngine(
           if (now - last > COOLDOWN_MS) {
             lastTriggered.current.set(alertKey, now);
             
-            const val = entry[timeframes.find(t => t.label === label)!.key];
+            const tfEntry = timeframes.find(t => t.label === label);
+            const val = tfEntry ? entry[tfEntry.key] : 0;
             const newAlert = {
               symbol: entry.symbol,
               timeframe: label,
               value: val,
-              type: currentZone
+              type: currentZone as 'OVERSOLD' | 'OVERBOUGHT'
             };
 
-            // UI Actions
             toast[currentZone === 'OVERSOLD' ? 'success' : 'error'](
               `${entry.symbol} ${label} ${confluenceMode ? 'CONFLUENCE' : 'RSI'} is ${currentZone} [${val.toFixed(1)}]`,
               { 
-                duration: 5000,
-                description: confluenceMode ? "Aligned with other timeframes" : undefined
+                duration: 6000,
+                description: confluenceMode ? "Multiple timeframes aligned" : "Personalized alert strategy triggered"
               }
             );
             
@@ -203,18 +221,16 @@ export function useAlertEngine(
             logAlert(newAlert);
             triggerNativeNotification(
               `${entry.symbol} ${currentZone}`,
-              `${label} RSI is ${val.toFixed(1)}`
+              `${label} RSI reached ${val.toFixed(1)} on personalized config.`
             );
           }
         }
 
-        // Always update the state machine
         zoneState.current.set(stateKey, currentZone);
       });
     });
-  }, [data, coinConfigs, enabled, COOLDOWN_MS, logAlert, playAlertSound]);
+  }, [data, coinConfigs, enabled, COOLDOWN_MS, logAlert, playAlertSound, triggerNativeNotification]);
 
-  // Initial load of alert history
   useEffect(() => {
     fetch('/api/alerts')
       .then(res => res.json())
@@ -225,12 +241,11 @@ export function useAlertEngine(
   }, []);
 
   const triggerTestAlert = useCallback(() => {
-    const testLabel = "TEST";
-    toast.success("RSIQ Alert System: Sound & Notification Check", {
-      description: "Verifying your personalized alert settings."
+    toast.success("RSIQ Enterprise: Flow Test", {
+      description: "Verifying your personalized high-fidelity alert pipeline."
     });
     playAlertSound();
-    triggerNativeNotification("RSIQ PRO Test", "Alert system is functional!");
+    triggerNativeNotification("RSIQ PRO Test", "Enterprise alert delivery is active!");
   }, [playAlertSound, triggerNativeNotification]);
 
   const clearAlertHistory = useCallback(async () => {
@@ -238,15 +253,12 @@ export function useAlertEngine(
       const res = await fetch('/api/alerts', { method: 'DELETE' });
       if (res.ok) {
         setAlerts([]);
-        toast.success("Alert history cleared successfully.");
-      } else {
-        throw new Error('Failed to clear alerts');
+        toast.success("Alert history purged.");
       }
     } catch (e) {
       console.error('[alerts] Clear history failed:', e);
-      toast.error("Failed to clear alert history.");
     }
   }, []);
 
-  return { alerts, setAlerts, triggerTestAlert, clearAlertHistory };
+  return { alerts, setAlerts, triggerTestAlert, clearAlertHistory, resumeAudioContext };
 }

@@ -890,12 +890,14 @@ export default function ScreenerDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [alertsEnabled, setAlertsEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('crypto-rsi-alerts-enabled') !== '0';
+    if (typeof window === 'undefined') return false;
+    const saved = localStorage.getItem('crypto-rsi-alerts-enabled');
+    return saved === '1';
   });
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('crypto-rsi-sound-enabled') !== '0';
+    if (typeof window === 'undefined') return false;
+    const saved = localStorage.getItem('crypto-rsi-sound-enabled');
+    return saved === '1';
   });
   const [showAlertPanel, setShowAlertPanel] = useState(false);
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
@@ -1050,7 +1052,7 @@ export default function ScreenerDashboard() {
     return next;
   }, [mergedData, rsiPeriod]);
 
-  const { alerts, setAlerts, triggerTestAlert, clearAlertHistory } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
+  const { alerts, setAlerts, triggerTestAlert, clearAlertHistory, resumeAudioContext } = useAlertEngine(dataWithCustomRsi, coinConfigs, alertsEnabled, soundEnabled);
 
   // Persist alert settings
   useEffect(() => {
@@ -1469,11 +1471,29 @@ export default function ScreenerDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <motion.button onClick={() => setAlertsEnabled(!alertsEnabled)} whileTap={{ scale: 0.9 }} className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}>
+                  <motion.button 
+                    onClick={async () => {
+                      const next = !alertsEnabled;
+                      setAlertsEnabled(next);
+                      if (next && typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
+                        try { await Notification.requestPermission(); } catch (e) {}
+                      }
+                    }} 
+                    whileTap={{ scale: 0.9 }} 
+                    className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
+                  >
                     <Bell size={16} fill={alertsEnabled ? "currentColor" : "none"} />
                     {alerts.length > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#FF4B5C] rounded-full" />}
                   </motion.button>
-                  <motion.button onClick={() => setSoundEnabled(!soundEnabled)} whileTap={{ scale: 0.9 }} className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}>
+                  <motion.button 
+                    onClick={() => {
+                      const next = !soundEnabled;
+                      setSoundEnabled(next);
+                      if (next) resumeAudioContext();
+                    }} 
+                    whileTap={{ scale: 0.9 }} 
+                    className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
+                  >
                     <Zap size={16} fill={soundEnabled ? "currentColor" : "none"} />
                   </motion.button>
                   <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-10 h-10 rounded-2xl border border-white/10 bg-white/[0.02] text-slate-400 flex items-center justify-center shadow-sm">
@@ -1958,6 +1978,7 @@ export default function ScreenerDashboard() {
             soundEnabled={soundEnabled}
             setSoundEnabled={setSoundEnabled}
             triggerTestAlert={triggerTestAlert}
+            resumeAudioContext={resumeAudioContext}
           />
         )}
       </AnimatePresence>
@@ -2351,7 +2372,8 @@ function GlobalSettingsModal({
   setAlertsEnabled,
   soundEnabled,
   setSoundEnabled,
-  triggerTestAlert
+  triggerTestAlert,
+  resumeAudioContext
 }: {
   onClose: () => void;
   visibleCols: Set<string>;
@@ -2367,6 +2389,7 @@ function GlobalSettingsModal({
   soundEnabled: boolean;
   setSoundEnabled: (v: boolean) => void;
   triggerTestAlert: () => void;
+  resumeAudioContext: () => Promise<void>;
 }) {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
@@ -2451,7 +2474,11 @@ function GlobalSettingsModal({
                   <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Master switch for all real-time alerts</span>
                 </div>
                 <button
-                  onClick={() => setAlertsEnabled(!alertsEnabled)}
+                  onClick={() => {
+                    const next = !alertsEnabled;
+                    setAlertsEnabled(next);
+                    if (next) requestPermission();
+                  }}
                   className={cn(
                     "w-12 h-6 rounded-full p-1 transition-all flex items-center",
                     alertsEnabled ? "bg-[#39FF14]" : "bg-slate-800"
@@ -2473,7 +2500,11 @@ function GlobalSettingsModal({
                   <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Play high-fidelity sound on alert</span>
                 </div>
                 <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
+                  onClick={() => {
+                    const next = !soundEnabled;
+                    setSoundEnabled(next);
+                    if (next) resumeAudioContext();
+                  }}
                   className={cn(
                     "w-12 h-6 rounded-full p-1 transition-all flex items-center",
                     soundEnabled ? "bg-[#39FF14]" : "bg-slate-800"
