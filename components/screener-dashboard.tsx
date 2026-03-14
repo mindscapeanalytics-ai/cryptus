@@ -746,7 +746,7 @@ const ScreenerCard = memo(function ScreenerCard({
     <motion.div
       ref={cardRef}
       initial={{ opacity: 0 }}
-      animate={{ 
+      animate={{
         opacity: 1,
         backgroundColor: isFlash
           ? (entry.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : entry.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
@@ -1583,22 +1583,22 @@ export default function ScreenerDashboard() {
     <div className="max-w-[1800px] mx-auto px-4 pt-4 pb-32 lg:py-8">
       {/* ── Header ── */}
       {showHeader && (
-        <header className="mb-6 rounded-3xl border border-white/5 bg-[#080F1B] p-6 sm:p-8 shadow-lg relative overflow-hidden group">
+        <header className="mb-5 rounded-3xl border border-white/5 bg-[#080F1B] p-5 sm:p-6 shadow-lg relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-96 h-96 bg-[#39FF14]/[0.02] rounded-full -mr-20 -mt-20 group-hover:bg-[#39FF14]/[0.04] transition-colors duration-1000" />
 
           {/* Desktop Header Layout */}
-          <div className="hidden lg:flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 relative z-10">
+          <div className="hidden lg:flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5 relative z-10">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase backdrop-blur-sm transition-all hover:bg-white/10">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-bold tracking-widest text-slate-400 uppercase backdrop-blur-sm transition-all hover:bg-white/10">
                   Mindscape Analytics LLC
                 </div>
                 {session && (
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/5 bg-white/5 px-2 py-1 group/auth transition-all hover:bg-white/10">
-                    <div className="w-5 h-5 rounded-full bg-[#39FF14]/20 flex items-center justify-center">
-                      <UserIcon size={12} className="text-[#39FF14] group-hover/auth:text-[#32e012] transition-colors" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-white/5 bg-white/5 px-1.5 py-1 group/auth transition-all hover:bg-white/10">
+                    <div className="w-4 h-4 rounded-full bg-[#39FF14]/20 flex items-center justify-center">
+                      <UserIcon size={10} className="text-[#39FF14] group-hover/auth:text-[#32e012] transition-colors" />
                     </div>
-                    <span className="text-[10px] font-bold text-slate-300 pr-1 truncate">
+                    <span className="text-[9px] font-bold text-slate-300 pr-1 truncate">
                       {session.user.name || session.user.email}
                     </span>
                     <button
@@ -1613,29 +1613,29 @@ export default function ScreenerDashboard() {
                       disabled={isLoggingOut}
                       className="p-1 rounded-full hover:bg-[#FF4B5C]/20 text-slate-400 hover:text-[#FF4B5C] transition-colors"
                     >
-                      <LogOut size={12} />
+                      <LogOut size={10} />
                     </button>
                   </div>
                 )}
               </div>
-              <h1 className="mt-4 text-5xl font-black text-white tracking-tighter">
+              <h1 className="mt-3 text-4xl font-black text-white tracking-tighter">
                 RSIQ <span className="text-[#39FF14]">Pro</span>
               </h1>
-              <div className="flex flex-wrap items-center gap-6 mt-6">
+              <div className="flex flex-wrap items-center gap-5 mt-5">
                 <div className="flex flex-col flex-1 min-w-[120px]">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 leading-none">Market Bias</div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 leading-none">Market Bias</div>
                   <div className="flex items-center gap-2.5">
                     <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden flex max-w-[120px]">
                       <div className="h-full bg-[#39FF14]" style={{ width: `${Math.max(0, 50 + stats.bias / 2)}%` }} />
                       <div className="h-full bg-red-500" style={{ width: `${Math.max(0, 50 - stats.bias / 2)}%` }} />
                     </div>
-                    <span className={cn("text-xs font-black tabular-nums tracking-tighter", stats.bias >= 0 ? "text-[#39FF14]" : "text-red-500")}>
+                    <span className={cn("text-[11px] font-black tabular-nums tracking-tighter", stats.bias >= 0 ? "text-[#39FF14]" : "text-red-500")}>
                       {stats.bias > 0 ? '+' : ''}{stats.bias}%
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <motion.button
                     onClick={async () => {
                       const next = !alertsEnabled;
@@ -1645,9 +1645,9 @@ export default function ScreenerDashboard() {
                       }
                     }}
                     whileTap={{ scale: 0.9 }}
-                    className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
+                    className={cn("w-9 h-9 rounded-xl border flex items-center justify-center relative shadow-sm", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
                   >
-                    <Bell size={16} fill={alertsEnabled ? "currentColor" : "none"} />
+                    <Bell size={14} fill={alertsEnabled ? "currentColor" : "none"} />
                     {alerts.length > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#FF4B5C] rounded-full" />}
                   </motion.button>
                   <motion.button
@@ -1657,12 +1657,12 @@ export default function ScreenerDashboard() {
                       if (next) resumeAudioContext();
                     }}
                     whileTap={{ scale: 0.9 }}
-                    className={cn("w-10 h-10 rounded-2xl border flex items-center justify-center relative shadow-sm", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
+                    className={cn("w-9 h-9 rounded-xl border flex items-center justify-center relative shadow-sm", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-white/[0.02] border-white/10 text-slate-600")}
                   >
-                    <Zap size={16} fill={soundEnabled ? "currentColor" : "none"} />
+                    <Zap size={14} fill={soundEnabled ? "currentColor" : "none"} />
                   </motion.button>
-                  <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-10 h-10 rounded-2xl border border-white/10 bg-white/[0.02] text-slate-400 flex items-center justify-center shadow-sm">
-                    <Clock size={16} />
+                  <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] text-slate-400 flex items-center justify-center shadow-sm hover:bg-white/5">
+                    <Clock size={14} />
                   </motion.button>
                 </div>
 
@@ -1713,15 +1713,16 @@ export default function ScreenerDashboard() {
           </div>
 
           {/* Mobile App Bar */}
-          <div className="lg:hidden flex flex-col gap-6 relative z-10">
+          <div className="lg:hidden flex flex-col gap-4 relative z-10">
+            {/* Top Row: Logo & Profile */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#39FF14]/20 to-emerald-900/40 border border-[#39FF14]/30 flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.15)] ring-1 ring-[#39FF14]/20">
-                  <Activity size={24} className="text-[#39FF14]" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#39FF14]/20 to-emerald-900/40 border border-[#39FF14]/30 flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.15)] ring-1 ring-[#39FF14]/20">
+                  <Activity size={20} className="text-[#39FF14]" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black text-white tracking-widest leading-none">RSIQ <span className="text-[#39FF14]">PRO</span></h1>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <h1 className="text-xl font-black text-white tracking-widest leading-none">RSIQ <span className="text-[#39FF14]">PRO</span></h1>
+                  <div className="flex items-center gap-1.5 mt-1">
                     <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(57,255,20,0.5)]", isConnected ? "bg-[#39FF14] animate-pulse" : "bg-slate-700")} />
                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{isConnected ? "LIVE" : "OFFLINE"}</span>
                     <div className="w-1 h-1 rounded-full bg-slate-800" />
@@ -1729,88 +1730,127 @@ export default function ScreenerDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2.5">
-                <button onClick={() => fetchData()} className={cn("w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-400 active:scale-90 transition-all shadow-lg", refreshing && "animate-spin text-[#39FF14]")}>
-                  <RefreshCcw size={20} />
-                </button>
+              <div className="flex items-center gap-2">
                 {session && (
-                  <button 
+                  <button
                     onClick={async () => {
                       setIsLoggingOut(true);
-                      await signOut({
-                        fetchOptions: {
-                          onSuccess: () => { router.push('/login'); }
-                        }
-                      });
+                      await signOut({ fetchOptions: { onSuccess: () => router.push('/login') } });
                     }}
                     disabled={isLoggingOut}
-                    className="w-12 h-12 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                    className="w-10 h-10 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center shadow-lg active:scale-90 transition-all"
                   >
-                    {isLoggingOut ? (
-                       <LogOut size={22} className="text-slate-400 animate-pulse" />
-                    ) : (
-                       <UserIcon size={22} className="text-[#39FF14]" />
-                    )}
+                    {isLoggingOut ? <LogOut size={18} className="text-slate-400 animate-pulse" /> : <UserIcon size={18} className="text-[#39FF14]" />}
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 flex flex-col gap-3 shadow-inner">
-                <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">Market Bias</span>
+            {/* Controls Row: Alerts, Toggles, Actions */}
+            <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-2xl p-2 shadow-inner">
+              <div className="flex items-center gap-1.5">
+                <motion.button
+                  onClick={async () => {
+                    const next = !alertsEnabled;
+                    setAlertsEnabled(next);
+                    if (next && typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
+                      try { await Notification.requestPermission(); } catch (e) { }
+                    }
+                  }}
+                  whileTap={{ scale: 0.9 }}
+                  className={cn("w-9 h-9 rounded-xl border flex items-center justify-center relative", alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-transparent border-transparent text-slate-500")}
+                >
+                  <Bell size={14} fill={alertsEnabled ? "currentColor" : "none"} />
+                  {alerts.length > 0 && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-[#FF4B5C] rounded-full" />}
+                </motion.button>
+                <motion.button
+                  onClick={() => {
+                    const next = !soundEnabled;
+                    setSoundEnabled(next);
+                    if (next) resumeAudioContext();
+                  }}
+                  whileTap={{ scale: 0.9 }}
+                  className={cn("w-9 h-9 rounded-xl border flex items-center justify-center relative", soundEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" : "bg-transparent border-transparent text-slate-500")}
+                >
+                  <Zap size={14} fill={soundEnabled ? "currentColor" : "none"} />
+                </motion.button>
+                <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-xl border border-transparent bg-transparent text-slate-500 flex items-center justify-center hover:bg-white/5">
+                  <Clock size={14} />
+                </motion.button>
+              </div>
+              <div className="w-px h-5 bg-white/10 mx-1" />
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => fetchData()} className={cn("w-9 h-9 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-slate-400 active:scale-90 transition-all", refreshing && "animate-spin text-[#39FF14]")}>
+                  <RefreshCcw size={14} />
+                </button>
+                <button onClick={handleExportCsv} className="w-9 h-9 group inline-flex items-center justify-center rounded-xl border border-white/5 bg-white/[0.04] text-slate-400 active:scale-90 transition-all">
+                  <Download size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Micro-Stats Grid */}
+            <div className="grid grid-cols-5 gap-3">
+              <div className="col-span-3 bg-white/[0.03] border border-white/5 rounded-2xl p-3 flex flex-col gap-2.5 shadow-inner">
+                <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Market Bias</span>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
                     <div className="h-full bg-[#39FF14]" style={{ width: `${Math.max(0, 50 + stats.bias / 2)}%` }} />
                     <div className="h-full bg-red-500" style={{ width: `${Math.max(0, 50 - stats.bias / 2)}%` }} />
                   </div>
-                  <span className={cn("text-[11px] font-black tabular-nums font-mono", stats.bias >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+                  <span className={cn("text-[10px] font-black tabular-nums font-mono leading-none", stats.bias >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
                     {stats.bias > 0 ? '+' : ''}{stats.bias}%
                   </span>
                 </div>
               </div>
-              <div className="bg-white/[0.03] border border-white/5 rounded-3xl p-4 flex flex-col gap-2.5 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-black text-slate-600 uppercase">Oversold</span>
-                  <span className="text-xs font-black text-[#39FF14] font-mono">{stats.oversold}</span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-black text-slate-600 uppercase">Overbought</span>
-                  <span className="text-xs font-black text-[#FF4B5C] font-mono">{stats.overbought}</span>
-                </div>
-                <div className="h-px bg-white/5" />
-                <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-black text-slate-600 uppercase">Strong Buy</span>
-                  <span className="text-xs font-black text-blue-400 font-mono">{stats.strongBuy}</span>
+
+              <div className="col-span-2 bg-white/[0.03] border border-white/5 rounded-2xl p-3 flex flex-col items-center justify-center shadow-inner">
+                <span className="text-[8px] font-black uppercase tracking-widest text-slate-600 mb-1 leading-none">Sentiment</span>
+                <div className="flex items-center gap-1.5">
+                  <Gauge size={12} className={fearGreedColor} />
+                  <span className={cn("text-[10px] font-black tabular-nums leading-none", fearGreedColor)}>{fearGreedScore}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Quick Filters */}
+            <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-3">
+              {[
+                { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
+                { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
+                { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
+              ].map((s) => (
+                <button key={s.label} onClick={s.onClick} className="flex flex-col items-center group/stat">
+                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-slate-500 mb-1 leading-none">{s.label}</span>
+                  <span className={cn("text-[13px] font-black tabular-nums tracking-tight leading-none", s.color)}><Counter value={s.value} /></span>
+                </button>
+              ))}
             </div>
           </div>
         </header>
       )}
 
 
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-8">
-        <div className="relative flex-1 rounded-2xl border border-white/5 bg-slate-900/40 focus-within:border-[#39FF14]/20 transition-all">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-6">
+        <div className="relative flex-1 rounded-2xl border border-white/5 bg-slate-900/40 focus-within:border-[#39FF14]/20 transition-all lg:max-w-xs shrink-0">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search symbols..."
-            className="w-full pl-11 pr-4 py-3 text-xs bg-transparent text-white placeholder:text-slate-600 focus:outline-none font-medium"
+            className="w-full pl-10 pr-4 py-2 text-xs bg-transparent text-white placeholder:text-slate-600 focus:outline-none font-medium rounded-2xl"
           />
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex bg-slate-900/40 rounded-2xl border border-white/5 p-1 overflow-x-auto no-scrollbar max-w-[calc(100vw-32px)] sm:max-w-none">
+        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 w-full lg:w-auto">
+          <div className="flex shrink-0 bg-slate-900/40 rounded-2xl border border-white/5 p-1">
             {['all', 'strong-buy', 'buy', 'neutral', 'sell', 'strong-sell'].map((v) => (
               <button
                 key={v}
                 onClick={() => setSignalFilter(v as SignalFilter)}
                 className={cn(
-                  "px-3 sm:px-4 py-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all rounded-xl whitespace-nowrap",
+                  "px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all rounded-xl whitespace-nowrap",
                   signalFilter === v ? "bg-white/10 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
                 )}
               >
@@ -1819,126 +1859,124 @@ export default function ScreenerDashboard() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto pb-1 sm:pb-0">
+          <button
+            onClick={() => setShowWatchlistOnly((v) => !v)}
+            className={cn(
+              "shrink-0 px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
+              showWatchlistOnly
+                ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
+            )}
+          >
+            <Star size={12} className={cn("inline mr-1.5 mb-0.5", showWatchlistOnly && "fill-current")} />
+            Watchlist
+          </button>
+
+          <button
+            onClick={() => setShowHeader((v) => !v)}
+            className={cn(
+              "shrink-0 px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
+              showHeader
+                ? "bg-[#39FF14]/5 text-[#39FF14] border-[#39FF14]/20"
+                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
+            )}
+          >
+            <LayoutList size={12} className="inline mr-1.5 mb-0.5" />
+            Header
+          </button>
+
+          <div className="relative group shrink-0" ref={colPickerRef}>
             <button
-              onClick={() => setShowWatchlistOnly((v) => !v)}
-              className={cn(
-                "flex-1 sm:flex-none px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
-                showWatchlistOnly
-                  ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-                  : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-              )}
+              onClick={() => setShowColPicker(!showColPicker)}
+              className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border border-white/5 bg-slate-900/40 text-slate-500 hover:bg-slate-800/60 transition-all whitespace-nowrap"
             >
-              <Star size={12} className={cn("inline mr-1.5", showWatchlistOnly && "fill-current")} />
-              Watchlist
+              <LayoutGrid size={12} className="inline mr-1.5 mb-0.5" />
+              Cols
             </button>
-
-            <button
-              onClick={() => setShowHeader((v) => !v)}
-              className={cn(
-                "flex-1 sm:flex-none px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
-                showHeader
-                  ? "bg-[#39FF14]/5 text-[#39FF14] border-[#39FF14]/20"
-                  : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-              )}
-            >
-              <LayoutList size={12} className="inline mr-1.5" />
-              Header
-            </button>
-
-            <div className="relative group flex-1 sm:flex-none" ref={colPickerRef}>
-              <button
-                onClick={() => setShowColPicker(!showColPicker)}
-                className="w-full px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-2xl border border-white/5 bg-slate-900/40 text-slate-500 hover:bg-slate-800/60 transition-all whitespace-nowrap"
-              >
-                <LayoutGrid size={12} className="inline mr-1.5" />
-                Cols
-              </button>
-              <AnimatePresence>
-                {showColPicker && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-4 z-[100] bg-[#0A0F1B]/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-5 min-w-[300px] sm:min-w-[480px] overflow-hidden"
-                  >
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Screener Columns</span>
-                        <div className="flex gap-2.5">
-                          <button
-                            onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.map(c => c.id)))}
-                            className="px-2 py-1 text-[9px] font-black text-[#39FF14] hover:bg-[#39FF14]/10 rounded-md transition-all uppercase"
-                          >
-                            All
-                          </button>
-                          <button
-                            onClick={() => setVisibleCols(new Set())}
-                            className="px-2 py-1 text-[9px] font-black text-[#FF4B5C] hover:bg-[#FF4B5C]/10 rounded-md transition-all uppercase"
-                          >
-                            None
-                          </button>
-                          <button
-                            onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)))}
-                            className="px-2 py-1 text-[9px] font-black text-slate-400 hover:bg-white/5 rounded-md transition-all uppercase"
-                          >
-                            Reset
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="max-h-[450px] overflow-y-auto no-scrollbar pr-1 flex flex-col gap-5">
-                        {Array.from(new Set(OPTIONAL_COLUMNS.map(c => c.group))).map(group => (
-                          <div key={group} className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 px-1">
-                              <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{group}</span>
-                              <div className="h-[1px] flex-1 bg-white/5" />
-                              <button
-                                onClick={() => {
-                                  const groupIds = OPTIONAL_COLUMNS.filter(c => c.group === group).map(c => c.id);
-                                  setVisibleCols(prev => {
-                                    const next = new Set(prev);
-                                    const allInGroupSelected = groupIds.every(id => next.has(id));
-                                    if (allInGroupSelected) groupIds.forEach(id => next.delete(id));
-                                    else groupIds.forEach(id => next.add(id));
-                                    return next;
-                                  });
-                                }}
-                                className="text-[8px] font-bold text-slate-600 hover:text-slate-400 uppercase transition-colors"
-                              >
-                                {OPTIONAL_COLUMNS.filter(c => c.group === group).every(c => visibleCols.has(c.id)) ? 'Deselect' : 'Select'}
-                              </button>
-                            </div>
-                            <div className="grid grid-cols-2 gap-1.5">
-                              {OPTIONAL_COLUMNS.filter(c => c.group === group).map((col) => (
-                                <button
-                                  key={col.id}
-                                  onClick={() => toggleCol(col.id)}
-                                  className={cn(
-                                    "flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left",
-                                    visibleCols.has(col.id)
-                                      ? "bg-[#39FF14]/[0.08] text-[#39FF14] border-[#39FF14]/20 shadow-[0_0_15px_-5px_#39FF1433]"
-                                      : "text-slate-500 border-white/5 hover:bg-white/5 hover:border-white/10"
-                                  )}
-                                >
-                                  <div className={cn(
-                                    "w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all shrink-0",
-                                    visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700"
-                                  )}>
-                                    {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-[#0A0F1B]" strokeWidth={3} />}
-                                  </div>
-                                  <span className="text-[10px] font-black uppercase tracking-tight truncate leading-none">{col.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+            <AnimatePresence>
+              {showColPicker && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-4 z-[100] bg-[#0A0F1B]/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-5 min-w-[300px] sm:min-w-[480px] overflow-hidden"
+                >
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Screener Columns</span>
+                      <div className="flex gap-2.5">
+                        <button
+                          onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.map(c => c.id)))}
+                          className="px-2 py-1 text-[9px] font-black text-[#39FF14] hover:bg-[#39FF14]/10 rounded-md transition-all uppercase"
+                        >
+                          All
+                        </button>
+                        <button
+                          onClick={() => setVisibleCols(new Set())}
+                          className="px-2 py-1 text-[9px] font-black text-[#FF4B5C] hover:bg-[#FF4B5C]/10 rounded-md transition-all uppercase"
+                        >
+                          None
+                        </button>
+                        <button
+                          onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)))}
+                          className="px-2 py-1 text-[9px] font-black text-slate-400 hover:bg-white/5 rounded-md transition-all uppercase"
+                        >
+                          Reset
+                        </button>
                       </div>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+
+                    <div className="max-h-[450px] overflow-y-auto no-scrollbar pr-1 flex flex-col gap-5">
+                      {Array.from(new Set(OPTIONAL_COLUMNS.map(c => c.group))).map(group => (
+                        <div key={group} className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 px-1">
+                            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{group}</span>
+                            <div className="h-[1px] flex-1 bg-white/5" />
+                            <button
+                              onClick={() => {
+                                const groupIds = OPTIONAL_COLUMNS.filter(c => c.group === group).map(c => c.id);
+                                setVisibleCols(prev => {
+                                  const next = new Set(prev);
+                                  const allInGroupSelected = groupIds.every(id => next.has(id));
+                                  if (allInGroupSelected) groupIds.forEach(id => next.delete(id));
+                                  else groupIds.forEach(id => next.add(id));
+                                  return next;
+                                });
+                              }}
+                              className="text-[8px] font-bold text-slate-600 hover:text-slate-400 uppercase transition-colors"
+                            >
+                              {OPTIONAL_COLUMNS.filter(c => c.group === group).every(c => visibleCols.has(c.id)) ? 'Deselect' : 'Select'}
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {OPTIONAL_COLUMNS.filter(c => c.group === group).map((col) => (
+                              <button
+                                key={col.id}
+                                onClick={() => toggleCol(col.id)}
+                                className={cn(
+                                  "flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left",
+                                  visibleCols.has(col.id)
+                                    ? "bg-[#39FF14]/[0.08] text-[#39FF14] border-[#39FF14]/20 shadow-[0_0_15px_-5px_#39FF1433]"
+                                    : "text-slate-500 border-white/5 hover:bg-white/5 hover:border-white/10"
+                                )}
+                              >
+                                <div className={cn(
+                                  "w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all shrink-0",
+                                  visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700"
+                                )}>
+                                  {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-[#0A0F1B]" strokeWidth={3} />}
+                                </div>
+                                <span className="text-[10px] font-black uppercase tracking-tight truncate leading-none">{col.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="hidden lg:flex items-center gap-3 bg-slate-900/40 border border-white/5 rounded-2xl px-5 py-3">
