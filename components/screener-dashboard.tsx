@@ -336,23 +336,16 @@ const ScreenerRow = memo(function ScreenerRow({
   }, [display.strategySignal, isVisible]);
 
   return (
-    <motion.tr
-      layout={useAnimations}
-      initial={useAnimations ? { opacity: 0 } : undefined}
-      animate={{
-        opacity: 1,
-        backgroundColor: isFlash
-          ? (display.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : display.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
-          : 'transparent'
-      }}
-      exit={useAnimations ? { opacity: 0, scale: 0.98 } : undefined}
-      transition={{ duration: 0.3 }}
+    <tr
       ref={rowRef}
       className={cn(
         "group transition-colors duration-300 hover:bg-white/[0.04]",
         !isFlash && getRsiBg(display.rsiCustom ?? display.rsi15m)
       )}
       style={{
+        backgroundColor: isFlash
+          ? (display.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : display.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
+          : 'transparent',
         contentVisibility: 'auto',
         containIntrinsicSize: '0 64px'
       } as any}
@@ -378,30 +371,14 @@ const ScreenerRow = memo(function ScreenerRow({
           {entry.market === 'Crypto' && <span className="text-slate-700 text-[8px] font-black uppercase tracking-wider opacity-60">USDT</span>}
         </div>
       </td>
-      <td className="px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px] relative overflow-hidden">
-        <motion.span
-          key={`${entry.symbol}-price-${display.price}`}
-          initial={{ y: display.lastPriceChange > 0 ? 4 : -4, opacity: 0.5 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
+      <td className="px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px]">
+        <span
           className={cn(
-            "inline-block transition-colors duration-700",
             display.lastPriceChange > 0 ? "text-[#39FF14]" : display.lastPriceChange < 0 ? "text-[#FF4B5C]" : "text-slate-100"
           )}
         >
           ${formatPrice(display.price)}
-        </motion.span>
-        {display.lastPriceChange !== 0 && (
-          <motion.div
-            initial={{ opacity: 0.6, scaleX: 0 }}
-            animate={{ opacity: 0, scaleX: 1 }}
-            transition={{ duration: 0.4 }}
-            className={cn(
-              "absolute inset-x-0 bottom-0 h-[1px]",
-              display.lastPriceChange > 0 ? "bg-[#39FF14]" : "bg-[#FF4B5C]"
-            )}
-          />
-        )}
+        </span>
       </td>
       <td className={cn(
         "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
@@ -495,14 +472,9 @@ const ScreenerRow = memo(function ScreenerRow({
                 {display.rsiDivergenceCustom === 'bullish' ? 'DIV+' : 'DIV-'}
               </span>
             )}
-            <motion.span
-              key={`${entry.symbol}-rsi-${display.rsiCustom}`}
-              initial={display.isLiveRsi ? { scale: 1.1, filter: 'brightness(1.5)' } : {}}
-              animate={{ scale: 1, filter: 'brightness(1)' }}
-              className="drop-shadow-sm"
-            >
+            <span className="drop-shadow-sm font-black">
               {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(display.rsiCustom) : '—'}
-            </motion.span>
+            </span>
           </div>
         </td>
       )}
@@ -645,7 +617,7 @@ const ScreenerRow = memo(function ScreenerRow({
           <Settings size={14} />
         </button>
       </td>
-    </motion.tr>
+    </tr>
   );
 });
 
@@ -1064,21 +1036,16 @@ const ScreenerCard = memo(function ScreenerCard({
   const activeIndicators = OPTIONAL_COLUMNS.filter(c => visibleCols?.has(c.id));
 
   return (
-    <motion.div
+    <div
       ref={cardRef}
-      initial={{ opacity: 0 }}
-      animate={{
-        opacity: 1,
-        backgroundColor: isFlash
-          ? (display.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : display.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
-          : 'transparent'
-      }}
-      transition={{ duration: 0.3 }}
       className={cn(
         "relative flex items-center justify-between p-3 border-b border-white/[0.03] active:bg-slate-800/40 transition-colors duration-500",
         !isFlash && getRsiBg(display.rsiCustom ?? display.rsi15m)
       )}
       style={{
+        backgroundColor: isFlash
+          ? (display.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : display.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
+          : 'transparent',
         contentVisibility: 'auto',
         containIntrinsicSize: '0 64px'
       } as any}
@@ -1159,19 +1126,12 @@ const ScreenerCard = memo(function ScreenerCard({
       {/* 3. Market Info (Right) */}
       <div className="flex items-center gap-3 text-right shrink-0">
         <div className="flex flex-col items-end min-w-[65px]">
-          <motion.span
-            key={`${entry.symbol}-price-${display.price}`}
-            initial={{
-              opacity: display.lastPriceChange ? 0.4 : 1,
-              scale: display.lastPriceChange ? 0.95 : 1,
-              color: display.lastPriceChange && display.lastPriceChange > 0 ? '#39FF14' : display.lastPriceChange && display.lastPriceChange < 0 ? '#FF4B5C' : '#ffffff'
-            }}
-            animate={{ opacity: 1, scale: 1, color: '#ffffff' }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
+          <span
             className="text-sm font-black font-mono tracking-tighter inline-block"
+            style={{ color: display.lastPriceChange && display.lastPriceChange > 0 ? '#39FF14' : display.lastPriceChange && display.lastPriceChange < 0 ? '#FF4B5C' : '#ffffff' }}
           >
             ${formatPrice(display.price)}
-          </motion.span>
+          </span>
           <div className={cn("text-[9px] font-black font-mono flex items-center gap-0.5", display.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
             {display.change24h > 0 ? '+' : ''}{display.change24h.toFixed(2)}%
           </div>
@@ -1195,7 +1155,7 @@ const ScreenerCard = memo(function ScreenerCard({
           display.signal === 'oversold' ? "bg-[#39FF14]/40" : "bg-[#FF4B5C]/40"
         )} />
       )}
-    </motion.div>
+    </div>
   );
 });
 
@@ -2564,7 +2524,7 @@ export default function ScreenerDashboard() {
               <p className="text-slate-500 font-bold uppercase tracking-widest text-sm">No matches found</p>
             </div>
           ) : (
-            <AnimatePresence mode="popLayout">
+            <>
               {filtered.map((entry, idx) => (
                 <ScreenerCard
                   key={entry.symbol}
@@ -2581,7 +2541,7 @@ export default function ScreenerDashboard() {
                   exchange={exchange}
                 />
               ))}
-            </AnimatePresence>
+            </>
           )}
         </div>
       ) : (
@@ -2636,7 +2596,7 @@ export default function ScreenerDashboard() {
                     </td>
                   </tr>
                 ) : (
-                  <AnimatePresence mode="popLayout" initial={false}>
+                  <>
                     {filtered.map((entry, idx) => (
                       <ScreenerRow
                         key={entry.symbol}
@@ -2653,7 +2613,7 @@ export default function ScreenerDashboard() {
                         reportVisibility={reportVisibility}
                       />
                     ))}
-                  </AnimatePresence>
+                  </>
                 )}
               </tbody>
             </table>
