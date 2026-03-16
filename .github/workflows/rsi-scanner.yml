@@ -21,7 +21,7 @@ jobs:
           do
             echo "Scan #$i starting at $(date)"
             
-            # Use APP_URL from GitHub Secrets (e.g. https://your-app.vercel.app)
+            # Use APP_URL from GitHub Secrets (e.g. https://rsiqpro.vercel.app)
             # Use CRON_SECRET from GitHub Secrets
             curl -X POST "${{ secrets.APP_URL }}/api/cron/check-alerts" \
                  -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
