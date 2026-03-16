@@ -1336,11 +1336,11 @@ export default function ScreenerDashboard() {
   // It merges the SWR data (from API) with the Live WebSocket prices (from useLivePrices).
   const processedData = useMemo<ScreenerEntry[]>(() => {
     if (data.length === 0) return [];
-    
+
     return data.map(entry => {
       // 1. Get live price data
       const live = livePrices.get(entry.symbol);
-      
+
       // 2. Base merged entry
       let merged: ScreenerEntry = live ? {
         ...entry,
@@ -1379,7 +1379,7 @@ export default function ScreenerDashboard() {
 
     const timer = setTimeout(() => {
       const states: Record<string, any> = {};
-      
+
       // 1. Collect all alertable symbols from configs
       const alertSymbols = new Set<string>();
       Object.entries(coinConfigs).forEach(([sym, cfg]) => {
@@ -1929,7 +1929,11 @@ export default function ScreenerDashboard() {
       } else if (e.key === '/') {
         e.preventDefault();
         const searchInput = document.querySelector('input[placeholder="Search symbols..."]') as HTMLInputElement;
-        if (searchInput) searchInput.focus();
+        if (searchInput) {
+          searchInput.focus();
+          // Small delay for focus adjustment
+          setTimeout(() => searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -2126,11 +2130,11 @@ export default function ScreenerDashboard() {
                 </div>
                 <div className="h-4 w-px bg-white/5 mx-1" />
                 <div className={cn("inline-flex items-center gap-2 rounded-2xl border px-3 py-2 transition-all shadow-sm backdrop-blur-md", isConnected ? 'border-[#39FF14]/20 bg-[#39FF14]/5 text-[#39FF14]' : 'border-white/5 bg-white/[0.02] text-slate-600')}>
-                  <motion.div 
+                  <motion.div
                     initial={{ scale: 1, opacity: 0.8 }}
                     animate={{ scale: [1, 1.3, 1], opacity: [0.8, 1, 0.8] }}
                     transition={{ duration: 2, repeat: Infinity }}
-                    className={cn("h-1.5 w-1.5 rounded-full", isConnected ? 'bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.6)]' : 'bg-slate-600')} 
+                    className={cn("h-1.5 w-1.5 rounded-full", isConnected ? 'bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.6)]' : 'bg-slate-600')}
                   />
                   <span className="font-black tracking-widest uppercase text-[9px]">{isConnected ? 'LIVE' : 'OFFLINE'}</span>
                 </div>
@@ -2150,9 +2154,9 @@ export default function ScreenerDashboard() {
                   <RefreshCcw size={12} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
                   <span>{refreshing ? 'UPDATING' : `${countdown}S`}</span>
                 </button>
-                <button 
-                  onClick={handleExportCsv} 
-                  className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 shadow-sm" 
+                <button
+                  onClick={handleExportCsv}
+                  className="p-2.5 rounded-2xl border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-90 shadow-sm"
                   title="Export CSV (Ctrl+E)"
                 >
                   <Download size={14} />
@@ -2185,11 +2189,11 @@ export default function ScreenerDashboard() {
                 <div>
                   <h1 className="text-xl font-black text-white tracking-widest leading-none">RSIQ <span className="text-[#39FF14]">PRO</span></h1>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <motion.div 
+                    <motion.div
                       initial={{ scale: 1, opacity: 0.8 }}
                       animate={{ scale: [1, 1.2, 1], opacity: [0.8, 1, 0.8] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(57,255,20,0.5)]", isConnected ? "bg-[#39FF14]" : "bg-slate-700")} 
+                      className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(57,255,20,0.5)]", isConnected ? "bg-[#39FF14]" : "bg-slate-700")}
                     />
                     <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{isConnected ? "LIVE" : "OFFLINE"}</span>
                     <div className="w-1 h-1 rounded-full bg-slate-800" />
@@ -3147,7 +3151,7 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
       <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar bg-gradient-to-b from-transparent to-slate-950/20">
         <AnimatePresence initial={false} mode="popLayout">
           {alerts.length === 0 ? (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex flex-col items-center justify-center py-24 text-center space-y-4"
@@ -3165,7 +3169,7 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
               const { label, isBullish } = formatAlertType(alert.type);
               const createdAt = typeof alert.createdAt === 'string' ? new Date(alert.createdAt).getTime() : alert.createdAt;
               const isNew = Date.now() - createdAt < 30000;
-              
+
               return (
                 <motion.div
                   key={alert.id || idx}
@@ -3200,8 +3204,8 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
                   <div className="flex items-center justify-between">
                     <div className={cn(
                       "flex items-center gap-2 px-2.5 py-1 rounded-lg border",
-                      isBullish 
-                        ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" 
+                      isBullish
+                        ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]"
                         : "bg-[#FF4B5C]/10 border-[#FF4B5C]/30 text-[#FF4B5C]"
                     )}>
                       {isBullish ? <TrendingUp size={10} /> : <TrendingDown size={10} />}

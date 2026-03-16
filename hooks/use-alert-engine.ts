@@ -62,6 +62,8 @@ export function useAlertEngine(
   const zoneState = useRef<Map<string, string | undefined>>(new Map());
   // Anti-dancing cooldown — keyed by symbol-timeframe
   const lastTriggered = useRef<Map<string, number>>(new Map());
+  // Track when a config was last updated to allow "cold-start" alerts for manual changes
+  const configLastUpdated = useRef<Map<string, number>>(new Map());
 
   // Gap 7: O(1) data index — rebuilt only when `data` changes, not on every tick
   const dataMapRef = useRef<Map<string, ScreenerEntry>>(new Map());
@@ -74,6 +76,13 @@ export function useAlertEngine(
   // Gap 7: O(1) coinConfigs index — stable ref updated when coinConfigs changes
   const coinConfigsRef = useRef<Record<string, any>>(coinConfigs);
   useEffect(() => {
+    // Mark which configs were updated to allow immediate evaluation
+    const now = Date.now();
+    Object.keys(coinConfigs).forEach(s => {
+      if (coinConfigs[s] !== coinConfigsRef.current[s]) {
+        configLastUpdated.current.set(s, now);
+      }
+    });
     coinConfigsRef.current = coinConfigs;
   }, [coinConfigs]);
 
@@ -124,7 +133,7 @@ export function useAlertEngine(
       const ctx = audioCtxRef.current;
 
       if (ctx.state === 'suspended') {
-        await ctx.resume().catch(() => {});
+        await ctx.resume().catch(() => { });
       }
 
       if (ctx.state !== 'running') {
@@ -178,7 +187,7 @@ export function useAlertEngine(
       playTone(1046.50, now, 0.7, 0.1, 'sine');        // C6 (Primary)
       playTone(1318.51, now + 0.08, 0.6, 0.07, 'sine'); // E6 (Bright)
       playTone(1567.98, now + 0.16, 0.5, 0.05, 'sine'); // G6 (High)
-      playTone(523.25,  now, 1.0, 0.04, 'sine');         // C5 (Warm Bed)
+      playTone(523.25, now, 1.0, 0.04, 'sine');         // C5 (Warm Bed)
       playTone(2093.00, now + 0.24, 0.4, 0.03, 'sine');  // C7 (Airy finish)
 
     } catch (e) {
@@ -290,33 +299,33 @@ export function useAlertEngine(
           const config = coinConfigsRef.current[symbol];
           if (!config) return;
 
-          const r1mP  = config?.rsi1mPeriod  ?? 14;
-          const r5mP  = config?.rsi5mPeriod  ?? 14;
+          const r1mP = config?.rsi1mPeriod ?? 14;
+          const r5mP = config?.rsi5mPeriod ?? 14;
           const r15mP = config?.rsi15mPeriod ?? 14;
-          const r1hP  = config?.rsi1hPeriod  ?? 14;
-          const obT   = config?.overboughtThreshold ?? 70;
-          const osT   = config?.oversoldThreshold   ?? 30;
+          const r1hP = config?.rsi1hPeriod ?? 14;
+          const obT = config?.overboughtThreshold ?? 70;
+          const osT = config?.oversoldThreshold ?? 30;
           const confluenceMode = config?.alertConfluence ?? false;
 
           // Live RSI approximations
-          let rsi1m     = entry.rsi1m;
-          let rsi5m     = entry.rsi5m;
-          let rsi15m    = entry.rsi15m;
-          let rsi1h     = entry.rsi1h;
+          let rsi1m = entry.rsi1m;
+          let rsi5m = entry.rsi5m;
+          let rsi15m = entry.rsi15m;
+          let rsi1h = entry.rsi1h;
           let rsiCustom = entry.rsiCustom;
 
-          if (entry.rsiState1m)     rsi1m     = approximateRsi(entry.rsiState1m,     live.price, r1mP);
-          if (entry.rsiState5m)     rsi5m     = approximateRsi(entry.rsiState5m,     live.price, r5mP);
-          if (entry.rsiState15m)    rsi15m    = approximateRsi(entry.rsiState15m,    live.price, r15mP);
-          if (entry.rsiState1h)     rsi1h     = approximateRsi(entry.rsiState1h,     live.price, r1hP);
+          if (entry.rsiState1m) rsi1m = approximateRsi(entry.rsiState1m, live.price, r1mP);
+          if (entry.rsiState5m) rsi5m = approximateRsi(entry.rsiState5m, live.price, r5mP);
+          if (entry.rsiState15m) rsi15m = approximateRsi(entry.rsiState15m, live.price, r15mP);
+          if (entry.rsiState1h) rsi1h = approximateRsi(entry.rsiState1h, live.price, r1hP);
           if (entry.rsiStateCustom) rsiCustom = approximateRsi(entry.rsiStateCustom, live.price, entry.rsiPeriodAtCreation);
 
-          let ema9      = entry.ema9;
-          let ema21     = entry.ema21;
-          let emaCross  = entry.emaCross;
+          let ema9 = entry.ema9;
+          let ema21 = entry.ema21;
+          let emaCross = entry.emaCross;
           let bbPosition = entry.bbPosition;
 
-          if (ema9  !== null) ema9  = approximateEma(ema9,  live.price, 9);
+          if (ema9 !== null) ema9 = approximateEma(ema9, live.price, 9);
           if (ema21 !== null) ema21 = approximateEma(ema21, live.price, 21);
           if (ema9 !== null && ema21 !== null) emaCross = ema9 > ema21 ? 'bullish' : 'bearish';
 
@@ -327,10 +336,10 @@ export function useAlertEngine(
 
           const hysteresis = computeHysteresis(obT, osT);
           const timeframes = [
-            { key: 'rsi1m',     label: '1m',     val: rsi1m,     configKey: 'alertOn1m'     },
-            { key: 'rsi5m',     label: '5m',     val: rsi5m,     configKey: 'alertOn5m'     },
-            { key: 'rsi15m',   label: '15m',    val: rsi15m,    configKey: 'alertOn15m'    },
-            { key: 'rsi1h',    label: '1h',     val: rsi1h,     configKey: 'alertOn1h'     },
+            { key: 'rsi1m', label: '1m', val: rsi1m, configKey: 'alertOn1m' },
+            { key: 'rsi5m', label: '5m', val: rsi5m, configKey: 'alertOn5m' },
+            { key: 'rsi15m', label: '15m', val: rsi15m, configKey: 'alertOn15m' },
+            { key: 'rsi1h', label: '1h', val: rsi1h, configKey: 'alertOn1h' },
             { key: 'rsiCustom', label: 'Custom', val: rsiCustom, configKey: 'alertOnCustom' }
           ];
 
@@ -344,8 +353,10 @@ export function useAlertEngine(
             const isInverted = obT < osT;
             let zone: 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT' = 'NEUTRAL';
 
+            const NEAR_BUFFER = 0.3; // Allow "near" reach alerts
+
             if (previousZone === 'OVERSOLD') {
-              zone = isInverted 
+              zone = isInverted
                 ? (val < osT - hysteresis ? 'NEUTRAL' : 'OVERSOLD')
                 : (val > osT + hysteresis ? 'NEUTRAL' : 'OVERSOLD');
             } else if (previousZone === 'OVERBOUGHT') {
@@ -354,11 +365,13 @@ export function useAlertEngine(
                 : (val < obT - hysteresis ? 'NEUTRAL' : 'OVERBOUGHT');
             } else {
               if (isInverted) {
-                if (val >= osT) zone = 'OVERSOLD';
-                else if (val <= obT) zone = 'OVERBOUGHT';
+                // Inverted reach: "Very near or reach"
+                if (val >= osT - NEAR_BUFFER) zone = 'OVERSOLD';
+                else if (val <= obT + NEAR_BUFFER) zone = 'OVERBOUGHT';
               } else {
-                if (val <= osT) zone = 'OVERSOLD';
-                else if (val >= obT) zone = 'OVERBOUGHT';
+                // Normal reach: "Very near or reach"
+                if (val <= osT + NEAR_BUFFER) zone = 'OVERSOLD';
+                else if (val >= obT - NEAR_BUFFER) zone = 'OVERBOUGHT';
               }
             }
 
@@ -385,8 +398,12 @@ export function useAlertEngine(
                 .some(tf => currentZones.get(tf.label) === currentZone);
             }
 
-            // Gap 8: previousZone === undefined means "never seen" — don't fire on boot
-            if (previousZone !== undefined && previousZone !== currentZone && hasConfluence) {
+            // Allow "cold-start" alerts if the config was updated in the last 15 seconds
+            const recentlyUpdated = (configLastUpdated.current.get(symbol) || 0) > Date.now() - 15000;
+            const isFirstSeen = previousZone === undefined || previousZone === 'NEUTRAL';
+            const justEntered = isFirstSeen; // currentZone is guaranteed to be OVERSOLD or OVERBOUGHT here
+
+            if (justEntered && (previousZone !== undefined || recentlyUpdated) && hasConfluence) {
               const alertKey = `${symbol}-${label}`;
               const now = Date.now();
               if (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
@@ -432,7 +449,7 @@ export function useAlertEngine(
 
             // Gap 8: skip on uninitialized state
             if (prevStrat !== undefined && prevStrat !== currentStrat &&
-                (currentStrat === 'strong-buy' || currentStrat === 'strong-sell')) {
+              (currentStrat === 'strong-buy' || currentStrat === 'strong-sell')) {
               // Gap 2: unified key `${symbol}-STRAT`  
               const alertKey = `${symbol}-STRAT`;
               const now = Date.now();
@@ -477,7 +494,7 @@ export function useAlertEngine(
           const isStrat = timeframe === 'STRATEGY';
           const alias = getSymbolAlias(symbol);
           const exchangeLabel = exchange ? ` [${exchange.charAt(0).toUpperCase() + exchange.slice(1)}]` : '';
-          
+
           const title = isStrat
             ? `${alias}${exchangeLabel} → ${type === 'STRATEGY_STRONG_BUY' ? '🟢 STRONG BUY' : '🔴 STRONG SELL'}`
             : `${alias}${exchangeLabel} ${timeframe} RSI ${type}`;
