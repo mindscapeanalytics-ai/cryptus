@@ -95,10 +95,28 @@ export function useAlertEngine(
       if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
       }
-      console.log("[alerts] AudioContext active:", audioCtxRef.current.state);
+
+      // iOS/Mobile Magic: Play a silent buffer to "unlock" audio output
+      // Without this, even a 'running' context might stay silent on many mobile browsers.
+      if (ctx.state === 'running') {
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime); // Near silent
+        oscillator.connect(gain);
+        gain.connect(ctx.destination);
+        oscillator.start(0);
+        oscillator.stop(0.1);
+        setTimeout(() => {
+          oscillator.disconnect();
+          gain.disconnect();
+        }, 200);
+      }
+
+      console.log("[alerts] AudioContext unlocked & active:", ctx.state);
     } catch (e) {
       console.error("[alerts] Failed to resume audio:", e);
     }
@@ -111,14 +129,17 @@ export function useAlertEngine(
       resumeAudioContext();
       window.removeEventListener('click', handleGesture);
       window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('mousedown', handleGesture);
       window.removeEventListener('keydown', handleGesture);
     };
     window.addEventListener('click', handleGesture);
     window.addEventListener('touchstart', handleGesture);
+    window.addEventListener('mousedown', handleGesture);
     window.addEventListener('keydown', handleGesture);
     return () => {
       window.removeEventListener('click', handleGesture);
       window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('mousedown', handleGesture);
       window.removeEventListener('keydown', handleGesture);
     };
   }, [resumeAudioContext]);
@@ -213,9 +234,10 @@ export function useAlertEngine(
         icon: '/logo/mindscape-analytics.png',
         badge: '/logo/rsiq-pro-icon.png',
         silent: false, // system sound for background mobile
+        vibrate: [200, 100, 200], // Vibration to prompt OS for sound
         requireInteraction: false,
         tag: `rsiq-${title.replace(/\s+/g, '-').toLowerCase()}`,
-      });
+      } as any);
       setTimeout(() => notification.close(), 8000);
     } catch {
       // Notification constructor can fail in some environments
@@ -543,16 +565,18 @@ export function useAlertEngine(
   // (Removed: duplicate fetch('/api/alerts') — already handled at lines 46-59)
 
   // ── Test alert ──
-  const triggerTestAlert = useCallback(() => {
+  const triggerTestAlert = useCallback(async () => {
+    await resumeAudioContext();
     toast.success("RSIQ Enterprise: Flow Test", {
       description: "Verifying your personalized high-fidelity alert pipeline."
     });
     playAlertSound();
     triggerNativeNotification("RSIQ PRO Test", "Enterprise alert delivery is active!");
-  }, [playAlertSound, triggerNativeNotification]);
+  }, [resumeAudioContext, playAlertSound, triggerNativeNotification]);
 
   // ── Clear history ──
   const clearAlertHistory = useCallback(async () => {
+    await resumeAudioContext();
     try {
       const res = await fetch('/api/alerts', { method: 'DELETE' });
       if (res.ok) {
@@ -562,7 +586,7 @@ export function useAlertEngine(
     } catch (e) {
       console.error('[alerts] Clear history failed:', e);
     }
-  }, []);
+  }, [resumeAudioContext]);
 
   return { alerts, setAlerts, triggerTestAlert, clearAlertHistory, resumeAudioContext };
 }
