@@ -117,6 +117,22 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// ── Web Push API (24/7 Background Support) ───────────────────────
+// Listens for push events from the backend (VAPID).
+// This wipes out the "suspended tab" problem as the OS wakes up the SW.
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  try {
+    const data = event.data.json();
+    if (data && data.type === 'ALERT_NOTIFICATION') {
+      event.waitUntil(showNativeNotification(data.payload));
+    }
+  } catch (err) {
+    console.error('[sw] Push data error:', err);
+  }
+});
+
 // Handle notification clicks — open /terminal directly for trade decisions
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -130,7 +146,7 @@ self.addEventListener('notificationclick', (event) => {
           return client.focus();
         }
       }
-      // Open new window to terminal
+      // Open new window (standard for PWA resumption)
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }

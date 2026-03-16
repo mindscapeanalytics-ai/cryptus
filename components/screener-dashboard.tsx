@@ -2853,7 +2853,91 @@ function CoinSettingsModal({
     alertOnCustom: currentConfig?.alertOnCustom ?? false,
     alertConfluence: currentConfig?.alertConfluence ?? false,
     alertOnStrategyShift: currentConfig?.alertOnStrategyShift ?? false,
+    alertPush247: currentConfig?.alertPush247 ?? false, // Placeholder for local state, but we'll sync with backend
   });
+
+  const [pushStatus, setPushStatus] = useState<'idle' | 'loading' | 'active'>('idle');
+
+  // Helper for VAPID key conversion
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const togglePush = async () => {
+    if (pushStatus === 'loading') return;
+    setPushStatus('loading');
+
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        toast.error("Browser does not support 24/7 Push.");
+        setPushStatus('idle');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      const existingSub = await registration.pushManager.getSubscription();
+
+      if (existingSub) {
+        // Unsubscribe logic
+        await existingSub.unsubscribe();
+        await fetch('/api/push-subscription', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: existingSub.endpoint }),
+        });
+        setPushStatus('idle');
+        toast.info("24/7 Background Alerts disabled.");
+      } else {
+        // Subscribe logic
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          toast.error("Notification permission denied.");
+          setPushStatus('idle');
+          return;
+        }
+
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
+        });
+
+        const res = await fetch('/api/push-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription }),
+        });
+
+        if (res.ok) {
+          setPushStatus('active');
+          toast.success("24/7 Background Alerts activated!", {
+            description: "You will now receive alerts even if the app is closed."
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Push toggle error:', err);
+      toast.error("Failed to sync 24/7 alerts.");
+    } finally {
+      setPushStatus('idle');
+    }
+  };
+
+  useEffect(() => {
+    const checkSub = async () => {
+      if (!('serviceWorker' in navigator)) return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) setPushStatus('active');
+    };
+    checkSub();
+  }, []);
 
   const handleSave = async () => {
     setLoading(true);
@@ -3042,6 +3126,54 @@ function CoinSettingsModal({
                     config.alertOnStrategyShift ? "translate-x-4.5" : "translate-x-0"
                   )} />
                 </button>
+              </div>
+
+              {/* 2026 Intelligent 24/7 Background Push */}
+              <div className="pt-2 border-t border-white/5 space-y-2.5">
+                <div className={cn(
+                  "p-3.5 rounded-2xl border transition-all relative overflow-hidden group/push",
+                  pushStatus === 'active' 
+                    ? "bg-[#39FF14]/[0.05] border-[#39FF14]/20 shadow-[0_0_25px_-10px_#39FF1433]" 
+                    : "bg-white/[0.02] border-white/5 shadow-inner"
+                )}>
+                  <div className="absolute top-0 right-0 p-3 opacity-[0.03] group-hover/push:opacity-[0.1] transition-opacity duration-500">
+                    <Zap size={32} className="text-[#39FF14]" />
+                  </div>
+                  
+                  <div className="flex flex-col mb-2">
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5",
+                      pushStatus === 'active' ? "text-[#39FF14]" : "text-slate-400"
+                    )}>
+                      <Zap size={11} className={cn(pushStatus === 'active' && "animate-pulse")} />
+                      24/7 Background Push
+                    </span>
+                    <span className="text-[7px] text-slate-500 font-bold uppercase mt-1 leading-tight pr-10">
+                      Professional Grade: Alerts arrive even if app is fully closed.
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={togglePush}
+                    disabled={pushStatus === 'loading'}
+                    className={cn(
+                      "absolute top-3.5 right-3.5 w-10 h-5 rounded-full p-0.5 transition-all flex items-center shrink-0 shadow-sm",
+                      pushStatus === 'active' ? "bg-[#39FF14]" : "bg-slate-800"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-4 h-4 rounded-full bg-white transition-all shadow-md",
+                      pushStatus === 'active' ? "translate-x-5" : "translate-x-0"
+                    )} />
+                  </button>
+
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className={cn("h-1 w-1 rounded-full", pushStatus === 'active' ? "bg-[#39FF14] animate-pulse" : "bg-slate-700")} />
+                    <span className="text-[7px] font-black uppercase tracking-widest text-slate-600">
+                      {pushStatus === 'active' ? "24/7 Monitoring Active" : "Background Mode Ready"}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
