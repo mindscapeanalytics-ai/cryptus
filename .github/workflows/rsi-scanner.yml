@@ -1,0 +1,37 @@
+name: 24/7 Intelligent RSI Scanner
+
+on:
+  schedule:
+    # GitHub's smallest reliable interval is every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allows manual trigger for testing
+
+jobs:
+  scan:
+    name: Execute 1-Minute Alert Scans
+    runs-on: ubuntu-latest
+    steps:
+      - name: Professional Scanner Loop
+        run: |
+          # We loop 5 times (1 minute apart) during each 5-minute GitHub run
+          # This achieves true 1-minute resolution for free on Vercel Hobby
+          echo "Starting Professional RSI Scan Cycle..."
+          
+          for i in {1..5}
+          do
+            echo "Scan #$i starting at $(date)"
+            
+            # Use APP_URL from GitHub Secrets (e.g. https://your-app.vercel.app)
+            # Use CRON_SECRET from GitHub Secrets
+            curl -X POST "${{ secrets.APP_URL }}/api/cron/check-alerts" \
+                 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+                 -H "Content-Type: application/json" \
+                 --fail --silent --show-error
+            
+            if [ $i -lt 5 ]; then
+              echo "Waiting 60 seconds for next cycle..."
+              sleep 60
+            fi
+          done
+          
+          echo "Scan Cycle Complete."
