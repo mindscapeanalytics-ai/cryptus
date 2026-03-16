@@ -376,8 +376,14 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram,
       bbPosition,
+      stochK: state.stochK,
+      stochD: state.stochD,
+      vwapDiff: state.vwapDiff,
+      volumeSpike: state.volumeSpike,
       emaCross,
-      confluence: state.confluence
+      confluence: state.confluence,
+      rsiDivergence: state.rsiDivergence,
+      momentum: state.momentum
     });
 
     liveIndicators = {
@@ -728,14 +734,46 @@ function computeWorkerStrategyScore(params) {
     else if (bp >= 0.75) score -= 40 * 1;
   }
 
+  if (params.stochK != null && params.stochD != null) {
+    factors += 1;
+    if (params.stochK < 20 && params.stochD < 20) score += 80 * 1;
+    else if (params.stochK < 30) score += 40 * 1;
+    else if (params.stochK > 80 && params.stochD > 80) score -= 80 * 1;
+    else if (params.stochK > 70) score -= 40 * 1;
+
+    if (params.stochK > params.stochD && params.stochK < 50) score += 20;
+    else if (params.stochK < params.stochD && params.stochK > 50) score -= 20;
+  }
+
   if (params.emaCross) {
     factors += 1.5;
     score += (params.emaCross === 'bullish' ? 60 : -60) * 1.5;
   }
 
+  if (params.vwapDiff != null) {
+    factors += 0.5;
+    if (params.vwapDiff < -2) score += 40 * 0.5;
+    else if (params.vwapDiff > 2) score -= 40 * 0.5;
+  }
+
+  if (params.volumeSpike && factors > 0) {
+    score *= 1.15;
+  }
+
   if (params.confluence !== undefined) {
     factors += 2;
     score += params.confluence * 2;
+  }
+
+  if (params.rsiDivergence && params.rsiDivergence !== 'none') {
+    factors += 1.5;
+    score += (params.rsiDivergence === 'bullish' ? 70 : -70) * 1.5;
+  }
+
+  if (params.momentum != null && Math.abs(params.momentum) > 0.5) {
+    factors += 0.5;
+    const mScore = Math.max(-60, Math.min(60, params.momentum * 15));
+    score += mScore * 0.5;
   }
 
   let normalized = factors > 0 ? score / factors : 0;

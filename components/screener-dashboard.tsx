@@ -1427,6 +1427,12 @@ export default function ScreenerDashboard() {
           bbUpper: entry.bbUpper,
           bbLower: entry.bbLower,
           bbPosition: entry.bbPosition,
+          stochK: entry.stochK,
+          stochD: entry.stochD,
+          vwapDiff: entry.vwapDiff,
+          volumeSpike: entry.volumeSpike,
+          rsiDivergence: entry.rsiDivergence,
+          momentum: entry.momentum,
           confluence: entry.confluence
         };
       });
@@ -2091,7 +2097,16 @@ export default function ScreenerDashboard() {
                   >
                     <Zap size={14} fill={soundEnabled ? "currentColor" : "none"} />
                   </motion.button>
-                  <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] text-slate-400 flex items-center justify-center shadow-sm hover:bg-white/5">
+                  <motion.button 
+                    onClick={() => setShowAlertPanel(!showAlertPanel)} 
+                    whileTap={{ scale: 0.9 }} 
+                    className={cn(
+                      "w-9 h-9 rounded-xl border flex items-center justify-center shadow-sm transition-all",
+                      showAlertPanel 
+                        ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" 
+                        : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/5"
+                    )}
+                  >
                     <Clock size={14} />
                   </motion.button>
                 </div>
@@ -2271,7 +2286,16 @@ export default function ScreenerDashboard() {
                 >
                   <Zap size={14} fill={soundEnabled ? "currentColor" : "none"} />
                 </motion.button>
-                <motion.button onClick={() => setShowAlertPanel(true)} whileTap={{ scale: 0.9 }} className="w-9 h-9 rounded-xl border border-transparent bg-transparent text-slate-500 flex items-center justify-center hover:bg-white/5">
+                <motion.button 
+                  onClick={() => setShowAlertPanel(!showAlertPanel)} 
+                  whileTap={{ scale: 0.9 }} 
+                  className={cn(
+                    "w-9 h-9 rounded-xl border flex items-center justify-center relative transition-all",
+                    showAlertPanel 
+                      ? "bg-[#39FF14]/10 border-[#39FF14]/20 text-[#39FF14]" 
+                      : "border-transparent bg-transparent text-slate-500 hover:bg-white/5"
+                  )}
+                >
                   <Clock size={14} />
                 </motion.button>
               </div>
@@ -2765,7 +2789,7 @@ export default function ScreenerDashboard() {
       <BottomDock
         onOpenAlerts={() => {
           setActiveTab('alerts');
-          setShowAlertPanel(true);
+          setShowAlertPanel(!showAlertPanel);
         }}
         onOpenWatchlist={() => {
           setActiveTab('watchlist');
