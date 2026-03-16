@@ -2941,8 +2941,14 @@ function CoinSettingsModal({
 
   const handleSave = async () => {
     setLoading(true);
-    await onSave(config);
-  setLoading(false);
+    try {
+      await onSave(config);
+      onClose(); // Perfect coupling: close window immediately after successful parent save
+    } catch (err) {
+      toast.error("Failed to save configuration.");
+    } finally {
+      if (typeof window !== 'undefined') setLoading(false);
+    }
   };
 
   return (
@@ -3052,9 +3058,55 @@ function CoinSettingsModal({
 
             <div className="h-px bg-white/5" />
 
-            {/* Alert Toggles */}
+            {/* 2026 Intelligent 24/7 Background Push - HIGH VISIBILITY POSITION */}
+            <div className={cn(
+              "p-3.5 rounded-2xl border transition-all relative overflow-hidden group/push",
+              pushStatus === 'active' 
+                ? "bg-[#39FF14]/[0.08] border-[#39FF14]/30 shadow-[0_0_25px_-5px_#39FF1444]" 
+                : "bg-white/[0.02] border-white/5 shadow-inner"
+            )}>
+              <div className="absolute top-0 right-0 p-3 opacity-[0.03] group-hover/push:opacity-[0.1] transition-opacity duration-500">
+                <Zap size={32} className="text-[#39FF14]" />
+              </div>
+              
+              <div className="flex flex-col mb-2">
+                <span className={cn(
+                  "text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5",
+                  pushStatus === 'active' ? "text-[#39FF14]" : "text-slate-400"
+                )}>
+                  <Zap size={11} className={cn(pushStatus === 'active' && "animate-pulse")} />
+                  24/7 Persistent Alerts
+                </span>
+                <span className="text-[7px] text-slate-500 font-bold uppercase mt-1 leading-tight pr-10">
+                  Smart Wake: Alerts arrive via Web Push even if app is closed.
+                </span>
+              </div>
+              
+              <button
+                onClick={togglePush}
+                disabled={pushStatus === 'loading'}
+                className={cn(
+                  "absolute top-3.5 right-3.5 w-10 h-5 rounded-full p-0.5 transition-all flex items-center shrink-0 shadow-sm",
+                  pushStatus === 'active' ? "bg-[#39FF14]" : "bg-slate-800"
+                )}
+              >
+                <div className={cn(
+                  "w-4 h-4 rounded-full bg-white transition-all shadow-md",
+                  pushStatus === 'active' ? "translate-x-5" : "translate-x-0"
+                )} />
+              </button>
+
+              <div className="mt-1 flex items-center gap-2">
+                <div className={cn("h-1 w-1 rounded-full", pushStatus === 'active' ? "bg-[#39FF14] animate-pulse" : "bg-slate-700")} />
+                <span className="text-[7px] font-black uppercase tracking-widest text-slate-600">
+                  {pushStatus === 'active' ? "24/7 Cloud Monitoring Active" : "Background Mode: Standby"}
+                </span>
+              </div>
+            </div>
+
+            {/* Active Alerts Section */}
             <div className="space-y-2.5">
-              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 ml-0.5 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Active Alerts</label>
+              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 ml-0.5 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Standard Alerts</label>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { key: 'alertOn1m', label: '1m' },
@@ -3127,59 +3179,13 @@ function CoinSettingsModal({
                   )} />
                 </button>
               </div>
-
-              {/* 2026 Intelligent 24/7 Background Push */}
-              <div className="pt-2 border-t border-white/5 space-y-2.5">
-                <div className={cn(
-                  "p-3.5 rounded-2xl border transition-all relative overflow-hidden group/push",
-                  pushStatus === 'active' 
-                    ? "bg-[#39FF14]/[0.05] border-[#39FF14]/20 shadow-[0_0_25px_-10px_#39FF1433]" 
-                    : "bg-white/[0.02] border-white/5 shadow-inner"
-                )}>
-                  <div className="absolute top-0 right-0 p-3 opacity-[0.03] group-hover/push:opacity-[0.1] transition-opacity duration-500">
-                    <Zap size={32} className="text-[#39FF14]" />
-                  </div>
-                  
-                  <div className="flex flex-col mb-2">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5",
-                      pushStatus === 'active' ? "text-[#39FF14]" : "text-slate-400"
-                    )}>
-                      <Zap size={11} className={cn(pushStatus === 'active' && "animate-pulse")} />
-                      24/7 Background Push
-                    </span>
-                    <span className="text-[7px] text-slate-500 font-bold uppercase mt-1 leading-tight pr-10">
-                      Professional Grade: Alerts arrive even if app is fully closed.
-                    </span>
-                  </div>
-                  
-                  <button
-                    onClick={togglePush}
-                    disabled={pushStatus === 'loading'}
-                    className={cn(
-                      "absolute top-3.5 right-3.5 w-10 h-5 rounded-full p-0.5 transition-all flex items-center shrink-0 shadow-sm",
-                      pushStatus === 'active' ? "bg-[#39FF14]" : "bg-slate-800"
-                    )}
-                  >
-                    <div className={cn(
-                      "w-4 h-4 rounded-full bg-white transition-all shadow-md",
-                      pushStatus === 'active' ? "translate-x-5" : "translate-x-0"
-                    )} />
-                  </button>
-
-                  <div className="mt-1 flex items-center gap-2">
-                    <div className={cn("h-1 w-1 rounded-full", pushStatus === 'active' ? "bg-[#39FF14] animate-pulse" : "bg-slate-700")} />
-                    <span className="text-[7px] font-black uppercase tracking-widest text-slate-600">
-                      {pushStatus === 'active' ? "24/7 Monitoring Active" : "Background Mode Ready"}
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
+
+            <div className="h-px bg-white/5" />
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 border-t border-white/5 bg-white/[0.02]">
+        <div className="p-4 sm:p-5 border-t border-white/5 bg-white/[0.02] shrink-0">
           <button
             disabled={loading}
             onClick={handleSave}
