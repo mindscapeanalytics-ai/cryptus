@@ -84,6 +84,17 @@ class PriceTickEngine extends EventTarget {
       }
     });
 
+    // ── Visibility Wake-up Logic ──
+    // When the app is resumed from background/minimized state, force the worker to reconnect immediately
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.worker) {
+          console.log('[PriceEngine] App visible, signaling worker to resume...');
+          this.worker.postMessage({ type: 'RESUME' });
+        }
+      });
+    }
+
     // ── Virtual Market Emulation (Indices/CFDs) ──
     // Pull fresh data for assets not in Binance WebSocket (Yahook symbols)
     this.startVirtualPolling();

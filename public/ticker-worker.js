@@ -68,6 +68,19 @@ function getSymbolAlias(symbol) {
   return clean;
 }
 
+function extractBareSymbol(key) {
+  if (!key) return '';
+  // Handles "exchange:SYMBOL-timeframe" or "SYMBOL-timeframe" or "exchange:SYMBOL"
+  let s = key.includes(':') ? key.split(':').pop() : key;
+  // If it has a timeframe suffix like -1m or -5m
+  if (s.includes('-')) {
+    const parts = s.split('-');
+    // The symbol is always the first part before any '-'
+    s = parts[0];
+  }
+  return s;
+}
+
 // ── Exchange Adapters ──────────────────────────────────────────
 
 class ExchangeAdapter {
@@ -583,6 +596,24 @@ self.onmessage = (e) => {
       startFlushing(payload.flushInterval || 300);
       startZombieWatchdog();
       break;
+
+    case 'RESUME': {
+      // Background Recovery: If app was suspended, force-check all connections
+      const now = Date.now();
+      const silenceMs = now - lastDataReceived;
+      if (silenceMs > 10000) { // If away for > 10s, verify stream health
+        console.log(`[worker] Resuming from background (Away for ${Math.round(silenceMs/1000)}s) — force-verifying connections`);
+        activeAdapters.forEach((adapter, name) => {
+          if (!adapter.socket || adapter.socket.readyState !== WebSocket.OPEN) {
+            console.log(`[worker] Forcing instant reconnect for ${name}`);
+            adapter.disconnect();
+            ensureExchange(name);
+          }
+        });
+        lastDataReceived = now; // Prevent immediate zombie re-trigger
+      }
+      break;
+    }
 
     case 'SET_EXCHANGE': {
       if (!payload.exchange || payload.exchange === currentExchangeName) break;
