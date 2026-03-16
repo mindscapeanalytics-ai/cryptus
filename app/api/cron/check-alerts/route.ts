@@ -47,8 +47,22 @@ export async function POST(request: Request) {
     );
 
     const triggeredAlerts: any[] = [];
+    const now = Date.now();
+    const THREE_MINUTES_AGO = new Date(now - 3 * 60 * 1000);
 
-    // 4. Evaluate Alert Logic (Matches logic in use-alert-engine.ts & worker/index.ts)
+    // 4. Fetch recent alerts to enforce cooldown (Same as foreground use-alert-engine)
+    const recentAlerts = await prisma.alertLog.findMany({
+      where: {
+        createdAt: { gte: THREE_MINUTES_AGO }
+      }
+    });
+
+    const cooldownMap = new Map<string, boolean>();
+    recentAlerts.forEach(a => {
+      cooldownMap.set(`${a.symbol}-${a.timeframe}`, true);
+    });
+
+    // 5. Evaluate Alert Logic (Matches logic in use-alert-engine.ts & worker/index.ts)
     for (const config of configs) {
       const entry = dataMap.get(config.symbol);
       if (!entry) continue;
@@ -56,11 +70,17 @@ export async function POST(request: Request) {
       const alias = getSymbolAlias(config.symbol);
       const ob = config.overboughtThreshold;
       const os = config.oversoldThreshold;
+      const NEAR_BUFFER = 0.3; // Matches foreground hysteresis-start buffer
 
       const checkTrigger = (val: number | null, tf: string) => {
         if (val === null) return null;
-        if (val >= ob) return { type: 'OVERBOUGHT', timeframe: tf, value: val };
-        if (val <= os) return { type: 'OVERSOLD', timeframe: tf, value: val };
+        
+        // Check cooldown first
+        const cooldownKey = `${config.symbol}-${tf === 'STRATEGY' ? 'STRAT' : tf}`;
+        if (cooldownMap.has(cooldownKey)) return null;
+
+        if (val >= ob - NEAR_BUFFER) return { type: 'OVERBOUGHT', timeframe: tf, value: val };
+        if (val <= os + NEAR_BUFFER) return { type: 'OVERSOLD', timeframe: tf, value: val };
         return null;
       };
 
@@ -80,11 +100,14 @@ export async function POST(request: Request) {
 
       // Strategy Shift evaluation
       if (config.alertOnStrategyShift && (entry.strategySignal === 'strong-buy' || entry.strategySignal === 'strong-sell')) {
-        alerts.push({
-          type: entry.strategySignal === 'strong-buy' ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL',
-          timeframe: 'STRATEGY',
-          value: entry.strategyScore
-        });
+        const cooldownKey = `${config.symbol}-STRAT`;
+        if (!cooldownMap.has(cooldownKey)) {
+          alerts.push({
+            type: entry.strategySignal === 'strong-buy' ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL',
+            timeframe: 'STRATEGY',
+            value: entry.strategyScore
+          });
+        }
       }
 
       if (alerts.length > 0) {
@@ -97,11 +120,12 @@ export async function POST(request: Request) {
     }
 
     if (triggeredAlerts.length === 0) {
-      return NextResponse.json({ success: true, message: 'No alerts triggered.' });
+      return NextResponse.json({ success: true, message: 'Scan complete. No new alerts triggered (Cooldown or Neutral).' });
     }
 
-    // 5. Fetch Subscriptions and Send Pushes
+    // 6. Fetch Subscriptions and Send Pushes
     const subscriptions = await prisma.pushSubscription.findMany();
+    let pushCount = 0;
     
     for (const alertInfo of triggeredAlerts) {
       for (const alert of alertInfo.alerts) {
@@ -116,33 +140,32 @@ export async function POST(request: Request) {
           symbol: alertInfo.symbol,
         };
 
-        // Send to all registered subscriptions
-        // In a real app, you might only send to the user who owns the config if ownership is implemented
-        // For now, we send to all global subscriptions as this is a "PRO" feature
+        // A. Log the alert to the database (cooldown check will see this on next run)
+        await prisma.alertLog.create({
+          data: {
+            symbol: alertInfo.symbol,
+            exchange: 'Multi-Scan',
+            timeframe: alert.timeframe === 'STRATEGY' ? 'STRATEGY' : alert.timeframe,
+            value: alert.value,
+            type: alert.type,
+          }
+        });
+
+        // B. Send to all global subscriptions
         for (const sub of subscriptions) {
           const res = await sendPushNotification(sub, payload);
+          if (res.success) pushCount++;
           if (res.expired) {
             await prisma.pushSubscription.delete({ where: { id: sub.id } });
           }
         }
-
-        // Log the alert to DB so it shows up in history
-        await prisma.alertLog.create({
-          data: {
-            symbol: alertInfo.symbol,
-            timeframe: alert.timeframe,
-            value: alert.value,
-            type: alert.type,
-            exchange: 'Multi-Scan',
-          },
-        });
       }
     }
 
     return NextResponse.json({ 
       success: true, 
       triggeredCount: triggeredAlerts.length,
-      notificationsSent: subscriptions.length * triggeredAlerts.reduce((acc, a) => acc + a.alerts.length, 0)
+      notificationsSent: pushCount
     });
 
   } catch (err) {
