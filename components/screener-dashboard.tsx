@@ -1280,7 +1280,11 @@ export default function ScreenerDashboard() {
     if (refresh) setRefreshInterval(Number(refresh));
 
     const pairs = localStorage.getItem('crypto-rsi-pairs');
-    if (pairs) setPairCount(Math.min(Math.max(Number(pairs), 10), 600));
+    if (pairs) {
+      const p = Number(pairs);
+      // Migration: if they had 100 (the old default), bump them to 500 (the new standard)
+      setPairCount(p === 100 ? 500 : Math.min(Math.max(p, 10), 1200));
+    }
 
     const smart = localStorage.getItem('crypto-rsi-smart-mode');
     if (smart !== null) setSmartMode(smart === '1');
@@ -1439,6 +1443,10 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     localStorage.setItem('crypto-rsi-sound-enabled', soundEnabled ? '1' : '0');
   }, [soundEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-pairs', pairCount.toString());
+  }, [pairCount]);
 
   // ─── Real-time Stats Engine ──────────────────────────────────
   const stats = useMemo(() => {

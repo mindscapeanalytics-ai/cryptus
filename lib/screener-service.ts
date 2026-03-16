@@ -323,9 +323,11 @@ function buildMeta(
 function fromCachedResult(symbolCount: number, smartMode: boolean, rsiPeriod: number, exchange: string = 'binance'): ScreenerResponse | null {
   const cache = resultCache.get(makeCacheKey(symbolCount, smartMode, rsiPeriod, exchange));
   if (!cache) {
-    // Partial match: find any cached result for this exchange/mode/period and slice it
+    // Partial match: find any cached result for this exchange/mode/period and slice it.
+    // BUG FIX: Only slice if the cached result is >= requested symbolCount. 
+    // If we request 500 and only have a 100-row cache, returning it is a bad UX.
     for (const [key, val] of resultCache.entries()) {
-      if (key.includes(`:${smartMode ? 'smart' : 'classic'}:rsi${rsiPeriod}:${exchange}`) && val.data.data.length > 0) {
+      if (key.includes(`:${smartMode ? 'smart' : 'classic'}:rsi${rsiPeriod}:${exchange}`) && val.data.data.length >= symbolCount) {
         const sliced = val.data.data.slice(0, symbolCount);
         return {
           ...val.data,
@@ -1371,7 +1373,7 @@ function runRefresh(
  * Main screener function: fetch data, compute all indicators, return results.
  * Supports 500+ coins via batched parallel fetching.
  */
-export async function getScreenerData(symbolCount = 100, options: ScreenerOptions = {}): Promise<ScreenerResponse> {
+export async function getScreenerData(symbolCount = 500, options: ScreenerOptions = {}): Promise<ScreenerResponse> {
   const smartMode = options.smartMode ?? getSmartModeDefault();
   const rsiPeriod = options.rsiPeriod ?? 14;
   const exchange = options.exchange ?? 'binance';
