@@ -2913,23 +2913,23 @@ function CoinSettingsModal({
         className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 sm:p-5 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+        <div className="p-3 sm:p-5 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
           <div>
-            <h2 className="text-xl font-black text-white flex items-center gap-2">
+            <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
               <Settings size={18} className="text-[#39FF14]" />
               {getSymbolAlias(symbol)} <span className="text-slate-500 font-bold text-sm">Settings</span>
             </h2>
-            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Customize RSI periods and thresholds</p>
+            <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Customize RSI periods and thresholds</p>
           </div>
           <button onClick={onClose} className="p-2 text-slate-500 hover:text-white transition-colors">
             <LogOut size={18} className="rotate-180" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto max-h-[72vh] custom-scrollbar">
-          <div className="p-4 sm:p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto max-h-[75vh] custom-scrollbar">
+          <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
             {/* RSI Periods Grid - Consolidated for Vertical Efficiency */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
               <NumericAdjuster 
                 label="RSI 1m Period" 
                 value={config.rsi1mPeriod} 
@@ -2963,7 +2963,7 @@ function CoinSettingsModal({
             <div className="h-px bg-white/5" />
 
             {/* Thresholds Grid */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="grid grid-cols-2 gap-1.5 sm:gap-4">
               <NumericAdjuster 
                 label="Overbought" 
                 value={config.overboughtThreshold} 
@@ -3007,7 +3007,7 @@ function CoinSettingsModal({
 
             {/* 2026 Intelligent 24/7 Background Push - HIGH VISIBILITY POSITION */}
             <div className={cn(
-              "p-3.5 rounded-2xl border transition-all relative overflow-hidden group/push",
+              "p-3 rounded-2xl border transition-all relative overflow-hidden group/push",
               pushStatus === 'active' 
                 ? "bg-[#39FF14]/[0.08] border-[#39FF14]/30 shadow-[0_0_25px_-5px_#39FF1444]" 
                 : "bg-white/[0.02] border-white/5 shadow-inner"
@@ -3052,8 +3052,8 @@ function CoinSettingsModal({
             </div>
 
             {/* Active Alerts Section */}
-            <div className="space-y-2.5">
-              <label className="text-[8px] font-black uppercase tracking-widest text-slate-400 ml-0.5 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Standard Alerts</label>
+            <div className="space-y-2">
+              <label className="text-[7px] font-black uppercase tracking-widest text-slate-400 ml-0.5 flex items-center gap-1.5"><Bell size={10} className="text-[#39FF14]" /> Standard Alerts</label>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { key: 'alertOn1m', label: '1m' },
@@ -3078,7 +3078,7 @@ function CoinSettingsModal({
                 ))}
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-orange-500/5 border border-orange-500/20 group">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-orange-500/5 border border-orange-500/20 group">
                 <div className="flex flex-col">
                   <span className="text-[8px] font-black text-orange-400 uppercase tracking-widest flex items-center gap-1.5">
                     <ShieldCheck size={11} />
@@ -3103,7 +3103,7 @@ function CoinSettingsModal({
               </div>
 
               {/* Strategy Shift Alert Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-500/5 border border-blue-500/20 group">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-blue-500/5 border border-blue-500/20 group">
                 <div className="flex flex-col">
                   <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
                     <BrainCircuit size={11} />
@@ -3132,11 +3132,11 @@ function CoinSettingsModal({
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 border-t border-white/5 bg-white/[0.02] shrink-0">
+        <div className="p-3 sm:p-5 border-t border-white/5 bg-white/[0.02] shrink-0">
           <button
             disabled={loading}
             onClick={handleSave}
-            className="w-full bg-[#39FF14] text-black font-black uppercase tracking-widest py-3.5 rounded-xl hover:bg-[#39FF14]/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#39FF14]/10 text-sm"
+            className="w-full bg-[#39FF14] text-black font-black uppercase tracking-widest py-3 sm:py-3.5 rounded-xl hover:bg-[#39FF14]/90 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#39FF14]/10 text-sm"
           >
             {loading ? 'SAVING...' : 'APPLY CONFIGURATION'}
           </button>
@@ -3189,7 +3189,7 @@ const NumericAdjuster = memo(({
         {description && <span className="text-[7px] font-bold text-slate-600 uppercase tracking-tighter">{description}</span>}
       </div>
       <div className={cn(
-        "flex items-center gap-1 p-1 rounded-2xl border transition-all duration-300 group/adjuster",
+        "flex items-center gap-1 p-0.5 sm:p-1 rounded-2xl border transition-all duration-300 group/adjuster",
         bgClass, borderClass,
         "hover:border-white/10 shadow-sm"
       )}>
@@ -3201,7 +3201,7 @@ const NumericAdjuster = memo(({
             onChange(next);
             setLocalValue(next.toString());
           }}
-          className="p-2 rounded-xl hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-10 transition-all focus:outline-none flex items-center justify-center"
+          className="p-1.5 sm:p-2 rounded-xl hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-10 transition-all focus:outline-none flex items-center justify-center"
         >
           <Minus size={14} />
         </button>
@@ -3226,7 +3226,7 @@ const NumericAdjuster = memo(({
             onChange(next);
             setLocalValue(next.toString());
           }}
-          className="p-2 rounded-xl hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-10 transition-all focus:outline-none flex items-center justify-center"
+          className="p-1.5 sm:p-2 rounded-xl hover:bg-white/5 text-slate-500 hover:text-white disabled:opacity-10 transition-all focus:outline-none flex items-center justify-center"
         >
           <Plus size={14} />
         </button>
