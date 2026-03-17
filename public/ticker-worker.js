@@ -631,6 +631,13 @@ function handleMessage(e, port = null) {
         }
       });
 
+      // Rehydrate global settings
+      getStoredConfig().then(cfg => {
+        if (cfg.rsiPeriod) globalRsiPeriod = cfg.rsiPeriod;
+        if (cfg.alertsEnabled !== undefined) globalAlertsEnabled = cfg.alertsEnabled;
+        console.log(`[worker] Rehydrated config: rsi=${globalRsiPeriod}, alerts=${globalAlertsEnabled}`);
+      });
+
       startFlushing(payload.flushInterval || 300);
       startZombieWatchdog();
       break;
@@ -785,16 +792,20 @@ function teardown() {
 // ── IndexedDB Mirroring (Instant-Start) ───────────────────────
 const DB_NAME = 'rsiq-storage';
 const STORE_NAME = 'prices';
+const CONFIG_STORE = 'config';
 let db = null;
 
 async function initDB() {
   if (db) return db;
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 3);
+    const request = indexedDB.open(DB_NAME, 4); // Incremented version
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(CONFIG_STORE)) {
+        db.createObjectStore(CONFIG_STORE);
       }
     };
     request.onsuccess = (e) => {
@@ -803,6 +814,41 @@ async function initDB() {
     };
     request.onerror = (e) => reject(e.target.error);
   });
+}
+
+/** 
+ * Persist config to IndexedDB 
+ */
+async function persistConfig(config) {
+  try {
+    const database = await initDB();
+    const tx = database.transaction(CONFIG_STORE, 'readwrite');
+    const store = tx.objectStore(CONFIG_STORE);
+    store.put(config.rsiPeriod, 'rsiPeriod');
+    store.put(config.alertsEnabled, 'alertsEnabled');
+  } catch (e) {}
+}
+
+async function getStoredConfig() {
+  try {
+    const database = await initDB();
+    const tx = database.transaction(CONFIG_STORE, 'readonly');
+    const store = tx.objectStore(CONFIG_STORE);
+    const rsiReq = store.get('rsiPeriod');
+    const alertsReq = store.get('alertsEnabled');
+    
+    return new Promise((resolve) => {
+      tx.oncomplete = () => {
+        resolve({
+          rsiPeriod: rsiReq.result,
+          alertsEnabled: alertsReq.result
+        });
+      };
+      tx.onerror = () => resolve({});
+    });
+  } catch (e) {
+    return {};
+  }
 }
 
 /** 
