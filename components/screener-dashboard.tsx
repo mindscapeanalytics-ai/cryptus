@@ -2055,9 +2055,11 @@ export default function ScreenerDashboard() {
 
               </div>
 
-              <h1 className="mt-3 text-4xl font-black text-white tracking-tighter">
-                RSIQ <span className="text-[#39FF14]">Pro</span>
-              </h1>
+              <Link href="/" className="inline-block mt-3 hover:opacity-80 transition-opacity">
+                <h1 className="text-4xl font-black text-white tracking-tighter">
+                  RSIQ <span className="text-[#39FF14]">Pro</span>
+                </h1>
+              </Link>
               <div className="flex flex-wrap items-center gap-5 mt-5">
                 <div className="flex flex-col flex-1 min-w-[120px]">
                   <div className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1 leading-none">Market Bias</div>
@@ -2109,6 +2111,14 @@ export default function ScreenerDashboard() {
                     )}
                   >
                     <Clock size={14} />
+                  </motion.button>
+                  <motion.button
+                    onClick={() => setShowGlobalSettings(true)}
+                    whileTap={{ scale: 0.9 }}
+                    className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/5 hover:text-[#39FF14] flex items-center justify-center shadow-sm transition-all"
+                    title="System Settings"
+                  >
+                    <Settings size={14} />
                   </motion.button>
                 </div>
 
@@ -2220,7 +2230,7 @@ export default function ScreenerDashboard() {
           <div className="lg:hidden flex flex-col gap-4 relative z-10">
             {/* Top Row: Logo & Profile */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <Link href="/" className="flex items-center gap-3 active:scale-95 transition-transform">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#39FF14]/20 to-emerald-900/40 border border-[#39FF14]/30 flex items-center justify-center shadow-[0_0_30px_rgba(57,255,20,0.15)] ring-1 ring-[#39FF14]/20">
                   <Activity size={20} className="text-[#39FF14]" />
                 </div>
@@ -2246,18 +2256,31 @@ export default function ScreenerDashboard() {
                     <span className="text-[8px] font-black text-[#39FF14] tabular-nums">{data.length} PAIRS</span>
                   </div>
                 </div>
-              </div>
+              </Link>
               <div className="flex items-center gap-2">
                 {session && (
                   <button
                     onClick={async () => {
                       setIsLoggingOut(true);
-                      await signOut({ fetchOptions: { onSuccess: () => router.push('/login') } });
+                      try {
+                        await signOut({ 
+                          fetchOptions: { 
+                            onSuccess: () => {
+                              router.push('/login');
+                              // Force reload if router push is sluggish on some mobile devices
+                              setTimeout(() => { window.location.href = '/login'; }, 500);
+                            } 
+                          } 
+                        });
+                      } catch (e) {
+                        window.location.href = '/login';
+                      }
                     }}
                     disabled={isLoggingOut}
-                    className="w-10 h-10 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center shadow-lg active:scale-90 transition-all"
+                    className="w-10 h-10 rounded-2xl bg-[#FF4B5C]/10 border border-[#FF4B5C]/20 flex items-center justify-center shadow-lg active:scale-90 transition-all text-[#FF4B5C]"
+                    title="Logout"
                   >
-                    {isLoggingOut ? <LogOut size={18} className="text-slate-400 animate-pulse" /> : <UserIcon size={18} className="text-[#39FF14]" />}
+                    <LogOut size={18} className={cn(isLoggingOut && "animate-spin")} />
                   </button>
                 )}
               </div>
