@@ -1266,6 +1266,9 @@ export default function ScreenerDashboard() {
   const [rsiPeriod, setRsiPeriod] = useState(14);
   const [countdown, setCountdown] = useState(30);
   const [refreshing, setRefreshing] = useState(false);
+  const [globalThresholdsEnabled, setGlobalThresholdsEnabled] = useState(false);
+  const [globalOverbought, setGlobalOverbought] = useState(90);
+  const [globalOversold, setGlobalOversold] = useState(15);
   const [activeTab, setActiveTab] = useState<'home' | 'alerts' | 'watchlist' | 'settings'>('home');
   const [coinConfigs, setCoinConfigs] = useState<Record<string, any>>({});
   const coinConfigsRef = useRef<Record<string, any>>({});
@@ -1312,6 +1315,15 @@ export default function ScreenerDashboard() {
         setVisibleCols(new Set(JSON.parse(cols)));
       } catch { }
     }
+
+    const globalEnabled = localStorage.getItem('crypto-rsi-global-thresholds-enabled');
+    if (globalEnabled !== null) setGlobalThresholdsEnabled(globalEnabled === '1');
+
+    const globalOB = localStorage.getItem('crypto-rsi-global-overbought');
+    if (globalOB) setGlobalOverbought(Number(globalOB));
+
+    const globalOS = localStorage.getItem('crypto-rsi-global-oversold');
+    if (globalOS) setGlobalOversold(Number(globalOS));
   }, []);
 
   const reportVisibility = useCallback((symbol: string, isVisible: boolean) => {
@@ -1447,7 +1459,15 @@ export default function ScreenerDashboard() {
 
   // Removed old duplicate processedData block
 
-  const { alerts, setAlerts, triggerTestAlert, clearAlertHistory, resumeAudioContext } = useAlertEngine(processedData, coinConfigs, alertsEnabled, soundEnabled);
+  const { alerts, setAlerts, triggerTestAlert, clearAlertHistory, resumeAudioContext } = useAlertEngine(
+    processedData, 
+    coinConfigs, 
+    alertsEnabled, 
+    soundEnabled,
+    globalThresholdsEnabled,
+    globalOverbought,
+    globalOversold
+  );
 
   // Keep coinConfigsRef in sync for stable callbacks (fetchData)
   useEffect(() => { coinConfigsRef.current = coinConfigs; }, [coinConfigs]);
@@ -1460,6 +1480,18 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     localStorage.setItem('crypto-rsi-sound-enabled', soundEnabled ? '1' : '0');
   }, [soundEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-global-thresholds-enabled', globalThresholdsEnabled ? '1' : '0');
+  }, [globalThresholdsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-global-overbought', globalOverbought.toString());
+  }, [globalOverbought]);
+
+  useEffect(() => {
+    localStorage.setItem('crypto-rsi-global-oversold', globalOversold.toString());
+  }, [globalOversold]);
 
   useEffect(() => {
     localStorage.setItem('crypto-rsi-pairs', pairCount.toString());
@@ -2843,6 +2875,12 @@ export default function ScreenerDashboard() {
             setSoundEnabled={setSoundEnabled}
             triggerTestAlert={triggerTestAlert}
             resumeAudioContext={resumeAudioContext}
+            globalThresholdsEnabled={globalThresholdsEnabled}
+            setGlobalThresholdsEnabled={setGlobalThresholdsEnabled}
+            globalOverbought={globalOverbought}
+            setGlobalOverbought={setGlobalOverbought}
+            globalOversold={globalOversold}
+            setGlobalOversold={setGlobalOversold}
           />
         )}
       </AnimatePresence>
@@ -3478,8 +3516,6 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
   );
 }
 
-// ─── Global Settings Modal (Mobile) ───────────────────────────
-
 function GlobalSettingsModal({
   onClose,
   visibleCols,
@@ -3495,7 +3531,13 @@ function GlobalSettingsModal({
   soundEnabled,
   setSoundEnabled,
   triggerTestAlert,
-  resumeAudioContext
+  resumeAudioContext,
+  globalThresholdsEnabled,
+  setGlobalThresholdsEnabled,
+  globalOverbought,
+  setGlobalOverbought,
+  globalOversold,
+  setGlobalOversold
 }: {
   onClose: () => void;
   visibleCols: Set<string>;
@@ -3512,6 +3554,12 @@ function GlobalSettingsModal({
   setSoundEnabled: (v: boolean) => void;
   triggerTestAlert: () => void;
   resumeAudioContext: () => Promise<void>;
+  globalThresholdsEnabled: boolean;
+  setGlobalThresholdsEnabled: (v: boolean) => void;
+  globalOverbought: number;
+  setGlobalOverbought: (v: number) => void;
+  globalOversold: number;
+  setGlobalOversold: (v: number) => void;
 }) {
   const { status: pushStatus, toggle: togglePush, isLoading: pushLoading } = usePushNotifications();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
@@ -3709,6 +3757,69 @@ function GlobalSettingsModal({
                     OS Granted
                   </div>
                 )}
+              </div>
+
+              {/* Global Extreme RSI Activation */}
+              <div className={cn(
+                "p-5 rounded-3xl border transition-all relative overflow-hidden group/extreme",
+                globalThresholdsEnabled 
+                  ? "bg-purple-500/[0.08] border-purple-500/30 shadow-[0_0_40px_-10px_#A855F733]" 
+                  : "bg-white/[0.02] border-white/5"
+              )}>
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover/extreme:opacity-[0.1] transition-opacity duration-700">
+                  <Activity size={48} className="text-purple-500" />
+                </div>
+
+                <div className="flex flex-col mb-5">
+                  <span className={cn(
+                    "text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2",
+                    globalThresholdsEnabled ? "text-purple-400" : "text-slate-500"
+                  )}>
+                    <Activity size={14} className={cn(globalThresholdsEnabled && "animate-pulse")} />
+                    Extreme RSI Global Mode
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-bold uppercase mt-1.5 leading-relaxed pr-16">
+                    Alert on ANY coin reaching extreme oversold/overbought levels, even without manual config.
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => setGlobalThresholdsEnabled(!globalThresholdsEnabled)}
+                  className={cn(
+                    "absolute top-5 right-5 w-12 h-6 rounded-full p-1 transition-all flex items-center shrink-0 shadow-lg",
+                    globalThresholdsEnabled ? "bg-purple-500" : "bg-slate-800"
+                  )}
+                >
+                  <div className={cn(
+                    "w-4 h-4 rounded-full bg-white transition-all shadow-md",
+                    globalThresholdsEnabled ? "translate-x-6" : "translate-x-0"
+                  )} />
+                </button>
+
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <NumericAdjuster
+                    label="Global Overbought"
+                    value={globalOverbought}
+                    onChange={setGlobalOverbought}
+                    min={51} max={99}
+                    colorClass={globalThresholdsEnabled ? "text-purple-300" : "text-slate-500"}
+                    bgClass="bg-black/20"
+                    borderClass="border-white/5"
+                    description="Trigger @ Higher"
+                    loading={!globalThresholdsEnabled}
+                  />
+                  <NumericAdjuster
+                    label="Global Oversold"
+                    value={globalOversold}
+                    onChange={setGlobalOversold}
+                    min={1} max={49}
+                    colorClass={globalThresholdsEnabled ? "text-purple-300" : "text-slate-500"}
+                    bgClass="bg-black/20"
+                    borderClass="border-white/5"
+                    description="Trigger @ Lower"
+                    loading={!globalThresholdsEnabled}
+                  />
+                </div>
               </div>
             </div>
           </section>

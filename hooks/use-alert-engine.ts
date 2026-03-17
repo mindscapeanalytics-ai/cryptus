@@ -60,7 +60,10 @@ export function useAlertEngine(
   data: ScreenerEntry[],
   coinConfigs: Record<string, any>,
   enabled: boolean,
-  soundEnabled: boolean
+  soundEnabled: boolean,
+  globalThresholdsEnabled: boolean = false,
+  globalOverbought: number = 90,
+  globalOversold: number = 15
 ) {
   // ── GAP-E4: Wake Lock lifecycle tied to alert enabled state ──
   useEffect(() => {
@@ -284,6 +287,15 @@ export function useAlertEngine(
   const enabledRef = useRef(enabled);
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
+  const globalThresholdsEnabledRef = useRef(globalThresholdsEnabled);
+  useEffect(() => { globalThresholdsEnabledRef.current = globalThresholdsEnabled; }, [globalThresholdsEnabled]);
+
+  const globalOverboughtRef = useRef(globalOverbought);
+  useEffect(() => { globalOverboughtRef.current = globalOverbought; }, [globalOverbought]);
+
+  const globalOversoldRef = useRef(globalOversold);
+  useEffect(() => { globalOversoldRef.current = globalOversold; }, [globalOversold]);
+
   // ── Native notification ──
   const triggerNativeNotification = useCallback((title: string, body: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -384,7 +396,11 @@ export function useAlertEngine(
           if (!entry) return;
 
           const config = coinConfigsRef.current[symbol];
-          if (!config) return;
+          const hasConfig = !!config;
+          const globalEnabled = globalThresholdsEnabledRef.current;
+
+          // Process if it has a manual alert config OR global mode is active
+          if (!hasConfig && !globalEnabled) return;
 
           const r1mP = config?.rsi1mPeriod ?? 14;
           const r5mP = config?.rsi5mPeriod ?? 14;
@@ -392,6 +408,8 @@ export function useAlertEngine(
           const r1hP = config?.rsi1hPeriod ?? 14;
           const obT = config?.overboughtThreshold ?? 70;
           const osT = config?.oversoldThreshold ?? 30;
+          const globalObT = globalOverboughtRef.current;
+          const globalOsT = globalOversoldRef.current;
           const confluenceMode = config?.alertConfluence ?? false;
 
           // Live RSI approximations
@@ -462,12 +480,33 @@ export function useAlertEngine(
               }
             }
 
+            // ── Phase 1.5: Global Extreme Threshold Override ──
+            if (globalEnabled) {
+              const globalHysteresis = computeHysteresis(globalObT, globalOsT);
+              const isGlobalInverted = globalObT < globalOsT;
+              
+              if (previousZone === 'OVERSOLD' && zone === 'NEUTRAL') {
+                 const stillExtreme = isGlobalInverted ? val >= globalOsT - globalHysteresis : val <= globalOsT + globalHysteresis;
+                 if (stillExtreme) zone = 'OVERSOLD';
+              } else if (previousZone === 'OVERBOUGHT' && zone === 'NEUTRAL') {
+                 const stillExtreme = isGlobalInverted ? val <= globalObT + globalHysteresis : val >= globalObT - globalHysteresis;
+                 if (stillExtreme) zone = 'OVERBOUGHT';
+              } else if (zone === 'NEUTRAL') {
+                 if (isGlobalInverted ? val >= globalOsT : val <= globalOsT) zone = 'OVERSOLD';
+                 else if (isGlobalInverted ? val <= globalObT : val >= globalObT) zone = 'OVERBOUGHT';
+              }
+            }
+
             currentZones.set(label, zone);
           });
 
           // ── Phase 2: Fire RSI alerts ──
-          timeframes.forEach(({ label, configKey }) => {
-            if (config[configKey as keyof typeof config] !== true) return;
+          timeframes.forEach(({ label, val, configKey }) => {
+            const hasManualAlert = config?.[configKey as keyof typeof config] === true;
+            const globalEnabled = globalThresholdsEnabledRef.current;
+            
+            // Allow alert if manually enabled OR if global extreme mode is on
+            if (!hasManualAlert && !globalEnabled) return;
 
             const currentZone = currentZones.get(label);
             if (!currentZone || currentZone === 'NEUTRAL') {
@@ -490,7 +529,19 @@ export function useAlertEngine(
             const isFirstSeen = previousZone === undefined || previousZone === 'NEUTRAL';
             const justEntered = isFirstSeen; // currentZone is guaranteed to be OVERSOLD or OVERBOUGHT here
 
-            if (justEntered && (previousZone !== undefined || recentlyUpdated) && hasConfluence) {
+            // Determine if this specific TF-Symbol hit a global threshold
+            let isGlobalHit = false;
+            if (globalEnabled) {
+              if (currentZone === 'OVERSOLD') {
+                isGlobalHit = (globalOverboughtRef.current < globalOversoldRef.current) ? (val as number) >= globalOsT : (val as number) <= globalOsT;
+              } else {
+                isGlobalHit = (globalOverboughtRef.current < globalOversoldRef.current) ? (val as number) <= globalObT : (val as number) >= globalObT;
+              }
+            }
+
+            const shouldNotify = hasManualAlert || isGlobalHit;
+
+            if (justEntered && (previousZone !== undefined || recentlyUpdated) && hasConfluence && shouldNotify) {
               const alertKey = `${symbol}-${label}`;
               const now = Date.now();
               if (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
@@ -498,11 +549,12 @@ export function useAlertEngine(
                 const val = timeframes.find(t => t.label === label)?.val ?? 0;
                 const formattedExchange = getExchange().charAt(0).toUpperCase() + getExchange().slice(1);
                 const zoneLabel = currentZone === 'OVERSOLD' ? 'BUY' : 'SELL';
+                const isGlobalAlert = isGlobalHit && !hasManualAlert;
                 const priceStr = formatPrice(live.price);
 
                 if (document.visibilityState === 'visible') {
                   toast[currentZone === 'OVERSOLD' ? 'success' : 'error'](
-                    `${getSymbolAlias(symbol)} ${label} RSI ${currentZone}`,
+                    `${getSymbolAlias(symbol)} ${label} RSI ${currentZone}${isGlobalAlert ? ' [Global]' : ''}`,
                     { duration: 8000, description: `RSI: ${(val as number).toFixed(1)} @ $${priceStr} [${formattedExchange}]` }
                   );
                 }
@@ -510,7 +562,7 @@ export function useAlertEngine(
                 logAlertRef.current({ symbol, exchange: getExchange(), timeframe: label, value: val as number, type: currentZone as Alert['type'] });
                 
                 triggerNativeRef.current(
-                  `${getSymbolAlias(symbol)} ${zoneLabel}`,
+                  `${getSymbolAlias(symbol)} ${zoneLabel}${isGlobalAlert ? ' (Global)' : ''}`,
                   `[${formattedExchange}] ${label} RSI reached ${(val as number).toFixed(1)} @ $${priceStr}`
                 );
               }
