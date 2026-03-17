@@ -3,16 +3,25 @@ import { getAllCoinConfigs, updateCoinConfig } from '@/lib/coin-config';
 import { invalidateSymbolCache } from '@/lib/screener-service';
 import { auth } from '@/lib/auth';
 
-export async function GET() {
-  const configs = await getAllCoinConfigs();
-  return NextResponse.json(Object.fromEntries(configs));
+// GAP-F1 FIX: GET now requires authentication
+export async function GET(request: Request) {
+  try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const configs = await getAllCoinConfigs(session.user.id);
+    return NextResponse.json(Object.fromEntries(configs));
+  } catch (err) {
+    console.error('[config-api] GET error:', err);
+    return NextResponse.json({ error: 'Failed to fetch configs' }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
   try {
-    // Basic auth check
     const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -21,7 +30,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Symbol is required' }, { status: 400 });
     }
 
-    const updated = await updateCoinConfig(body);
+    // Inject authenticated userId and current exchange
+    const updated = await updateCoinConfig({
+      ...body,
+      userId: session.user.id,
+    });
     
     // Invalidate caches so the next fetch uses the fresh config
     invalidateSymbolCache(body.symbol);

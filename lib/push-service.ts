@@ -1,22 +1,33 @@
 import webpush from 'web-push';
 
+// GAP-F4 FIX: Module-level VAPID initialization (called once, not per-push)
+let vapidInitialized = false;
+
+function ensureVapidInitialized(): boolean {
+  if (vapidInitialized) return true;
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!publicKey || !privateKey) {
+    console.warn('[push-service] VAPID keys missing. Push notifications disabled.');
+    return false;
+  }
+
+  webpush.setVapidDetails(
+    'mailto:noreply@rsiq.pro',
+    publicKey,
+    privateKey,
+  );
+  vapidInitialized = true;
+  return true;
+}
+
 export async function sendPushNotification(subscription: any, payload: any) {
   try {
-    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    const privateKey = process.env.VAPID_PRIVATE_KEY;
-
-    if (!publicKey || !privateKey) {
-      console.warn('[push-service] VAPID keys missing. Skipping push.');
+    if (!ensureVapidInitialized()) {
       return { success: false, error: 'MISSING_KEYS' };
     }
-
-    // Initialize VAPID details lazily within the function call
-    // to prevent build-time failures if keys are missing in build environment
-    webpush.setVapidDetails(
-      'mailto:noreply@rsiq.pro',
-      publicKey,
-      privateKey
-    );
 
     await webpush.sendNotification(
       {

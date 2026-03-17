@@ -1508,7 +1508,7 @@ export default function ScreenerDashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ symbol, ...newConfig }),
+        body: JSON.stringify({ symbol, exchange, ...newConfig }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -2750,7 +2750,7 @@ export default function ScreenerDashboard() {
                 const res = await fetch('/api/config', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ symbol: selectedCoinForConfig, ...newConfig }),
+                  body: JSON.stringify({ symbol: selectedCoinForConfig, exchange, ...newConfig }),
                 });
                 if (res.ok) {
                   const updated = await res.json();

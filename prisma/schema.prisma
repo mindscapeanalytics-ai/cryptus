@@ -21,6 +21,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   pushSubscriptions PushSubscription[]
+  coinConfigs       CoinConfig[]
 
   @@map("user")
 }
@@ -74,7 +75,10 @@ model Verification {
 }
 
 model CoinConfig {
-  symbol               String   @id
+  id                   String   @id @default(uuid())
+  userId               String
+  symbol               String
+  exchange             String   @default("binance")
   rsi1mPeriod          Int      @default(14)
   rsi5mPeriod          Int      @default(14)
   rsi15mPeriod         Int      @default(14)
@@ -90,7 +94,11 @@ model CoinConfig {
   alertOnCustom        Boolean  @default(false)
   alertConfluence      Boolean  @default(false)
   alertOnStrategyShift Boolean  @default(false)
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, symbol])
+  @@index([userId])
+  @@index([symbol])
   @@map("coin_config")
 }
 

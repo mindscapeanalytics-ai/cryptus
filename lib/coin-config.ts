@@ -1,7 +1,10 @@
 import { prisma } from './prisma';
 
 export interface CoinConfig {
+  id?: string;
+  userId: string;
   symbol: string;
+  exchange: string;
   rsi1mPeriod: number;
   rsi5mPeriod: number;
   rsi15mPeriod: number;
@@ -17,12 +20,18 @@ export interface CoinConfig {
   alertOnStrategyShift: boolean;
 }
 
-export async function getAllCoinConfigs(): Promise<Map<string, CoinConfig>> {
+/**
+ * Get all coin configs for a specific user.
+ * Falls back to all configs (single-tenant compat) if userId is not provided.
+ */
+export async function getAllCoinConfigs(userId?: string): Promise<Map<string, CoinConfig>> {
   try {
-    const configs = await prisma.coinConfig.findMany();
+    const configs = await prisma.coinConfig.findMany({
+      where: userId ? { userId } : undefined,
+    });
     const map = new Map<string, CoinConfig>();
     for (const c of configs) {
-      map.set(c.symbol, c);
+      map.set(c.symbol, c as CoinConfig);
     }
     return map;
   } catch (err) {
@@ -31,21 +40,27 @@ export async function getAllCoinConfigs(): Promise<Map<string, CoinConfig>> {
   }
 }
 
-export async function getCoinConfig(symbol: string): Promise<CoinConfig | null> {
+export async function getCoinConfig(symbol: string, userId?: string): Promise<CoinConfig | null> {
   try {
-    return await prisma.coinConfig.findUnique({
+    if (userId) {
+      return await prisma.coinConfig.findUnique({
+        where: { userId_symbol: { userId, symbol } },
+      }) as CoinConfig | null;
+    }
+    // Single-tenant fallback: find first matching symbol
+    return await prisma.coinConfig.findFirst({
       where: { symbol },
-    });
+    }) as CoinConfig | null;
   } catch (err) {
     console.error(`[coin-config] Failed to fetch config for ${symbol}:`, err);
     return null;
   }
 }
 
-export async function updateCoinConfig(config: Partial<CoinConfig> & { symbol: string }) {
+export async function updateCoinConfig(config: Partial<CoinConfig> & { symbol: string; userId: string }) {
   try {
-    // 2026 Resilience: Explicitly map fields to prevent crashes from UI-only state (like alertPush247)
     const data = {
+      exchange: config.exchange ?? 'binance',
       rsi1mPeriod: config.rsi1mPeriod,
       rsi5mPeriod: config.rsi5mPeriod,
       rsi15mPeriod: config.rsi15mPeriod,
@@ -62,9 +77,10 @@ export async function updateCoinConfig(config: Partial<CoinConfig> & { symbol: s
     };
 
     return await prisma.coinConfig.upsert({
-      where: { symbol: config.symbol },
+      where: { userId_symbol: { userId: config.userId, symbol: config.symbol } },
       update: data,
       create: {
+        userId: config.userId,
         symbol: config.symbol,
         ...data,
       },

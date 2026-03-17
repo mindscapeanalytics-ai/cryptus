@@ -165,8 +165,38 @@ self.addEventListener('periodicsync', (event) => {
 
 async function refreshDataInBackground() {
   try {
-    // 1. Fetch top 100 pairs from the API
-    const res = await fetch('/api/screener?count=100&exchange=binance');
+    // GAP-A5 FIX: Read exchange preference from IndexedDB (matches ticker-worker storage)
+    let exchange = 'binance';
+    try {
+      const DB_NAME = 'rsiq-storage';
+      const CONFIG_STORE = 'config';
+      const dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 4);
+        request.onupgradeneeded = (e: any) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('prices')) db.createObjectStore('prices');
+          if (!db.objectStoreNames.contains(CONFIG_STORE)) db.createObjectStore(CONFIG_STORE);
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const db: any = await dbPromise;
+      const tx = db.transaction(CONFIG_STORE, 'readonly');
+      const store = tx.objectStore(CONFIG_STORE);
+      const exchangeReq = store.get('exchange');
+      await new Promise<void>((resolve) => {
+        tx.oncomplete = () => {
+          if (exchangeReq.result) exchange = exchangeReq.result;
+          resolve();
+        };
+        tx.onerror = () => resolve();
+      });
+    } catch (e) {
+      // Fall back to binance
+    }
+
+    // 1. Fetch top 100 pairs from the API using active exchange
+    const res = await fetch(`/api/screener?count=100&exchange=${exchange}`);
     if (!res.ok) return;
     const json = await res.json();
     const data = json.data as any[];
@@ -176,7 +206,12 @@ async function refreshDataInBackground() {
     const STORE_NAME = 'prices';
     
     const dbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 3);
+      const request = indexedDB.open(DB_NAME, 4);
+      request.onupgradeneeded = (e: any) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+        if (!db.objectStoreNames.contains('config')) db.createObjectStore('config');
+      };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
@@ -185,14 +220,12 @@ async function refreshDataInBackground() {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
 
-    data.forEach(entry => {
-      // Map ScreenerEntry to LiveTick
+    data.forEach((entry: any) => {
       const tick = {
         price: entry.price,
         change24h: entry.change24h,
         volume24h: entry.volume24h,
         updatedAt: Date.now(),
-        // indicators
         rsi1m: entry.rsi1m,
         rsi5m: entry.rsi5m,
         rsi15m: entry.rsi15m,
@@ -203,7 +236,7 @@ async function refreshDataInBackground() {
       store.put(tick, entry.symbol);
     });
 
-    console.log(`[sw] Periodic sync updated ${data.length} symbols`);
+    console.log(`[sw] Periodic sync updated ${data.length} symbols (exchange: ${exchange})`);
   } catch (err) {
     console.error('[sw] Periodic sync failed:', err);
   }

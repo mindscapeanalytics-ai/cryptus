@@ -8,6 +8,56 @@ import type { ScreenerEntry } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minute max for deeper scans
 
+// ── Zone-state persistence across cron invocations ──
+// In-memory Map survives across invocations on the same serverless instance.
+// On cold starts, we fall back to DB-based cooldown to avoid re-fire.
+const zoneStateCache = new Map<string, string>(); // key: userId:symbol-timeframe → zone
+
+/**
+ * Dynamic hysteresis: prevents rapid zone-flipping when thresholds are close.
+ * Mirrors the exact same logic in use-alert-engine.ts and ticker-worker.js.
+ */
+function computeHysteresis(overboughtThreshold: number, oversoldThreshold: number): number {
+  const gap = Math.max(0, overboughtThreshold - oversoldThreshold);
+  return Math.max(2, gap * 0.15);
+}
+
+/**
+ * Determine RSI zone with hysteresis — matches the foreground/worker evaluator exactly.
+ */
+function getZoneWithHysteresis(
+  val: number | null,
+  obT: number,
+  osT: number,
+  previousZone: string | undefined,
+): 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT' {
+  if (val === null || val === undefined) return 'NEUTRAL';
+  
+  const isInverted = obT < osT;
+  const hysteresis = computeHysteresis(obT, osT);
+  const NEAR_BUFFER = 0.3;
+  
+  if (previousZone === 'OVERSOLD') {
+    return isInverted
+      ? (val < osT - hysteresis ? 'NEUTRAL' : 'OVERSOLD')
+      : (val > osT + hysteresis ? 'NEUTRAL' : 'OVERSOLD');
+  } else if (previousZone === 'OVERBOUGHT') {
+    return isInverted
+      ? (val > obT + hysteresis ? 'NEUTRAL' : 'OVERBOUGHT')
+      : (val < obT - hysteresis ? 'NEUTRAL' : 'OVERBOUGHT');
+  } else {
+    // NEUTRAL or first-seen
+    if (isInverted) {
+      if (val >= osT - NEAR_BUFFER) return 'OVERSOLD';
+      if (val <= obT + NEAR_BUFFER) return 'OVERBOUGHT';
+    } else {
+      if (val <= osT + NEAR_BUFFER) return 'OVERSOLD';
+      if (val >= obT - NEAR_BUFFER) return 'OVERBOUGHT';
+    }
+  }
+  return 'NEUTRAL';
+}
+
 export async function POST(request: Request) {
   const requestId = Math.random().toString(36).substring(7);
   console.log(`[cron-alerts:${requestId}] Starting background check...`);
@@ -20,11 +70,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Check VAPID presence for debugging
     const hasVapid = !!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && !!process.env.VAPID_PRIVATE_KEY;
     console.log(`[cron-alerts:${requestId}] VAPID keys present: ${hasVapid}`);
 
-    // 2. Fetch all alert-enabled coin configurations
+    // 2. Fetch all alert-enabled coin configurations (grouped by userId)
     const configs = await prisma.coinConfig.findMany({
       where: {
         OR: [
@@ -44,152 +93,209 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'No active alerts to monitor.' });
     }
 
-    const alertSymbols = configs.map(c => c.symbol);
-    
-    // 3. Fetch current market data (Force fresh scan by using classic mode and high count)
-    console.log(`[cron-alerts:${requestId}] Fetching fresh data for ${alertSymbols.length} indicators...`);
-    const screenerResponse = await getScreenerData(500, { 
-      smartMode: false, 
-      prioritySymbols: alertSymbols 
-    });
-    
-    const dataMap = new Map<string, ScreenerEntry>(
-      screenerResponse.data.map((d: ScreenerEntry) => [d.symbol, d])
-    );
+    // 3. Group configs by exchange for exchange-aware scanning
+    const configsByExchange = new Map<string, typeof configs>();
+    for (const config of configs) {
+      const exchange = (config as any).exchange || 'binance';
+      const list = configsByExchange.get(exchange) || [];
+      list.push(config);
+      configsByExchange.set(exchange, list);
+    }
 
-    const triggeredAlerts: any[] = [];
-    const now = Date.now();
-    const THREE_MINUTES_AGO = new Date(now - 3 * 60 * 1000);
-
-    // 4. Fetch recent alerts to enforce cooldown
+    // 4. Fetch 3-minute cooldown from DB (consistent across cold starts)
+    const THREE_MINUTES_AGO = new Date(Date.now() - 3 * 60 * 1000);
     const recentAlerts = await prisma.alertLog.findMany({
-      where: {
-        createdAt: { gte: THREE_MINUTES_AGO }
-      }
+      where: { createdAt: { gte: THREE_MINUTES_AGO } }
     });
-
     const cooldownMap = new Map<string, boolean>();
     recentAlerts.forEach(a => {
       cooldownMap.set(`${a.symbol}-${a.timeframe}`, true);
     });
-
     console.log(`[cron-alerts:${requestId}] Recent alerts in cooldown: ${recentAlerts.length}`);
 
-    // 5. Evaluate Alert Logic
-    for (const config of configs) {
-      const entry = dataMap.get(config.symbol);
-      if (!entry) continue;
+    const triggeredAlerts: any[] = [];
 
-      const alias = getSymbolAlias(config.symbol);
-      const ob = config.overboughtThreshold;
-      const os = config.oversoldThreshold;
-      const isInverted = ob < os;
-      const NEAR_BUFFER = 0.3;
-
-      // Evaluation Helper: Returns zone string for a value
-      const getZone = (val: number | null) => {
-        if (val === null) return 'NEUTRAL';
-        if (isInverted) {
-          if (val >= os - NEAR_BUFFER) return 'OVERSOLD';
-          if (val <= ob + NEAR_BUFFER) return 'OVERBOUGHT';
-        } else {
-          if (val >= ob - NEAR_BUFFER) return 'OVERBOUGHT';
-          if (val <= os + NEAR_BUFFER) return 'OVERSOLD';
-        }
-        return 'NEUTRAL';
-      };
-
-      const timeframes = [
-        { label: '1M', val: entry.rsi1m, enabled: config.alertOn1m },
-        { label: '5M', val: entry.rsi5m, enabled: config.alertOn5m },
-        { label: '15M', val: entry.rsi15m, enabled: config.alertOn15m },
-        { label: '1H', val: entry.rsi1h, enabled: config.alertOn1h },
-        { label: 'CUST', val: entry.rsiCustom, enabled: config.alertOnCustom },
-      ];
-
-      // Calculate current states for all enabled timeframes
-      const states = timeframes.map(tf => ({ ...tf, zone: getZone(tf.val) }));
-
-      const triggered: any[] = [];
-      states.forEach(state => {
-        if (state.enabled && state.zone !== 'NEUTRAL') {
-          // Check Cooldown
-          const cooldownKey = `${config.symbol}-${state.label}`;
-          if (cooldownMap.has(cooldownKey)) return;
-
-          // Check Confluence if required
-          if (config.alertConfluence) {
-            const hasOtherInZone = states.some(other => 
-              other.label !== state.label && other.enabled && other.zone === state.zone
-            );
-            if (!hasOtherInZone) return;
-          }
-
-          triggered.push({
-            type: state.zone,
-            timeframe: state.label,
-            value: state.val
-          });
-        }
-      });
-
-      // Handle Strategy Shift (Strategy always bypasses confluence)
-      if (config.alertOnStrategyShift && (entry.strategySignal === 'strong-buy' || entry.strategySignal === 'strong-sell')) {
-        const cooldownKey = `${config.symbol}-STRAT`;
-        if (!cooldownMap.has(cooldownKey)) {
-          triggered.push({
-            type: entry.strategySignal === 'strong-buy' ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL',
-            timeframe: 'STRATEGY',
-            value: entry.strategyScore
-          });
-        }
+    // 5. Scan each exchange independently
+    for (const [exchange, exchangeConfigs] of configsByExchange) {
+      const alertSymbols = exchangeConfigs.map(c => c.symbol);
+      
+      console.log(`[cron-alerts:${requestId}] Fetching data for ${exchange}: ${alertSymbols.length} symbols`);
+      
+      let screenerResponse;
+      try {
+        screenerResponse = await getScreenerData(500, {
+          smartMode: false,
+          prioritySymbols: alertSymbols,
+          exchange,
+        });
+      } catch (err) {
+        console.error(`[cron-alerts:${requestId}] Failed to fetch ${exchange} data:`, err);
+        continue; // Skip this exchange, try others
       }
 
-      if (triggered.length > 0) {
-        triggeredAlerts.push({ symbol: config.symbol, alias, alerts: triggered });
+      const dataMap = new Map<string, ScreenerEntry>(
+        screenerResponse.data.map((d: ScreenerEntry) => [d.symbol, d])
+      );
+
+      // 6. Evaluate each config with proper hysteresis
+      for (const config of exchangeConfigs) {
+        const entry = dataMap.get(config.symbol);
+        if (!entry) continue;
+
+        const userId = (config as any).userId || 'global';
+        const alias = getSymbolAlias(config.symbol);
+        const obT = config.overboughtThreshold;
+        const osT = config.oversoldThreshold;
+
+        // GAP-B2 FIX: Timeframe labels now match foreground/worker convention exactly
+        const timeframes = [
+          { label: '1m', val: entry.rsi1m, enabled: config.alertOn1m },
+          { label: '5m', val: entry.rsi5m, enabled: config.alertOn5m },
+          { label: '15m', val: entry.rsi15m, enabled: config.alertOn15m },
+          { label: '1h', val: entry.rsi1h, enabled: config.alertOn1h },
+          { label: 'Custom', val: entry.rsiCustom, enabled: config.alertOnCustom },
+        ];
+
+        // GAP-A2 FIX: Zone-state tracking with hysteresis (matches foreground evaluator)
+        const currentZones = new Map<string, 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT'>();
+        for (const tf of timeframes) {
+          if (!tf.enabled || tf.val === null) continue;
+          const stateKey = `${userId}:${config.symbol}-${tf.label}`;
+          const previousZone = zoneStateCache.get(stateKey);
+          const zone = getZoneWithHysteresis(tf.val, obT, osT, previousZone);
+          currentZones.set(tf.label, zone);
+        }
+
+        const triggered: any[] = [];
+        
+        for (const tf of timeframes) {
+          if (!tf.enabled) continue;
+          const zone = currentZones.get(tf.label);
+          if (!zone || zone === 'NEUTRAL') {
+            const stateKey = `${userId}:${config.symbol}-${tf.label}`;
+            zoneStateCache.set(stateKey, 'NEUTRAL');
+            continue;
+          }
+
+          const stateKey = `${userId}:${config.symbol}-${tf.label}`;
+          const previousZone = zoneStateCache.get(stateKey);
+          
+          // Only alert on TRANSITION into a zone (not on staying in zone)
+          const isFirstSeen = previousZone === undefined || previousZone === 'NEUTRAL';
+          
+          if (isFirstSeen) {
+            // Check Cooldown (uses normalized labels now — matches foreground)
+            const cooldownKey = `${config.symbol}-${tf.label}`;
+            if (cooldownMap.has(cooldownKey)) {
+              zoneStateCache.set(stateKey, zone);
+              continue;
+            }
+
+            // Check Confluence if required
+            if (config.alertConfluence) {
+              const hasOtherInZone = timeframes.some(other =>
+                other.label !== tf.label && other.enabled && currentZones.get(other.label) === zone
+              );
+              if (!hasOtherInZone) {
+                zoneStateCache.set(stateKey, zone);
+                continue;
+              }
+            }
+
+            triggered.push({
+              type: zone,
+              timeframe: tf.label,
+              value: tf.val,
+            });
+          }
+          zoneStateCache.set(stateKey, zone);
+        }
+
+        // Strategy Shift detection
+        if (config.alertOnStrategyShift &&
+          (entry.strategySignal === 'strong-buy' || entry.strategySignal === 'strong-sell')) {
+          const stratKey = `${userId}:${config.symbol}-STRAT`;
+          const prevStrat = zoneStateCache.get(stratKey);
+          const currentStrat = entry.strategySignal;
+
+          if (prevStrat !== undefined && prevStrat !== currentStrat) {
+            const cooldownKey = `${config.symbol}-STRAT`;
+            if (!cooldownMap.has(cooldownKey)) {
+              triggered.push({
+                type: currentStrat === 'strong-buy' ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL',
+                timeframe: 'STRATEGY',
+                value: entry.strategyScore,
+              });
+            }
+          }
+          zoneStateCache.set(stratKey, currentStrat);
+        }
+
+        if (triggered.length > 0) {
+          triggeredAlerts.push({
+            symbol: config.symbol,
+            alias,
+            exchange,
+            userId,
+            alerts: triggered,
+          });
+        }
       }
     }
 
     console.log(`[cron-alerts:${requestId}] Triggered alerts: ${triggeredAlerts.length}`);
 
     if (triggeredAlerts.length === 0) {
-      return NextResponse.json({ success: true, message: `Scan complete. No new alerts triggered for ${configs.length} configs.`, staleCoverage: screenerResponse.meta.indicatorCoveragePct });
+      return NextResponse.json({
+        success: true,
+        message: `Scan complete. No new alerts triggered for ${configs.length} configs.`,
+        exchanges: Array.from(configsByExchange.keys()),
+      });
     }
 
-    // 6. Fetch Subscriptions and Send Pushes
+    // 7. Fetch Subscriptions and Send Pushes (per-user if multi-tenant)
     const subscriptions = await prisma.pushSubscription.findMany();
     console.log(`[cron-alerts:${requestId}] Found ${subscriptions.length} push subscriptions.`);
-    
+
     let pushCount = 0;
     for (const alertInfo of triggeredAlerts) {
       for (const alert of alertInfo.alerts) {
         const isBuy = alert.type === 'OVERSOLD' || alert.type === 'STRATEGY_STRONG_BUY';
         const typeLabel = isBuy ? 'BUY' : 'SELL';
+        const exchangeLabel = alertInfo.exchange.charAt(0).toUpperCase() + alertInfo.exchange.slice(1);
+        
         const payload = {
-          title: `${alertInfo.alias} ${typeLabel} (${alert.timeframe})`,
-          body: alert.timeframe === 'STRATEGY' 
-            ? `Strategy score reached ${alert.value.toFixed(0)}. Opportunity identified!`
-            : `RSI is currently ${alert.value.toFixed(1)}. Opportunity identified!`,
-          exchange: 'Multi-Scan',
+          title: `${alertInfo.alias} ${typeLabel}`,
+          body: alert.timeframe === 'STRATEGY'
+            ? `[${exchangeLabel}] Strategy score: ${alert.value.toFixed(0)}`
+            : `[${exchangeLabel}] ${alert.timeframe} RSI reached ${alert.value.toFixed(1)}`,
+          exchange: alertInfo.exchange,
           symbol: alertInfo.symbol,
         };
 
+        // Log to DB for cooldown tracking across invocations
         await prisma.alertLog.create({
           data: {
             symbol: alertInfo.symbol,
-            exchange: 'Multi-Scan',
-            timeframe: alert.timeframe === 'STRATEGY' ? 'STRATEGY' : alert.timeframe,
+            exchange: alertInfo.exchange,
+            timeframe: alert.timeframe,
             value: alert.value,
             type: alert.type,
           }
         });
 
-        for (const sub of subscriptions) {
+        // Send push to relevant subscriptions
+        // For multi-tenant: filter by userId. For single-tenant: send to all.
+        const targetSubs = alertInfo.userId && alertInfo.userId !== 'global'
+          ? subscriptions.filter(s => s.userId === alertInfo.userId)
+          : subscriptions;
+
+        for (const sub of targetSubs) {
           try {
             const res = await sendPushNotification(sub, payload);
             if (res.success) pushCount++;
             if (res.expired) {
-              await prisma.pushSubscription.delete({ where: { id: sub.id } });
+              await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
             }
           } catch (e) {
             console.error(`[cron-alerts:${requestId}] Individual push error:`, e);
@@ -199,11 +305,12 @@ export async function POST(request: Request) {
     }
 
     console.log(`[cron-alerts:${requestId}] Finished. Sent ${pushCount} notifications.`);
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       triggeredCount: triggeredAlerts.length,
       notificationsSent: pushCount,
-      hasVapid
+      hasVapid,
+      exchanges: Array.from(configsByExchange.keys()),
     });
 
   } catch (err: any) {

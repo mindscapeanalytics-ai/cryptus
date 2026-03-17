@@ -385,7 +385,8 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
     const r5mP = config.rsi5mPeriod || 14;
     const r15mP = config.rsi15mPeriod || 14;
     const r1hP = config.rsi1hPeriod || 14;
-    const rCP = globalRsiPeriod;
+    // GAP-C2 FIX: Use per-coin custom RSI period from config, fallback to global
+    const rCP = config.rsiCustomPeriod || globalRsiPeriod;
 
     const obT = config.overboughtThreshold != null ? config.overboughtThreshold : 70;
     const osT = config.oversoldThreshold != null ? config.oversoldThreshold : 30;
@@ -684,6 +685,8 @@ function handleMessage(e, port = null) {
       lastDataReceived = Date.now();
 
       ensureExchange(currentExchangeName);
+      // Persist exchange to IndexedDB for Service Worker background sync (GAP-A5)
+      persistExchangeToConfig(currentExchangeName);
       console.log(`[worker] Multi-tab exchange switch: ${prevExchange} → ${currentExchangeName}`);
       break;
     }
@@ -840,6 +843,16 @@ async function persistConfig(config) {
     const store = tx.objectStore(CONFIG_STORE);
     store.put(config.rsiPeriod, 'rsiPeriod');
     store.put(config.alertsEnabled, 'alertsEnabled');
+    if (config.exchange) store.put(config.exchange, 'exchange');
+  } catch (e) {}
+}
+
+async function persistExchangeToConfig(exchange) {
+  try {
+    const database = await initDB();
+    const tx = database.transaction(CONFIG_STORE, 'readwrite');
+    const store = tx.objectStore(CONFIG_STORE);
+    store.put(exchange, 'exchange');
   } catch (e) {}
 }
 

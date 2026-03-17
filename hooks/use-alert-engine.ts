@@ -5,6 +5,27 @@ import { approximateRsi, approximateEma } from '@/lib/rsi';
 import { computeStrategyScore } from '@/lib/indicators';
 import { getSymbolAlias } from '@/lib/symbol-utils';
 
+// ── Wake Lock for mobile alert reliability (GAP-E4) ──
+let wakeLock: WakeLockSentinel | null = null;
+async function requestWakeLock() {
+  if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => {
+      console.log('[alerts] Wake Lock released');
+      wakeLock = null;
+    });
+    console.log('[alerts] Wake Lock acquired — screen will stay on for alerts');
+  } catch (e) {
+    // Wake Lock can fail if page is not visible
+    console.warn('[alerts] Wake Lock unavailable:', e);
+  }
+}
+function releaseWakeLock() {
+  wakeLock?.release().catch(() => {});
+  wakeLock = null;
+}
+
 declare global {
   interface Window {
     webkitAudioContext: typeof AudioContext;
@@ -40,6 +61,23 @@ export function useAlertEngine(
   enabled: boolean,
   soundEnabled: boolean
 ) {
+  // ── GAP-E4: Wake Lock lifecycle tied to alert enabled state ──
+  useEffect(() => {
+    if (enabled) {
+      requestWakeLock();
+      // Re-acquire wake lock on visibility change (mobile browsers release it)
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible' && enabled) requestWakeLock();
+      };
+      document.addEventListener('visibilitychange', handleVisibility);
+      return () => {
+        releaseWakeLock();
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
+    } else {
+      releaseWakeLock();
+    }
+  }, [enabled]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
   // Hydrate alert history from API on mount
@@ -71,6 +109,17 @@ export function useAlertEngine(
     const m = new Map<string, ScreenerEntry>();
     for (const entry of data) m.set(entry.symbol, entry);
     dataMapRef.current = m;
+
+    // ── GAP-D2 FIX: Prune zone/cooldown state for symbols no longer in dataset ──
+    const currentSymbols = new Set(data.map(e => e.symbol));
+    for (const key of zoneState.current.keys()) {
+      const sym = key.split('-')[0];
+      if (!currentSymbols.has(sym)) zoneState.current.delete(key);
+    }
+    for (const key of lastTriggered.current.keys()) {
+      const sym = key.split('-')[0];
+      if (!currentSymbols.has(sym)) lastTriggered.current.delete(key);
+    }
   }, [data]);
 
   // Gap 7: O(1) coinConfigs index — stable ref updated when coinConfigs changes
