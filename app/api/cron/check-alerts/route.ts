@@ -83,29 +83,61 @@ export async function POST(request: Request) {
       const alias = getSymbolAlias(config.symbol);
       const ob = config.overboughtThreshold;
       const os = config.oversoldThreshold;
+      const isInverted = ob < os;
       const NEAR_BUFFER = 0.3;
 
-      const checkTrigger = (val: number | null, tf: string) => {
-        if (val === null) return null;
-        const cooldownKey = `${config.symbol}-${tf === 'STRATEGY' ? 'STRAT' : tf}`;
-        if (cooldownMap.has(cooldownKey)) return null;
-
-        if (val >= ob - NEAR_BUFFER) return { type: 'OVERBOUGHT', timeframe: tf, value: val };
-        if (val <= os + NEAR_BUFFER) return { type: 'OVERSOLD', timeframe: tf, value: val };
-        return null;
+      // Evaluation Helper: Returns zone string for a value
+      const getZone = (val: number | null) => {
+        if (val === null) return 'NEUTRAL';
+        if (isInverted) {
+          if (val >= os - NEAR_BUFFER) return 'OVERSOLD';
+          if (val <= ob + NEAR_BUFFER) return 'OVERBOUGHT';
+        } else {
+          if (val >= ob - NEAR_BUFFER) return 'OVERBOUGHT';
+          if (val <= os + NEAR_BUFFER) return 'OVERSOLD';
+        }
+        return 'NEUTRAL';
       };
 
-      const alerts: any[] = [];
-      if (config.alertOn1m) { const t = checkTrigger(entry.rsi1m, '1M'); if (t) alerts.push(t); }
-      if (config.alertOn5m) { const t = checkTrigger(entry.rsi5m, '5M'); if (t) alerts.push(t); }
-      if (config.alertOn15m) { const t = checkTrigger(entry.rsi15m, '15M'); if (t) alerts.push(t); }
-      if (config.alertOn1h) { const t = checkTrigger(entry.rsi1h, '1H'); if (t) alerts.push(t); }
-      if (config.alertOnCustom) { const t = checkTrigger(entry.rsiCustom, 'CUST'); if (t) alerts.push(t); }
+      const timeframes = [
+        { label: '1M', val: entry.rsi1m, enabled: config.alertOn1m },
+        { label: '5M', val: entry.rsi5m, enabled: config.alertOn5m },
+        { label: '15M', val: entry.rsi15m, enabled: config.alertOn15m },
+        { label: '1H', val: entry.rsi1h, enabled: config.alertOn1h },
+        { label: 'CUST', val: entry.rsiCustom, enabled: config.alertOnCustom },
+      ];
 
+      // Calculate current states for all enabled timeframes
+      const states = timeframes.map(tf => ({ ...tf, zone: getZone(tf.val) }));
+
+      const triggered: any[] = [];
+      states.forEach(state => {
+        if (state.enabled && state.zone !== 'NEUTRAL') {
+          // Check Cooldown
+          const cooldownKey = `${config.symbol}-${state.label}`;
+          if (cooldownMap.has(cooldownKey)) return;
+
+          // Check Confluence if required
+          if (config.alertConfluence) {
+            const hasOtherInZone = states.some(other => 
+              other.label !== state.label && other.enabled && other.zone === state.zone
+            );
+            if (!hasOtherInZone) return;
+          }
+
+          triggered.push({
+            type: state.zone,
+            timeframe: state.label,
+            value: state.val
+          });
+        }
+      });
+
+      // Handle Strategy Shift (Strategy always bypasses confluence)
       if (config.alertOnStrategyShift && (entry.strategySignal === 'strong-buy' || entry.strategySignal === 'strong-sell')) {
         const cooldownKey = `${config.symbol}-STRAT`;
         if (!cooldownMap.has(cooldownKey)) {
-          alerts.push({
+          triggered.push({
             type: entry.strategySignal === 'strong-buy' ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL',
             timeframe: 'STRATEGY',
             value: entry.strategyScore
@@ -113,8 +145,8 @@ export async function POST(request: Request) {
         }
       }
 
-      if (alerts.length > 0) {
-        triggeredAlerts.push({ symbol: config.symbol, alias, alerts });
+      if (triggered.length > 0) {
+        triggeredAlerts.push({ symbol: config.symbol, alias, alerts: triggered });
       }
     }
 
