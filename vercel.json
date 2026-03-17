@@ -1,4 +1,15 @@
 {
+  "headers": [
+    {
+      "source": "/(manifest.json|sw.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
   "regions": ["fra1"],
   "functions": {
     "app/api/screener/route.ts": {

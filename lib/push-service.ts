@@ -29,7 +29,11 @@ export async function sendPushNotification(subscription: any, payload: any) {
       JSON.stringify({
         type: 'ALERT_NOTIFICATION',
         payload,
-      })
+      }),
+      {
+        TTL: 60, // 1 minute expiration (trade urgency)
+        urgency: 'high', // Prioritize delivery on mobile gateways
+      }
     );
     return { success: true };
   } catch (error: any) {

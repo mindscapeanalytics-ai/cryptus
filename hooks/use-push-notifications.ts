@@ -43,17 +43,24 @@ export function usePushNotifications() {
   useEffect(() => {
     checkSubscription();
     
-    // ── Periodic Background Sync Registration (2026) ──
+    // ── Service Worker Persistence & Update Logic ──
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      // Force an update check to ensure the latest background alerting code is active
+      navigator.serviceWorker.getRegistration().then(reg => reg?.update());
+
       navigator.serviceWorker.ready.then(async (registration: any) => {
+        // Periodic Sync for 2026 freshness
         if ('periodicSync' in registration) {
           try {
-            await registration.periodicSync.register('rsiq-freshness-sync', {
-              minInterval: 60 * 60 * 1000, // 1 hour
-            });
-            console.log('[usePush] Periodic Sync registered: rsiq-freshness-sync');
+            const tags = await registration.periodicSync.getTags();
+            if (!tags.includes('rsiq-freshness-sync')) {
+              await registration.periodicSync.register('rsiq-freshness-sync', {
+                minInterval: 60 * 60 * 1000, // 1 hour
+              });
+              console.log('[usePush] Periodic Sync registered');
+            }
           } catch (e) {
-            console.warn('[usePush] Periodic Sync regi failed:', e);
+            console.warn('[usePush] Periodic Sync failed:', e);
           }
         }
       });

@@ -3,6 +3,15 @@
 
 declare const self: ServiceWorkerGlobalScope;
 
+// ── SERVICE WORKER LIFECYCLE ──
+self.addEventListener('install', () => {
+  self.skipWaiting(); // Force activate new worker instantly
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim()); // Take control of all tabs immediately
+});
+
 // ── BULLETPROOF GLOBAL POLYFILLS FOR NEXT.JS SWC BUG ──
 // SWC emits _async_to_generator and _ts_generator helper calls in the service
 // worker bundle but doesn't include their definitions. We polyfill both globally
@@ -90,11 +99,14 @@ const showNativeNotification = (payload: any) => {
     icon: icon || '/logo/rsiq-pro-icon.png',
     badge: '/logo/rsiq-pro-icon.png',
     silent: false,
-    requireInteraction: false,
+    requireInteraction: true, // Keep on screen for trade urgency on mobile
     renotify: true,
     tag,
-    vibrate: [200, 100, 200, 100, 200], // Strong 3-pulse for trade urgency
-    data: { exchange, url: '/terminal' }
+    vibrate: [300, 100, 300, 100, 400], // Stronger pattern for mobile awareness
+    data: { exchange, url: '/terminal' },
+    actions: [
+      { action: 'open', title: 'Open Terminal' }
+    ]
   });
 };
 
