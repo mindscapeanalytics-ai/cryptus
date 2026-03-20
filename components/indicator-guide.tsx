@@ -44,7 +44,7 @@ const INDICATORS: Indicator[] = [
     parameters: [
       { name: 'Period', value: '14', description: 'Standard Wilder period for all timeframes' },
       { name: 'Timeframes', value: '1m, 5m, 15m, 1h', description: 'Multi-timeframe analysis from 1-minute to 1-hour candles' },
-      { name: 'Data source', value: 'REST API', description: '1000 × 1m candles aggregated into higher timeframes' },
+      { name: 'Data source', value: 'Real-time WebSocket', description: 'Approximated client-side for sub-second precision' },
     ],
     interpretation: [
       { condition: 'RSI ≤ 20', meaning: 'Deeply oversold — strong buy signal', color: 'text-[#39FF14]' },
@@ -53,7 +53,31 @@ const INDICATORS: Indicator[] = [
       { condition: 'RSI ≥ 70', meaning: 'Overbought — potential reversal zone', color: 'text-[#FF4B5C]/80' },
       { condition: 'RSI ≥ 80', meaning: 'Deeply overbought — strong sell signal', color: 'text-[#FF4B5C]' },
     ],
-    usage: 'The screener computes RSI across 4 timeframes (1m, 5m, 15m, 1h) simultaneously. 1m RSI captures scalping opportunities, while 1h RSI reveals macro trends. The RSI-based signal (Oversold/Overbought) is derived from the longest available timeframe using a fallback chain: 15m → 5m → 1m.',
+    usage: 'The screener computes RSI across 4 timeframes simultaneously. 1m RSI captures scalping opportunities, while 1h RSI reveals macro trends. RSI-based signals use a fallback chain: 15m → 5m → 1m based on data availability.',
+  },
+  {
+    id: 'rsi-divergence',
+    name: 'RSI Divergence',
+    icon: '📉',
+    category: 'momentum',
+    tagColor: 'text-[#39FF14]',
+    summary: 'Detects discrepancies between price action and RSI momentum. A powerful reversal indicator that often precedes significant trend shifts.',
+    formula: [
+      'Bullish: Price makes Lower Low while RSI makes Higher Low',
+      'Bearish: Price makes Higher High while RSI makes Lower High',
+      'Lookback: 40 candles (15m timeframe)',
+      'Tolerance: +1/-1 buffer on RSI swing points',
+    ],
+    parameters: [
+      { name: 'Timeframe', value: '15m', description: 'Primary timeframe for swing point detection' },
+      { name: 'Period', value: '14', description: 'Underlying RSI period' },
+      { name: 'Lookback', value: '40', description: 'Comparison window for swing detection' },
+    ],
+    interpretation: [
+      { condition: 'Bullish Divergence', meaning: 'Exhausted selling pressure — potential upward reversal', color: 'text-[#39FF14]' },
+      { condition: 'Bearish Divergence', meaning: 'Exhausted buying pressure — potential downward reversal', color: 'text-[#FF4B5C]' },
+    ],
+    usage: 'Divergence is weighted heavily (1.5x) in the strategy score. It is most effective when confirmed by an RSI reading in oversold or overbought territory. Look for divergence icons (▲/▼) in the screener table.',
   },
   {
     id: 'ema-cross',
@@ -61,13 +85,12 @@ const INDICATORS: Indicator[] = [
     icon: '📈',
     category: 'trend',
     tagColor: 'text-[#39FF14]',
-    summary: 'Detects trend direction using the relationship between fast (9) and slow (21) Exponential Moving Averages on 15-minute candles. Reports both crossover events and current trend state.',
+    summary: 'Detects trend direction using the relationship between fast (9) and slow (21) Exponential Moving Averages on 15-minute candles.',
     formula: [
       'EMA = Price × k + EMA_prev × (1 − k)',
       'k = 2 / (period + 1)',
-      'Seed: SMA of first N values',
-      'Bullish Cross: EMA9_prev ≤ EMA21_prev AND EMA9_now > EMA21_now',
-      'Bearish Cross: EMA9_prev ≥ EMA21_prev AND EMA9_now < EMA21_now',
+      'Bullish Cross: EMA9 crosses above EMA21',
+      'Bearish Cross: EMA9 crosses below EMA21',
       'Trend: EMA9 > EMA21 → Bullish, EMA9 < EMA21 → Bearish',
     ],
     parameters: [
@@ -78,36 +101,32 @@ const INDICATORS: Indicator[] = [
     interpretation: [
       { condition: '▲ Bullish', meaning: 'Fast EMA above slow EMA — uptrend', color: 'text-[#39FF14]' },
       { condition: '▼ Bearish', meaning: 'Fast EMA below slow EMA — downtrend', color: 'text-[#FF4B5C]' },
-      { condition: '— None', meaning: 'Insufficient data or EMAs converged', color: 'text-gray-500' },
     ],
-    usage: 'EMA Cross provides trend context for other indicators. A bullish RSI oversold reading in a bullish EMA trend is a stronger buy signal than one in a bearish trend. The screener shows the current trend state, not just the single crossover candle.',
+    usage: 'EMA Cross provides trend context. In the composite strategy, a current bullish trend contributes a steady +60 points to the buy score, while a bearish trend subtracts -60.',
   },
   {
     id: 'macd',
-    name: 'MACD (Moving Average Convergence Divergence)',
+    name: 'MACD (histogram)',
     icon: '🔀',
     category: 'momentum',
     tagColor: 'text-blue-400',
-    summary: 'Tracks the relationship between two EMAs to identify trend momentum and direction. The histogram reveals acceleration or deceleration of the trend.',
+    summary: 'Tracks trend acceleration using the difference between 12 and 26 EMAs. The histogram is price-normalized to allow comparison between high and low-priced assets.',
     formula: [
       'MACD Line = EMA(12) − EMA(26)',
       'Signal Line = EMA(9) of MACD Line',
       'Histogram = MACD Line − Signal Line',
-      'Positive histogram → bullish momentum increasing',
-      'Negative histogram → bearish momentum increasing',
+      'Normalized = (Histogram / Current Price) × 100',
     ],
     parameters: [
       { name: 'Fast EMA', value: '12', description: 'Standard fast period' },
       { name: 'Slow EMA', value: '26', description: 'Standard slow period' },
-      { name: 'Signal EMA', value: '9', description: 'Smoothing for the signal line' },
-      { name: 'Timeframe', value: '15m candles', description: 'Requires ~35 candles for stable output' },
+      { name: 'Histogram Scale', value: 'Price %', description: 'Native normalization for cross-asset fairness' },
     ],
     interpretation: [
-      { condition: 'Histogram > 0', meaning: 'Bullish momentum — MACD above signal', color: 'text-[#39FF14]' },
-      { condition: 'Histogram < 0', meaning: 'Bearish momentum — MACD below signal', color: 'text-[#FF4B5C]' },
-      { condition: 'Histogram → 0', meaning: 'Momentum fading — potential reversal', color: 'text-gray-400' },
+      { condition: 'Histogram > 0', meaning: 'Bullish momentum — trend accelerating upwards', color: 'text-[#39FF14]' },
+      { condition: 'Histogram < 0', meaning: 'Bearish momentum — trend accelerating downwards', color: 'text-[#FF4B5C]' },
     ],
-    usage: 'The strategy scoring normalizes the MACD histogram as a percentage of the current price, ensuring fair comparison across assets from BTC ($60K+) to micro-cap coins ($0.001). This prevents high-priced assets from always dominating the signal.',
+    usage: 'Normalization ensures that a $1.0 fluctuation in BTC (0.001%) doesn\'t generate a stronger signal than a $1.0 fluctuation in ETH (0.04%). This is critical for scanning 500+ diverse pairs.',
   },
   {
     id: 'bollinger',
@@ -115,167 +134,175 @@ const INDICATORS: Indicator[] = [
     icon: '📏',
     category: 'volatility',
     tagColor: 'text-purple-400',
-    summary: 'Measures volatility using a moving average with standard deviation bands. The band position (0–1) indicates where the current price sits relative to the expected range.',
+    summary: 'Measures standard deviation relative to a 20-period moving average. The "Position" metric (0–1) identifies where price sits within its expected volatility range.',
     formula: [
-      'Middle Band = SMA(20) of close prices',
-      'Upper Band = Middle + 2 × σ',
-      'Lower Band = Middle − 2 × σ',
-      'σ = √(Σ(close − mean)² / N)',
+      'Middle Band = SMA(20)',
+      'Upper Band = Middle + 2 × StdDev',
+      'Lower Band = Middle − 2 × StdDev',
       'Position = (Price − Lower) / (Upper − Lower)',
     ],
     parameters: [
       { name: 'Period', value: '20', description: 'Standard lookback window' },
-      { name: 'Std Dev Multiplier', value: '2', description: 'Width of bands (covers ~95% of price action)' },
-      { name: 'Timeframe', value: '15m candles', description: 'Balances sensitivity and stability' },
+      { name: 'Std Dev', value: '2.0', description: 'Band width multiplier' },
     ],
     interpretation: [
-      { condition: 'Position ≤ 0.10', meaning: 'At lower band — strongly oversold', color: 'text-emerald-400' },
-      { condition: 'Position ≤ 0.25', meaning: 'Near lower band — mildly oversold', color: 'text-emerald-300' },
-      { condition: 'Position ≈ 0.50', meaning: 'At middle — neutral territory', color: 'text-gray-400' },
-      { condition: 'Position ≥ 0.75', meaning: 'Near upper band — mildly overbought', color: 'text-red-300' },
-      { condition: 'Position ≥ 0.90', meaning: 'At upper band — strongly overbought', color: 'text-red-400' },
+      { condition: 'Position ≤ 0.10', meaning: 'Touch lower band — strongly oversold', color: 'text-emerald-400' },
+      { condition: 'Position ≥ 0.90', meaning: 'Touch upper band — strongly overbought', color: 'text-red-400' },
     ],
-    usage: 'BB Position is a normalized 0–1 value where 0 = price at the lower band and 1 = at the upper band. This makes it directly comparable across all assets regardless of price or volatility levels. Mean reversion traders look for extreme positions (<0.1 or >0.9).',
+    usage: 'Bollinger "Squeezes" often precede massive breakouts. Use the position metric to identify mean-reversion opportunities during ranging markets.',
+  },
+  {
+    id: 'adx',
+    name: 'ADX (Trend Strength)',
+    icon: '🔱',
+    category: 'trend',
+    tagColor: 'text-purple-400',
+    summary: 'Calculates the strength of the current trend regardless of direction. Helps traders determine if the market is trending or ranging (choppy).',
+    formula: [
+      'ATR = Wilder\'s Smoothed True Range',
+      '+DI = (Smoothed +DM / ATR) × 100',
+      '-DI = (Smoothed -DM / ATR) × 100',
+      'DX = (abs(+DI − -DI) / (+DI + -DI)) × 100',
+      'ADX = SMA(DX, 14)',
+    ],
+    parameters: [
+      { name: 'Period', value: '14', description: 'Standard Wilder duration' },
+      { name: 'Threshold', value: '25', description: 'Minimum level to consider the market "trending"' },
+    ],
+    interpretation: [
+      { condition: 'ADX > 25', meaning: 'Strong trend in progress — momentum strategies work best', color: 'text-[#39FF14]' },
+      { condition: 'ADX < 20', meaning: 'Weak trend / Ranging — avoid breakout strategies', color: 'text-slate-500' },
+      { condition: 'ADX > 50', meaning: 'Extremely strong trend — caution for blow-off tops', color: 'text-amber-400' },
+    ],
+    usage: 'ADX is non-directional. A high ADX in a bearish EMA trend confirms a powerful downtrend. Use it to filter out "fakeout" moves in low-volatility environments.',
+  },
+  {
+    id: 'atr',
+    name: 'ATR (Volatility)',
+    icon: '📏',
+    category: 'volatility',
+    tagColor: 'text-purple-400',
+    summary: 'Measures current market volatility in absolute price terms. Used primarily for dynamic stop-loss positioning and risk management.',
+    formula: [
+      'TR = max(H−L, abs(H−C_prev), abs(L−C_prev))',
+      'ATR = Wilder\'s Smoothed Average of TR',
+    ],
+    parameters: [
+      { name: 'Period', value: '14', description: 'Standard lookback' },
+    ],
+    interpretation: [
+      { condition: 'High ATR', meaning: 'Expanding volatility — widen stop-losses', color: 'text-[#39FF14]' },
+      { condition: 'Low ATR', meaning: 'Consolidating — market is "quiet" before potential move', color: 'text-slate-500' },
+    ],
+    usage: 'Professional traders often set their stop-losses at 1.5x or 2.0x ATR from their entry price to ensure they are not stopped out by normal market noise.',
   },
   {
     id: 'long-candle',
     name: 'Long Candle Indicator',
-    icon: '📏',
+    icon: '⚡',
     category: 'volatility',
     tagColor: 'text-amber-400',
-    summary: 'Measures the magnitude of the current 1-minute candle relative to the average volatility of the last 20 candles. Detects sudden price surges or liquidations in real-time.',
+    summary: 'Measures the magnitude of the current 1m candle relative to its 20m average. Detects sudden price surges as they happen.',
     formula: [
-      'Average Bar Size = mean(High − Low) of last 20 1m candles',
-      'Current Candle Size = abs(Current Price − Candle Open)',
-      'Volatility Ratio = Current Candle Size / Average Bar Size',
-      'Bullish Surge: Current Price > Candle Open',
-      'Bearish Surge: Current Price < Candle Open',
+      'Avg Bar Size = mean(High − Low) of last 20 1m candles',
+      'Current Size = abs(Price − Open)',
+      'Ratio = Current Size / Avg Bar Size',
     ],
     parameters: [
-      { name: 'Baseline Period', value: '20', description: 'Smoothing period for minute volatility average' },
-      { name: 'Warning Threshold', value: '2.5×', description: 'Shows 🟢/🔴 icon and amber text' },
-      { name: 'Alert Threshold', value: '5.0×', description: 'Bright amber highlight and system notification' },
-      { name: 'Precision', value: 'Live 1m', description: 'Updates every second as the candle develops' },
+      { name: 'Baseline', value: '20 candles', description: 'Smoothing for local volatility' },
+      { name: 'Warning', value: '2.5×', description: 'Shows surge icon (🟢/🔴)' },
+      { name: 'Alert', value: '5.0×', description: 'Full brightness highlight' },
     ],
     interpretation: [
-      { condition: 'Ratio ≥ 2.5× (🟢)', meaning: 'Significant bullish surge — potential breakout', color: 'text-[#39FF14]' },
-      { condition: 'Ratio ≥ 2.5× (🔴)', meaning: 'Significant bearish surge — potential dump', color: 'text-[#FF4B5C]' },
-      { condition: 'Ratio ≥ 5.0×', meaning: 'Extreme volatility — high probability of continuation or liquidation', color: 'text-amber-400 font-bold' },
+      { condition: 'Ratio ≥ 2.5×', meaning: 'Abnormal volatility detected', color: 'text-amber-400' },
+      { condition: 'Ratio ≥ 5.0×', meaning: 'Extreme volatility burst — institutional move', color: 'text-amber-500 font-bold' },
     ],
-    usage: 'The Long Candle indicator is your "early warning system." While RSI and EMA take time to react, this ratio shows you exactly how much pressure is entering the market THIS minute. Look for green bullets (🟢) alongside high ratios to confirm scalp entries.',
-  },
-  {
-    id: 'stoch-rsi',
-    name: 'Stochastic RSI',
-    icon: '🌀',
-    category: 'momentum',
-    tagColor: 'text-[#39FF14]',
-    summary: 'Applies the Stochastic oscillator formula to RSI values instead of price. More sensitive than standard RSI, generating earlier signals at the cost of more noise.',
-    formula: [
-      'Step 1: Compute full RSI series (Wilder\'s smoothing, period 14)',
-      'Step 2: StochRSI = (RSI − min(RSI, N)) / (max(RSI, N) − min(RSI, N)) × 100',
-      '%K = SMA(3) of raw StochRSI values',
-      '%D = SMA(3) of %K values',
-      'When RSI range is 0 (flat market), StochRSI = 50',
-    ],
-    parameters: [
-      { name: 'RSI Period', value: '14', description: 'Underlying RSI lookback' },
-      { name: 'Stoch Period', value: '14', description: 'Stochastic lookback on RSI series' },
-      { name: '%K Smoothing', value: '3', description: 'SMA smoothing for %K' },
-      { name: '%D Smoothing', value: '3', description: 'SMA smoothing for %D' },
-    ],
-    interpretation: [
-      { condition: 'K < 20 & D < 20', meaning: 'Both lines in oversold zone — strong buy', color: 'text-emerald-400' },
-      { condition: 'K < 30', meaning: 'K entering oversold zone', color: 'text-emerald-300' },
-      { condition: 'K > 80 & D > 80', meaning: 'Both lines in overbought zone — strong sell', color: 'text-red-400' },
-      { condition: 'K > 70', meaning: 'K entering overbought zone', color: 'text-red-300' },
-      { condition: 'K crosses above D (K < 50)', meaning: 'Bullish crossover in lower half — buy bias', color: 'text-emerald-300' },
-      { condition: 'K crosses below D (K > 50)', meaning: 'Bearish crossover in upper half — sell bias', color: 'text-red-300' },
-    ],
-    usage: 'Stochastic RSI oscillates more aggressively than standard RSI. The %K/%D crossover provides additional directional bias. In the strategy score, K/D crossovers in their respective halves add a ±20 bonus to the composite score.',
+    usage: 'The Long Candle indicator is updated sub-second via WebSocket. It is your most responsive indicator for detecting "pump and dump" activity before it reaches historical averages.',
   },
   {
     id: 'vwap',
-    name: 'VWAP (Volume-Weighted Average Price)',
+    name: 'VWAP',
     icon: '💹',
     category: 'volume',
     tagColor: 'text-amber-400',
-    summary: 'Calculates the average price weighted by volume, resetting at UTC midnight. Institutional-grade benchmark that reveals whether the asset is trading above or below its "fair" price.',
+    summary: 'Institutional benchmark that calculates average price weighted by volume. Resets daily at UTC midnight.',
     formula: [
-      'Typical Price (TP) = (High + Low + Close) / 3',
-      'Cumulative TP × Volume = Σ(TP_i × Volume_i)',
-      'Cumulative Volume = Σ(Volume_i)',
-      'VWAP = Cumulative(TP × Volume) / Cumulative(Volume)',
-      'VWAP Diff = ((Price − VWAP) / VWAP) × 100%',
+      'Typical Price (TP) = (H+L+C)/3',
+      'VWAP = Σ(TP × Vol) / Σ(Vol)',
     ],
     parameters: [
-      { name: 'Reset', value: 'UTC midnight', description: 'Daily reset for standard session VWAP' },
-      { name: 'Data', value: '1-minute candles', description: 'High granularity for accurate weighting' },
-      { name: 'Display', value: 'Deviation %', description: 'How far price is from VWAP as a percentage' },
+      { name: 'Reset', value: 'UTC 00:00', description: 'Daily session restart' },
     ],
     interpretation: [
-      { condition: 'VWAP Diff < −2%', meaning: 'Significantly below VWAP — buying opportunity', color: 'text-[#39FF14]' },
-      { condition: 'VWAP Diff ≈ 0%', meaning: 'Trading near fair value', color: 'text-gray-400' },
-      { condition: 'VWAP Diff > +2%', meaning: 'Significantly above VWAP — selling pressure zone', color: 'text-[#FF4B5C]' },
+      { condition: 'Price < VWAP (-2%)', meaning: 'Trading at a discount — bullish accumulation', color: 'text-[#39FF14]' },
+      { condition: 'Price > VWAP (+2%)', meaning: 'Trading at a premium — bearish distribution', color: 'text-[#FF4B5C]' },
     ],
-    usage: 'VWAP is the primary benchmark for institutional crypto traders. Price below VWAP suggests the asset is being accumulated at a discount (bullish), while price above VWAP suggests distribution (bearish). The ±2% threshold filters out noise.',
+    usage: 'Price trading significantly below VWAP in an uptrend is a high-probability "dip buying" setup.',
   },
   {
     id: 'volume-spike',
-    name: 'Volume Spike Detection',
+    name: 'Volume Spike',
     icon: '🔥',
     category: 'volume',
     tagColor: 'text-amber-400',
-    summary: 'Identifies unusually high trading activity by comparing the current candle\'s volume against recent historical average. Spikes amplify existing signals in the composite strategy.',
+    summary: 'Compares current 1m volume against its 20m average to find hidden accumulation or distribution.',
     formula: [
-      'Average Volume = mean(last 20 candles, excluding current)',
-      'Spike detected when: Current Volume ≥ Average × 2.0',
-      'When spike detected: Strategy score amplified by ×1.15',
+      'Avg Vol = mean(last 20 candles)',
+      'Spike = Current Vol ≥ Avg Vol × 2.0',
     ],
     parameters: [
-      { name: 'Lookback', value: '20 candles', description: 'Recent volume history for baseline' },
-      { name: 'Threshold', value: '2.0×', description: 'Current volume must be at least 2× average' },
-      { name: 'Amplifier', value: '1.15×', description: 'Strategy score boost when spike detected' },
+      { name: 'Threshold', value: '2.0×', description: 'Minimum multiplier for spike' },
     ],
     interpretation: [
-      { condition: 'Ratio ≥ 3.0×', meaning: 'Notable volume increase — building interest', color: 'text-amber-400/70' },
-      { condition: 'Ratio ≥ 5.0×', meaning: 'Exceptional volume spike — institutional activity confirmed', color: 'text-amber-400 font-bold' },
-      { condition: '— No spike', meaning: 'Normal volume levels', color: 'text-gray-500' },
+      { condition: 'Spike Detected', meaning: 'Institutional conviction — amplifies strategy score by 1.15x', color: 'text-amber-400' },
     ],
-    usage: 'Volume spikes indicate high conviction behind a move. A Long Candle ratio above 2.5x combined with a Volume Spike above 5.0x is a "Tier 1" breakout signal. The system now separates volume alerts from RSI alerts for cleaner trade signals.',
+    usage: 'A volume spike during an RSI oversold condition confirms "smart money" is entering the trade.',
   },
   {
-    id: 'strategy',
-    name: 'Composite Strategy Score',
+    id: 'confluence',
+    name: 'Multi-TF Confluence',
     icon: '🎯',
     category: 'strategy',
     tagColor: 'text-rose-400',
-    summary: 'Combines all indicators into a single -100 to +100 score using a weighted average system. Heavier weights on longer timeframes and trend indicators for robust signals.',
+    summary: 'A meta-indicator that measures how many different timeframes and technical tools agree on the current market direction.',
     formula: [
-      'Score = Σ(indicator_contribution × weight) / Σ(active_weights)',
-      'Each indicator converts its reading to a -100...+100 sub-score',
-      'Volume spike applies a 1.15× amplifier to the raw score before normalization',
-      'Final score clamped to [-100, +100]',
+      'Timeframes: 1m, 5m, 15m, 1h',
+      'Agreement = (Bullish Weights − Bearish Weights) / Total Weights',
+      'Scale: -100 to +100',
     ],
     parameters: [
-      { name: 'RSI 1m', value: 'Weight 0.5', description: 'Lowest weight — noisy but timely' },
-      { name: 'RSI 5m', value: 'Weight 1.0', description: 'Short-term momentum' },
-      { name: 'RSI 15m', value: 'Weight 1.5', description: 'Core momentum timeframe' },
-      { name: 'RSI 1h', value: 'Weight 2.0', description: 'Highest RSI weight — macro trend' },
-      { name: 'MACD', value: 'Weight 1.5', description: 'Price-normalized histogram momentum' },
-      { name: 'Bollinger', value: 'Weight 1.0', description: 'Mean reversion signal' },
-      { name: 'Stochastic RSI', value: 'Weight 1.0', description: 'Oversold/overbought sensitivity' },
-      { name: 'EMA Cross', value: 'Weight 1.5', description: 'Trend direction (±60 contribution)' },
-      { name: 'VWAP', value: 'Weight 0.5', description: 'Institutional fair value deviation' },
+      { name: 'Bullish Filter', value: 'RSI < 40, EMA UP, MACD > 0, BB < 0.3', description: 'Aligned factors' },
     ],
     interpretation: [
-      { condition: 'Score ≥ +50', meaning: 'Strong Buy — multiple indicators aligned bullish', color: 'text-[#39FF14]' },
-      { condition: 'Score +20 to +49', meaning: 'Buy — moderate bullish bias', color: 'text-[#39FF14]/80' },
-      { condition: 'Score −19 to +19', meaning: 'Neutral — mixed or insufficient signals', color: 'text-gray-400' },
-      { condition: 'Score −49 to −20', meaning: 'Sell — moderate bearish bias', color: 'text-[#FF4B5C]/80' },
-      { condition: 'Score ≤ −50', meaning: 'Strong Sell — multiple indicators aligned bearish', color: 'text-[#FF4B5C]' },
+      { condition: 'Score ≥ +25', meaning: 'Bullish Alignment', color: 'text-[#39FF14]' },
+      { condition: 'Score ≥ +60', meaning: 'Strong Bullish Alignment — High Conviction', color: 'text-[#39FF14] font-bold' },
     ],
-    usage: 'The strategy score is the screener\'s crown jewel. It only considers indicators with data available (null values are excluded from the denominator), preventing partial data from skewing results. The normalization ensures fair scoring from micro-cap to large-cap. Sort by Strategy Score to find the strongest setups.',
+    usage: 'Confluence filters out "false signals" where one timeframe is bullish but the rest are bearish. It is weighted heavily (2.0x) in the final strategy score.',
+  },
+  {
+    id: 'strategy',
+    name: 'Strategy Score',
+    icon: '⚖️',
+    category: 'strategy',
+    tagColor: 'text-rose-400',
+    summary: 'The ultimate composite score. Combines momentum, trend, volatility, and volume into a single "Confidence Factor" for decision making.',
+    formula: [
+      'Score = Σ(Indicator × Weight) / Σ(Weights)',
+      'Indicator normalization: readings converted to -100...+100',
+      'Volume Spike: 1.15× raw score multiplier',
+      'Damping: Factors < 3 → -30% score penalty',
+    ],
+    parameters: [
+      { name: 'RSI 1h', value: '2.0x', description: 'Macro-trend anchor' },
+      { name: 'EMA/MACD', value: '1.5x', description: 'Core trend & momentum' },
+      { name: 'Confluence', value: '2.0x', description: 'Weighted cross-check' },
+      { name: 'Divergence', value: '1.5x', description: 'Reversal confirmation' },
+    ],
+    interpretation: [
+      { condition: 'Score ≥ +50', meaning: 'Strong Buy — Full System Alignment', color: 'text-[#39FF14]' },
+      { condition: 'Score ≤ -50', meaning: 'Strong Sell — Full System Alignment', color: 'text-[#FF4B5C]' },
+    ],
+    usage: 'Sort the screener by Strategy Score to find assets where multiple deep technical systems are in agreement. This minimizes risk by avoiding isolated indicators.',
   },
 ];
 
@@ -648,31 +675,35 @@ export default function IndicatorGuide() {
           <div className="space-y-3">
             {[
               { label: 'RSI 1h', weight: 2.0, color: 'bg-[#39FF14]' },
+              { label: 'Confluence', weight: 2.0, color: 'bg-rose-400' },
               { label: 'RSI 15m', weight: 1.5, color: 'bg-[#39FF14]/80' },
-              { label: 'MACD', weight: 1.5, color: 'bg-[#39FF14]/60' },
+              { label: 'MACD', weight: 1.5, color: 'bg-blue-400' },
               { label: 'EMA Cross', weight: 1.5, color: 'bg-[#39FF14]/70' },
+              { label: 'RSI Divergence', weight: 1.5, color: 'bg-[#39FF14]/90' },
               { label: 'RSI 5m', weight: 1.0, color: 'bg-[#39FF14]/40' },
               { label: 'Bollinger', weight: 1.0, color: 'bg-purple-400' },
               { label: 'Stoch RSI', weight: 1.0, color: 'bg-[#39FF14]/30' },
-              { label: 'RSI 1m', weight: 0.5, color: 'bg-[#39FF14]/20' },
               { label: 'VWAP', weight: 0.5, color: 'bg-amber-400' },
+              { label: 'Momentum', weight: 0.5, color: 'bg-blue-300' },
+              { label: 'RSI 1m', weight: 0.5, color: 'bg-[#39FF14]/20' },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-3">
-                <span className="text-sm text-gray-300 w-24 text-right">{item.label}</span>
+                <span className="text-sm text-gray-300 w-28 text-right shrink-0">{item.label}</span>
                 <div className="flex-1 h-5 bg-dark-900/60 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full ${item.color} opacity-80 transition-all`}
                     style={{ width: `${(item.weight / 2.0) * 100}%` }}
                   />
                 </div>
-                <span className="text-xs text-gray-500 tabular-nums w-8">{item.weight}×</span>
+                <span className="text-xs text-gray-500 tabular-nums w-8 shrink-0">{item.weight}×</span>
               </div>
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-4 leading-relaxed">
-            Total maximum weight: 10.5× (when all indicators have data). The score is normalized
-            by dividing by total active weights, then clamped to [−100, +100]. Volume spikes
-            amplify the raw score by 1.15× before normalization.
+            Total potential weight: 14.5× (when/if all 12 indicators have data). The score is normalized 
+            by dividing by the sum of currently available indicators, then clamped to [−100, +100]. 
+            Volume spikes apply a 1.15× amplifier to the raw result before normalization. Deeply 
+            limited data (factors &lt; 3) triggers a signal damping penalty.
           </p>
         </div>
       </section>
