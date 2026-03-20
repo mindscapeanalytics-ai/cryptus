@@ -640,7 +640,7 @@ const ScreenerRow = memo(function ScreenerRow({
           </div>
         </td>
       )}
-      <td className="px-3 py-4 text-right">
+      <td className="px-3 py-4 text-right hidden sm:table-cell">
         <button
           onClick={() => onOpenSettings(entry.symbol)}
           className="p-2 text-slate-600 hover:text-[#39FF14] hover:bg-[#39FF14]/10 rounded-lg transition-all active:scale-90"
@@ -2859,7 +2859,7 @@ export default function ScreenerDashboard() {
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                  <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500">Edit</th>
+                  <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 hidden sm:table-cell">Edit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
