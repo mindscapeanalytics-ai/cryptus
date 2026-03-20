@@ -322,6 +322,8 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
     signalStartedAt: nowTs,
     updatedAt: nowTs,
     market: 'Crypto',
+    open1m: null,
+    volStart1m: null,
   };
 }
 
@@ -1145,6 +1147,10 @@ function buildEntry(
     // Update the long-lived baseline cache for persistent volatility checks
     updateBaselineCache(sym, entry_partial.avgBarSize1m, entry_partial.avgVolume1m);
 
+    const lastKline1m = validKlines[validKlines.length - 1];
+    const open1m = lastKline1m ? parseFloat(lastKline1m[1]) : null;
+    const volStart1m = lastKline1m ? parseFloat(lastKline1m[5]) : null;
+
     return {
       ...entry_partial,
       curCandleSize: null,
@@ -1165,6 +1171,8 @@ function buildEntry(
       signalStartedAt,
       updatedAt: nowTs,
       market: getMarketType(sym),
+      open1m,
+      volStart1m,
     };
   } catch (err) {
     debugWarn(`[screener] buildEntry failed for ${sym}:`, err instanceof Error ? err.message : err);

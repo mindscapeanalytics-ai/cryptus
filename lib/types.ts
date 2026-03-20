@@ -73,6 +73,9 @@ export interface ScreenerEntry {
   lastPriceChange?: number;
   updatedAt: number;
   market: 'Crypto' | 'Metal' | 'Forex' | 'Index';
+  // ── High-Accuracy Real-time Initialization ──
+  open1m: number | null;
+  volStart1m: number | null;
 }
 
 export interface ScreenerResponse {

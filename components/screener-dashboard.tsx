@@ -1082,8 +1082,9 @@ const ScreenerCard = memo(function ScreenerCard({
   return (
     <div
       ref={cardRef}
+      onClick={() => onOpenSettings(entry.symbol)}
       className={cn(
-        "relative flex items-center justify-between p-2 sm:p-3 border-b border-white/[0.03] active:bg-slate-800/40 transition-colors duration-500",
+        "relative flex items-center justify-between p-2 sm:p-3 border-b border-white/[0.03] active:bg-slate-800/40 transition-colors duration-500 cursor-pointer group",
         !isFlash && getRsiBg(display.rsiCustom ?? display.rsi15m)
       )}
       style={{
@@ -1100,7 +1101,10 @@ const ScreenerCard = memo(function ScreenerCard({
           <span className="text-[9px] font-black text-slate-700 w-4 tabular-nums">#{idx + 1}</span>
         )}
         <button
-          onClick={() => toggleWatchlist(entry.symbol)}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleWatchlist(entry.symbol);
+          }}
           className={cn("transition-all shrink-0", isStarred ? "text-yellow-400" : "text-slate-800")}
         >
           <Star size={12} fill={isStarred ? "currentColor" : "none"} />
@@ -1125,8 +1129,7 @@ const ScreenerCard = memo(function ScreenerCard({
 
       {/* 2. Scalable Indicators Area */}
       <div
-        onClick={() => onOpenSettings(entry.symbol)}
-        className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 px-3 mx-2 cursor-pointer active:scale-95 transition-transform"
+        className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 px-3 mx-2"
       >
         {activeIndicators.length === 0 ? (
           <div className="flex-1 flex justify-center italic text-[8px] text-slate-700 uppercase font-black tracking-widest">No Indicators Selected</div>
@@ -1208,16 +1211,6 @@ const ScreenerCard = memo(function ScreenerCard({
             {display.change24h > 0 ? '+' : ''}{display.change24h.toFixed(2)}%
           </div>
         </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenSettings(entry.symbol);
-          }}
-          className="p-1.5 bg-white/5 rounded-xl text-slate-600 hover:text-[#39FF14] transition-colors"
-        >
-          <Settings size={12} />
-        </button>
       </div>
 
       {/* Animated Pulse for Signal */}
@@ -1558,7 +1551,9 @@ export default function ScreenerDashboard() {
           volumeSpike: entry.volumeSpike,
           rsiDivergence: entry.rsiDivergence,
           momentum: entry.momentum,
-          confluence: entry.confluence
+          confluence: entry.confluence,
+          open1m: entry.open1m,
+          volStart1m: entry.volStart1m
         };
       });
       syncStates({ 
@@ -1845,7 +1840,9 @@ export default function ScreenerDashboard() {
             avgBarSize1m: e.avgBarSize1m,
             avgVolume1m: e.avgVolume1m,
             confluence: e.confluence,
-            lastClose: e.price
+            lastClose: e.price,
+            open1m: e.open1m,
+            volStart1m: e.volStart1m
           };
         }
       });

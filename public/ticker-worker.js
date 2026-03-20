@@ -399,11 +399,20 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
   }
 
   // ── Live Candle & Volume Detector ──
-  const candleState = liveCandleStates.get(trackingKey) || { lastMin: 0, open: curC, volStart: curV || 0 };
+  // Use synced open1m and volStart1m if candleState is fresh/not yet established
+  const candleState = liveCandleStates.get(trackingKey) || { 
+    lastMin: currentMinKey, 
+    open: (state && state.open1m != null) ? state.open1m : curC, 
+    volStart: (state && state.volStart1m != null) ? state.volStart1m : (curV || 0) 
+  };
+  
   if (candleState.lastMin !== currentMinKey) {
     candleState.lastMin = currentMinKey;
     candleState.open = curC;
     candleState.volStart = curV || 0;
+    liveCandleStates.set(trackingKey, candleState);
+  } else if (!liveCandleStates.has(trackingKey)) {
+    // First time seeing this symbol in this minute, but it was already initialized above
     liveCandleStates.set(trackingKey, candleState);
   }
 
@@ -1157,7 +1166,9 @@ function computeWorkerStrategyScore(params) {
   }
 
   let normalized = factors > 0 ? score / factors : 0;
-  if (factors < 3 && Math.abs(normalized) > 50) normalized *= 0.7;
+  if (factors < 3 && Math.abs(normalized) > 50) {
+    normalized = normalized * 0.7; // Dampen low-confidence signals
+  }
   normalized = Math.round(Math.max(-100, Math.min(100, normalized)));
 
   let signal = 'neutral';
