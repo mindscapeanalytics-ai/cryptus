@@ -278,11 +278,25 @@ function withTickerOverlay(entry: ScreenerEntry, ticker: BinanceTicker | undefin
 }
 
 function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number): ScreenerEntry {
+  // Fallback estimates for baselines when cache is cold (common on Vercel cold starts)
+  const cachedBaseline = getBaseline(sym);
+  
+  // Volume fallback: 24h quote volume divided by 1440 minutes
+  const volume24h = toNum(ticker.quoteVolume, 0);
+  const fallbackVolume1m = volume24h > 0 ? (volume24h / 1440) : null;
+  
+  // Bar size fallback: heuristic (Daily High - Daily Low) / 250
+  // Volatile assets typically have 1m candles around 1/200th-1/300th of their daily range.
+  const high24h = toNum(ticker.highPrice, 0);
+  const low24h = toNum(ticker.lowPrice, 0);
+  const dailyRange = high24h - low24h;
+  const fallbackBarSize1m = dailyRange > 0 ? (dailyRange / 250) : null;
+
   return {
     symbol: sym,
     price: toNum(ticker.lastPrice, 0),
     change24h: toNum(ticker.priceChangePercent, 0),
-    volume24h: toNum(ticker.quoteVolume, 0),
+    volume24h: volume24h,
     rsi1m: null, rsi5m: null, rsi15m: null, rsi1h: null,
     signal: 'neutral',
     ema9: null, ema21: null, emaCross: 'none',
@@ -300,8 +314,8 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
     macdSlowState: null, macdSignalState: null,
     rsiCustom: null, rsiStateCustom: null,
     rsiPeriodAtCreation: 14,
-    avgBarSize1m: getBaseline(sym)?.avgBarSize1m ?? null,
-    avgVolume1m: getBaseline(sym)?.avgVolume1m ?? null,
+    avgBarSize1m: cachedBaseline?.avgBarSize1m ?? fallbackBarSize1m,
+    avgVolume1m: cachedBaseline?.avgVolume1m ?? fallbackVolume1m,
     curCandleSize: null,
     curCandleVol: null,
     candleDirection: null,
@@ -381,6 +395,8 @@ function fromCachedResult(symbolCount: number, smartMode: boolean, rsiPeriod: nu
 interface KucoinTickerRow {
   symbol: string;
   last: string;
+  high: string;
+  low: string;
   changeRate: string;
   volValue: string;
 }
@@ -415,6 +431,8 @@ async function fetchKucoinTickers(): Promise<Map<string, BinanceTicker>> {
       symbol,
       lastPrice: row.last,
       priceChangePercent: changePct,
+      highPrice: row.high,
+      lowPrice: row.low,
       quoteVolume: row.volValue,
     });
   }
@@ -429,6 +447,8 @@ interface BybitTickerResponse {
       symbol: string;
       lastPrice: string;
       price24hPcnt: string;
+      highPrice24h: string;
+      lowPrice24h: string;
       turnover24h: string;
     }[];
   };
@@ -495,6 +515,8 @@ async function fetchBybitTickers(exchange: string): Promise<Map<string, BinanceT
       symbol: row.symbol,
       lastPrice: row.lastPrice,
       priceChangePercent: changePct,
+      highPrice: row.highPrice24h,
+      lowPrice: row.lowPrice24h,
       quoteVolume: row.turnover24h,
     });
   }
@@ -1303,6 +1325,8 @@ function runRefresh(
             symbol: sym,
             lastPrice: lastKline[4],
             priceChangePercent: "0", // Could compute from first kline, but 0 is safe
+            highPrice: lastKline[2],
+            lowPrice: lastKline[3],
             quoteVolume: lastKline[5]
           };
         }

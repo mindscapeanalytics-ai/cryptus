@@ -101,6 +101,8 @@ export interface BinanceTicker {
   symbol: string;
   lastPrice: string;
   priceChangePercent: string;
+  highPrice: string;
+  lowPrice: string;
   quoteVolume: string;
 }
 
