@@ -169,6 +169,8 @@ const ScreenerRow = memo(function ScreenerRow({
   globalUseDivergence,
   globalUseMomentum,
   globalVolatilityEnabled,
+  globalLongCandleThreshold,
+  globalVolumeSpikeThreshold,
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -196,6 +198,8 @@ const ScreenerRow = memo(function ScreenerRow({
   globalUseDivergence: boolean;
   globalUseMomentum: boolean;
   globalVolatilityEnabled: boolean;
+  globalLongCandleThreshold: number;
+  globalVolumeSpikeThreshold: number;
 }) {
   const isStarred = watchlist.has(entry.symbol);
   const [isVisible, setIsVisible] = useState(false);
@@ -251,38 +255,7 @@ const ScreenerRow = memo(function ScreenerRow({
       const range = entry.bbUpper - entry.bbLower;
       if (range > 0) bbPosition = (tick.price - entry.bbLower) / range;
     }
-    let signal = entry.signal;
-    if (!globalShowSignalTags || !globalUseRsi) {
-      signal = 'neutral';
-    } else {
-      let effectiveObT: number | null = 70;
-      let effectiveOsT: number | null = 30;
-      if (globalSignalThresholdMode === 'custom') {
-        const hasPerCoin = config && (config.overboughtThreshold !== undefined || config.oversoldThreshold !== undefined);
-        if (hasPerCoin) {
-          effectiveObT = obT;
-          effectiveOsT = osT;
-        } else if (globalThresholdsEnabled) {
-          effectiveObT = globalOverbought;
-          effectiveOsT = globalOversold;
-        } else {
-          // Strict: No custom or global extreme config = No signal in Custom mode
-          effectiveObT = null;
-          effectiveOsT = null;
-        }
-      }
-
-      if (effectiveObT !== null && effectiveOsT !== null) {
-        const leadRsi = rsi15m ?? rsi1m;
-        if (leadRsi !== null) {
-          if (leadRsi <= effectiveOsT) signal = 'oversold';
-          else if (leadRsi >= effectiveObT) signal = 'overbought';
-          else signal = 'neutral';
-        }
-      } else {
-        signal = 'neutral';
-      }
-    }
+    const signal = entry.signal;
     const liveStrategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram: entry.macdHistogram,
@@ -664,14 +637,14 @@ const ScreenerRow = memo(function ScreenerRow({
       {visibleCols.has('longCandle') && (
         <td className={cn(
           "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono",
-          !globalVolatilityEnabled || display.curCandleSize == null || display.avgBarSize1m == null || display.avgBarSize1m <= 0 || (display.curCandleSize / display.avgBarSize1m) < 5 ? "text-slate-600" : "text-amber-400"
+          !globalVolatilityEnabled || display.curCandleSize == null || display.avgBarSize1m == null || display.avgBarSize1m <= 0 || (display.curCandleSize / display.avgBarSize1m) < globalLongCandleThreshold ? "text-slate-600" : "text-amber-400"
         )}>
           {globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 ? (
             <div className="flex items-center justify-end gap-1.5">
               {display.isLiveRsi && (
                 <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" title="Real-Time" />
               )}
-              {(display.curCandleSize / display.avgBarSize1m) >= 2.5 && (
+              {(display.curCandleSize / display.avgBarSize1m) >= (globalLongCandleThreshold * 0.8) && (
                  <span className={cn("text-[8px]", display.candleDirection === 'bullish' ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
                    {display.candleDirection === 'bullish' ? '🟢' : '🔴'}
                  </span>
@@ -684,7 +657,7 @@ const ScreenerRow = memo(function ScreenerRow({
       {visibleCols.has('volumeSpike') && (
         <td className={cn(
           "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono",
-          !globalVolatilityEnabled || display.curCandleVol == null || display.avgVolume1m == null || display.avgVolume1m <= 0 || (display.curCandleVol / display.avgVolume1m) < 5 ? "text-slate-600" : "text-[#39FF14]"
+          !globalVolatilityEnabled || display.curCandleVol == null || display.avgVolume1m == null || display.avgVolume1m <= 0 || (display.curCandleVol / display.avgVolume1m) < globalVolumeSpikeThreshold ? "text-slate-600" : "text-[#39FF14]"
         )}>
           {globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 ? (
             <div className="flex items-center justify-end gap-1.5">
@@ -1011,6 +984,8 @@ const ScreenerCard = memo(function ScreenerCard({
   globalUseDivergence,
   globalUseMomentum,
   globalVolatilityEnabled,
+  globalLongCandleThreshold,
+  globalVolumeSpikeThreshold,
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -1038,6 +1013,8 @@ const ScreenerCard = memo(function ScreenerCard({
   globalUseDivergence: boolean;
   globalUseMomentum: boolean;
   globalVolatilityEnabled: boolean;
+  globalLongCandleThreshold: number;
+  globalVolumeSpikeThreshold: number;
 }) {
   const isStarred = watchlist.has(entry.symbol);
 
@@ -1094,38 +1071,7 @@ const ScreenerCard = memo(function ScreenerCard({
       const range = entry.bbUpper - entry.bbLower;
       if (range > 0) bbPosition = (tick.price - entry.bbLower) / range;
     }
-    let signal = entry.signal;
-    if (!globalShowSignalTags || !globalUseRsi) {
-      signal = 'neutral';
-    } else {
-      let effectiveObT: number | null = 70;
-      let effectiveOsT: number | null = 30;
-      if (globalSignalThresholdMode === 'custom') {
-        const hasPerCoin = config && (config.overboughtThreshold !== undefined || config.oversoldThreshold !== undefined);
-        if (hasPerCoin) {
-          effectiveObT = obT;
-          effectiveOsT = osT;
-        } else if (globalThresholdsEnabled) {
-          effectiveObT = globalOverbought;
-          effectiveOsT = globalOversold;
-        } else {
-          // Strict: No custom or global extreme config = No signal in Custom mode
-          effectiveObT = null;
-          effectiveOsT = null;
-        }
-      }
-
-      if (effectiveObT !== null && effectiveOsT !== null) {
-        const leadRsi = rsi15m ?? rsi1m;
-        if (leadRsi !== null) {
-          if (leadRsi <= effectiveOsT) signal = 'oversold';
-          else if (leadRsi >= effectiveObT) signal = 'overbought';
-          else signal = 'neutral';
-        }
-      } else {
-        signal = 'neutral';
-      }
-    }
+    const signal = entry.signal;
     const liveStrategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram: entry.macdHistogram,
@@ -1343,13 +1289,13 @@ const ScreenerCard = memo(function ScreenerCard({
                     {globalUseVwap ? formatPct(val as number) : '—'}
                   </span>
                 ) : col.id === 'longCandle' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 && (display.curCandleSize / display.avgBarSize1m) >= 5) ? "text-amber-400" : "text-slate-700")}>
+                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 && (display.curCandleSize / display.avgBarSize1m) >= globalLongCandleThreshold) ? "text-amber-400" : "text-slate-700")}>
                     {globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 ? (
                       <div className="flex items-center gap-1">
                         {display.isLiveRsi && (
                           <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" title="Real-Time" />
                         )}
-                        {(display.curCandleSize / display.avgBarSize1m) >= 2.5 && (
+                        {(display.curCandleSize / display.avgBarSize1m) >= (globalLongCandleThreshold * 0.8) && (
                           <span className="text-[8px]">{display.candleDirection === 'bullish' ? '🟢' : '🔴'}</span>
                         )}
                         {Number.isFinite(display.curCandleSize / display.avgBarSize1m) ? `${(display.curCandleSize / display.avgBarSize1m).toFixed(1)}x` : '0.0x'}
@@ -1357,7 +1303,7 @@ const ScreenerCard = memo(function ScreenerCard({
                     ) : '—'}
                   </span>
                 ) : col.id === 'volumeSpike' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 && (display.curCandleVol / display.avgVolume1m) >= 5) ? "text-[#39FF14]" : "text-slate-700")}>
+                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 && (display.curCandleVol / display.avgVolume1m) >= globalVolumeSpikeThreshold) ? "text-[#39FF14]" : "text-slate-700")}>
                     {globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 ? (
                       <div className="flex items-center gap-1">
                         {display.isLiveRsi && (
@@ -1549,7 +1495,7 @@ export default function ScreenerDashboard() {
   const [globalThresholdTimeframes, setGlobalThresholdTimeframes] = useState<string[]>(['1m', '5m', '15m', '1h']);
   const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState(3.0);
   const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState(5.0);
-  const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState(false);
+  const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState(true);
   // ── Signal Tag Display Controls ──
   const [globalShowSignalTags, setGlobalShowSignalTags] = useState(false);
   const [globalSignalThresholdMode, setGlobalSignalThresholdMode] = useState<'default' | 'custom'>('custom');
@@ -1741,6 +1687,7 @@ export default function ScreenerDashboard() {
         curCandleVol: live.curCandleVol ?? entry.curCandleVol,
         avgBarSize1m: live.avgBarSize1m ?? entry.avgBarSize1m,
         avgVolume1m: live.avgVolume1m ?? entry.avgVolume1m,
+        candleDirection: (live.candleDirection ?? entry.candleDirection) as any,
       } : entry;
 
       // Type safety enforcement for the unions
@@ -1755,9 +1702,51 @@ export default function ScreenerDashboard() {
         merged = { ...merged, rsiCustom: approx };
       }
 
+      // 4. Final Signal Logic (Strict Gating)
+      // This ensures filtering, sorting, and display all use the same authoritative logic.
+      let customSignal = 'neutral' as 'oversold' | 'overbought' | 'neutral';
+      if (globalShowSignalTags && globalUseRsi) {
+        let obT = 70;
+        let osT = 30;
+        let hasThresholds = true;
+
+        if (globalSignalThresholdMode === 'custom') {
+          const cfg = coinConfigs[entry.symbol];
+          const hasPerCoin = cfg && (cfg.overboughtThreshold !== undefined || cfg.oversoldThreshold !== undefined);
+          if (hasPerCoin) {
+            obT = cfg.overboughtThreshold ?? 70;
+            osT = cfg.oversoldThreshold ?? 30;
+          } else if (globalThresholdsEnabled) {
+            obT = globalOverbought;
+            osT = globalOversold;
+          } else {
+            hasThresholds = false;
+          }
+        }
+
+        if (hasThresholds) {
+          const rsiVal = merged.rsi15m ?? merged.rsi1m ?? merged.rsiCustom;
+          if (rsiVal !== null) {
+            const isInverted = obT < osT;
+            if (isInverted) {
+              if (rsiVal >= osT) customSignal = 'oversold';
+              else if (rsiVal <= obT) customSignal = 'overbought';
+            } else {
+              if (rsiVal <= osT) customSignal = 'oversold';
+              else if (rsiVal >= obT) customSignal = 'overbought';
+            }
+          }
+        }
+      }
+      merged.signal = customSignal;
+
       return merged;
     });
-  }, [data, livePrices, rsiPeriod]);
+  }, [
+    data, livePrices, rsiPeriod, 
+    globalShowSignalTags, globalUseRsi, globalSignalThresholdMode, 
+    coinConfigs, globalThresholdsEnabled, globalOverbought, globalOversold
+  ]);
 
   // Sync state to Background Worker for Instant Alerts (Debounced)
   useEffect(() => {
@@ -1842,7 +1831,10 @@ export default function ScreenerDashboard() {
   }, [
     processedData, coinConfigs, watchlist, syncStates, updateSymbols, postToWorker,
     globalUseRsi, globalUseMacd, globalUseBb, globalUseStoch, globalUseEma, 
-    globalUseVwap, globalUseConfluence, globalUseDivergence, globalUseMomentum
+    globalUseVwap, globalUseConfluence, globalUseDivergence, globalUseMomentum,
+    alertsEnabled, globalThresholdsEnabled, globalLongCandleThreshold, 
+    globalVolumeSpikeThreshold, globalVolatilityEnabled, globalShowSignalTags,
+    globalSignalThresholdMode, globalOverbought, globalOversold
   ]);
 
   // Removed old duplicate processedData block
@@ -3151,6 +3143,8 @@ export default function ScreenerDashboard() {
                   globalUseDivergence={globalUseDivergence}
                   globalUseMomentum={globalUseMomentum}
                   globalVolatilityEnabled={globalVolatilityEnabled}
+                  globalLongCandleThreshold={globalLongCandleThreshold}
+                  globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
                 />
               ))}
             </>
@@ -3241,6 +3235,8 @@ export default function ScreenerDashboard() {
                         globalUseDivergence={globalUseDivergence}
                         globalUseMomentum={globalUseMomentum}
                         globalVolatilityEnabled={globalVolatilityEnabled}
+                        globalLongCandleThreshold={globalLongCandleThreshold}
+                        globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
                       />
                     ))}
                   </>

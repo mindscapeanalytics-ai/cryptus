@@ -44,7 +44,7 @@ let globalAlertsEnabled = false;
 let globalThresholdsEnabled = false;
 let globalLongCandleThreshold = 3.0;
 let globalVolumeSpikeThreshold = 5.0;
-let globalVolatilityEnabled = false;
+let globalVolatilityEnabled = true;
 let globalEnabledIndicators = null;
 let portVisibility = new Map(); // Track visibility per port
 function isAnyTabVisible() {
@@ -399,30 +399,37 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
     }
   }
 
+  // ── Real-time Indicator Shadowing ──
+  const state = rsiStates.get(t.s); 
+  const config = coinConfigs.get(t.s);
+
   // ── Live Candle & Volume Detector ──
   // Use synced open1m and volStart1m if candleState is fresh/not yet established
   const candleState = liveCandleStates.get(trackingKey) || { 
     lastMin: currentMinKey, 
     open: (state && state.open1m != null) ? state.open1m : curC, 
-    volStart: (state && state.volStart1m != null) ? state.volStart1m : (curV || 0) 
+    lastTickerVol: curV || 0,
+    accumulatedVol: (state && state.volStart1m != null) ? state.volStart1m : 0 
   };
   
   if (candleState.lastMin !== currentMinKey) {
     candleState.lastMin = currentMinKey;
     candleState.open = curC;
-    candleState.volStart = curV || 0;
+    candleState.lastTickerVol = curV || 0;
+    candleState.accumulatedVol = 0;
     liveCandleStates.set(trackingKey, candleState);
   } else if (!liveCandleStates.has(trackingKey)) {
-    // First time seeing this symbol in this minute, but it was already initialized above
+    // First time seeing this symbol in this minute
     liveCandleStates.set(trackingKey, candleState);
+  } else {
+    // Accumulate volume delta securely to handle rolling 24h ticker volume
+    const tickVolDelta = Math.max(0, (curV || 0) - candleState.lastTickerVol);
+    candleState.accumulatedVol += tickVolDelta;
+    candleState.lastTickerVol = curV || 0;
   }
 
   const curCandleSize = Math.abs(curC - candleState.open);
-  const curCandleVol = Math.max(0, (curV || 0) - candleState.volStart);
-
-  // ── Real-time Indicator Shadowing ──
-  const state = rsiStates.get(t.s); // Note: rsiStates is synced from main thread which is symbol-based
-  const config = coinConfigs.get(t.s);
+  const curCandleVol = candleState.accumulatedVol;
 
   let liveIndicators = {
     curCandleSize,
@@ -850,9 +857,19 @@ function handleMessage(e, port = null) {
         });
       }
       if (payload.rsiStates) {
+        const currentMinKey = Math.floor(Date.now() / 60000);
         Object.keys(payload.rsiStates).forEach(s => {
           const prevState = rsiStates.get(s) || {};
-          rsiStates.set(s, { ...prevState, ...payload.rsiStates[s] });
+          const newState = payload.rsiStates[s];
+          rsiStates.set(s, { ...prevState, ...newState });
+          
+          // NEW: Patch liveCandleStates with true API open and volume baseline
+          const trackingKey = `${currentExchangeName}:${s}`;
+          const cs = liveCandleStates.get(trackingKey);
+          if (cs && cs.lastMin === currentMinKey) {
+            if (newState.open1m != null) cs.open = newState.open1m;
+            if (newState.volStart1m != null) cs.accumulatedVol = Math.max(cs.accumulatedVol, Math.max(0, newState.volStart1m));
+          }
         });
       }
       break;
