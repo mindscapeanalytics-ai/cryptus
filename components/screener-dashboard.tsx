@@ -701,7 +701,7 @@ const ScreenerRow = memo(function ScreenerRow({
         <td className="px-3 py-4 text-right min-w-[120px]">
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-slate-600 tabular-nums uppercase" title="Time since signal started">
+              <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums uppercase" title="Time since signal started">
                 {formatTimeAgo(entry.signalStartedAt)}
               </span>
               <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
@@ -3289,7 +3289,7 @@ export default function ScreenerDashboard() {
             {/* Right side: Copyright & Legal */}
             <div className="flex flex-col items-center md:items-end">
               <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-700 mb-1 leading-none">Global Terminal v1.0</span>
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest tabular-nums leading-none">
+              <div suppressHydrationWarning className="text-[10px] font-bold text-slate-500 uppercase tracking-widest tabular-nums leading-none">
                 &copy; {new Date().getFullYear()} ALL RIGHTS RESERVED
               </div>
             </div>
@@ -4037,7 +4037,7 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
                       </div>
                       <span className="text-[10px] font-black uppercase opacity-60 mt-1">{alert.timeframe} Signal</span>
                     </div>
-                    <span className="text-[8px] font-bold text-slate-500 uppercase tabular-nums">{formatTimeAgo(createdAt)}</span>
+                    <span suppressHydrationWarning className="text-[8px] font-bold text-slate-500 uppercase tabular-nums">{formatTimeAgo(createdAt)}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
