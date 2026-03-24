@@ -570,7 +570,27 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
     ];
 
     tfs.forEach(tf => {
-      if (!config[tf.cfgKey] || tf.rsi === null || tf.rsi === undefined) return;
+      const hasManualAlert = !!config?.[tf.cfgKey];
+      
+      // Determine if this hit a global threshold fallback
+      let isGlobalHit = false;
+      if (globalThresholdsEnabled && globalThresholdTimeframes.includes(tf.label)) {
+        if (tf.rsi !== null && tf.rsi !== undefined) {
+          if (zone === 'OVERSOLD') {
+            isGlobalHit = (globalObT < globalOsT) ? tf.rsi >= globalOsT : tf.rsi <= globalOsT;
+          } else if (zone === 'OVERBOUGHT') {
+            isGlobalHit = (globalObT < globalOsT) ? tf.rsi <= globalObT : tf.rsi >= globalObT;
+          }
+        }
+      }
+
+      // INTELLIGENCE: Strict Isolation.
+      // If a manual config exists for this coin, it MUST have the alert switch enabled.
+      // Global fallback is ONLY allowed if no custom manual configuration is present.
+      const shouldNotify = config ? hasManualAlert : (hasManualAlert || isGlobalHit);
+
+      if (!shouldNotify || tf.rsi === null || tf.rsi === undefined) return;
+
 
       // Zone state key includes exchange to track per-exchange zones separately
       const zoneKey = `${trackingKey}-${tf.label}`;
@@ -838,6 +858,16 @@ function handleMessage(e, port = null) {
       if (payload.globalThresholdsEnabled !== undefined) {
         globalThresholdsEnabled = payload.globalThresholdsEnabled;
       }
+      if (payload.globalOverbought !== undefined) {
+        globalObT = payload.globalOverbought;
+      }
+      if (payload.globalOversold !== undefined) {
+        globalOsT = payload.globalOversold;
+      }
+      if (payload.globalThresholdTimeframes !== undefined) {
+        globalThresholdTimeframes = payload.globalThresholdTimeframes;
+      }
+
       if (payload.globalLongCandleThreshold !== undefined) {
         globalLongCandleThreshold = payload.globalLongCandleThreshold;
       }

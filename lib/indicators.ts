@@ -762,6 +762,31 @@ export function calculateADX(
 
 // ── Utility ─────────────────────────────────────────────────────
 
+/**
+ * Derive signal from RSI value and thresholds.
+ * Supports contrarian (inverted) mode where overbought < oversold (e.g., OB=30, OS=70).
+ */
+export function deriveSignal(
+  rsi: number | null,
+  overbought: number = 70,
+  oversold: number = 30
+): 'oversold' | 'overbought' | 'neutral' {
+  if (rsi === null) return 'neutral';
+  
+  const isInverted = overbought < oversold;
+  if (isInverted) {
+    // Contrarian: OB=30, OS=70 → oversold when RSI ≥ 70, overbought when RSI ≤ 30
+    if (rsi >= oversold) return 'oversold';
+    if (rsi <= overbought) return 'overbought';
+  } else {
+    // Standard: OB=70, OS=30 → oversold when RSI < 30, overbought when RSI > 70
+    if (rsi < oversold) return 'oversold';
+    if (rsi > overbought) return 'overbought';
+  }
+  return 'neutral';
+}
+
 function round(n: number): number {
   return Math.round(n * 1e8) / 1e8;
 }
+

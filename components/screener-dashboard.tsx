@@ -19,7 +19,7 @@ import { useLivePrices, useSymbolPrice } from '@/hooks/use-live-prices';
 import { useAlertEngine } from '@/hooks/use-alert-engine';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { approximateRsi, approximateEma } from '@/lib/rsi';
-import { computeStrategyScore } from '@/lib/indicators';
+import { computeStrategyScore, deriveSignal } from '@/lib/indicators';
 import { getSymbolAlias } from '@/lib/symbol-utils';
 import { toast } from 'sonner';
 
@@ -255,7 +255,11 @@ const ScreenerRow = memo(function ScreenerRow({
       const range = entry.bbUpper - entry.bbLower;
       if (range > 0) bbPosition = (tick.price - entry.bbLower) / range;
     }
-    const signal = entry.signal;
+    // Intelligence: Derive real-time signal tag based on user threshold preferences
+    const signal = globalSignalThresholdMode === 'custom'
+      ? deriveSignal(rsi15m ?? rsi1m, obT, osT)
+      : deriveSignal(rsi15m ?? rsi1m, 70, 30);
+
     const liveStrategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram: entry.macdHistogram,
@@ -629,7 +633,7 @@ const ScreenerRow = memo(function ScreenerRow({
       {visibleCols.has('vwapDiff') && (
         <td className={cn(
           "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
-          display.vwapDiff === null ? "text-slate-700" : display.vwapDiff > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
+            display.vwapDiff === null ? "text-slate-700" : display.vwapDiff > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
         )}>
           {globalUseVwap ? formatPct(display.vwapDiff) : '—'}
         </td>
@@ -639,6 +643,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono",
           !globalVolatilityEnabled || display.curCandleSize == null || display.avgBarSize1m == null || display.avgBarSize1m <= 0 || (display.curCandleSize / display.avgBarSize1m) < globalLongCandleThreshold ? "text-slate-600" : "text-amber-400"
         )}>
+
           {globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 ? (
             <div className="flex items-center justify-end gap-1.5">
               {display.isLiveRsi && (
@@ -1071,8 +1076,8 @@ const ScreenerCard = memo(function ScreenerCard({
       const range = entry.bbUpper - entry.bbLower;
       if (range > 0) bbPosition = (tick.price - entry.bbLower) / range;
     }
-    const signal = entry.signal;
     const liveStrategy = computeStrategyScore({
+
       rsi1m, rsi5m, rsi15m, rsi1h,
       macdHistogram: entry.macdHistogram,
       bbPosition,
@@ -1097,9 +1102,16 @@ const ScreenerCard = memo(function ScreenerCard({
         momentum: globalUseMomentum
       }
     });
+
+    // Intelligence: Derive real-time signal tag based on user threshold preferences
+    const signal = globalSignalThresholdMode === 'custom'
+      ? deriveSignal(rsi15m ?? rsi1m, obT, osT)
+      : deriveSignal(rsi15m ?? rsi1m, 70, 30);
+
     return {
       price: tick.price,
       change24h: tick.change24h,
+
       volume24h: tick.volume24h,
       rsi1m: tick.rsi1m ?? rsi1m,
       rsi5m: tick.rsi5m ?? rsi5m,
@@ -1651,9 +1663,14 @@ export default function ScreenerDashboard() {
   const syncStates = useCallback((p: any) => {
     baseSyncStates({
       ...p,
-      globalVolatilityEnabled
+      globalVolatilityEnabled,
+      globalThresholdsEnabled,
+      globalOverbought,
+      globalOversold,
+      globalThresholdTimeframes
     });
-  }, [baseSyncStates, globalVolatilityEnabled]);
+  }, [baseSyncStates, globalVolatilityEnabled, globalThresholdsEnabled, globalOverbought, globalOversold, globalThresholdTimeframes]);
+
 
   // ─── Hybrid Atomic Data ───
   // ProcessedData is the "base" data with non-live additions (like custom RSI values from the last API fetch).
@@ -2178,7 +2195,8 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     const handlePrioritySync = (e: Event) => {
       const symbol = (e as CustomEvent).detail;
-      console.log(`[screener] Priority sync triggered for mover: ${symbol}`);
+      // Sync triggered for mover
+
       // Add immediately to visible to force precision data fetch
       visibleSymbolsRef.current.add(symbol);
       fetchData(true);
@@ -4604,10 +4622,9 @@ function GlobalSettingsModal({
 
                 <button
                   onClick={() => {
-                    const next = !globalVolatilityEnabled;
-                    setGlobalVolatilityEnabled(next);
-                    localStorage.setItem('crypto-rsi-global-volatility-enabled', next ? '1' : '0');
+                    setGlobalVolatilityEnabled(!globalVolatilityEnabled);
                   }}
+
                   className={cn(
                     "absolute top-5 right-5 w-12 h-6 rounded-full p-1 transition-all flex items-center shrink-0 shadow-lg",
                     globalVolatilityEnabled ? "bg-amber-500" : "bg-slate-800"
@@ -4625,7 +4642,7 @@ function GlobalSettingsModal({
                     value={globalLongCandleThreshold}
                     onChange={(v: number) => {
                       setGlobalLongCandleThreshold(v);
-                      localStorage.setItem('crypto-rsi-global-long-candle-threshold', v.toString());
+
                     }}
                     min={2} max={50}
                     colorClass={globalVolatilityEnabled ? "text-amber-400" : "text-slate-500"}
@@ -4639,7 +4656,7 @@ function GlobalSettingsModal({
                     value={globalVolumeSpikeThreshold}
                     onChange={(v: number) => {
                       setGlobalVolumeSpikeThreshold(v);
-                      localStorage.setItem('crypto-rsi-global-volume-spike-threshold', v.toString());
+
                     }}
                     min={2} max={50}
                     colorClass={globalVolatilityEnabled ? "text-[#39FF14]" : "text-slate-500"}

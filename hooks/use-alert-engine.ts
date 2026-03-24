@@ -153,8 +153,16 @@ export function useAlertEngine(
     Object.keys(coinConfigs).forEach(s => {
       if (coinConfigs[s] !== coinConfigsRef.current[s]) {
         configLastUpdated.current.set(s, now);
+        // Intelligence: Clear local states for the updated coin to ensure "Instant" reaction
+        for (const [key] of zoneState.current) {
+          if (key.startsWith(`${s}-`)) zoneState.current.delete(key);
+        }
+        for (const [key] of lastTriggered.current) {
+          if (key.startsWith(`${s}-`)) lastTriggered.current.delete(key);
+        }
       }
     });
+
     coinConfigsRef.current = coinConfigs;
   }, [coinConfigs]);
 
@@ -527,7 +535,7 @@ export function useAlertEngine(
 
           // ── Phase 1: Determine zones (State-First Hysteresis) ──
           const currentZones = new Map<string, 'NEUTRAL' | 'OVERSOLD' | 'OVERBOUGHT'>();
-          timeframes.forEach(({ label, val }) => {
+          timeframes.forEach(({ label, val, configKey }) => {
             if (val === null || val === undefined) return;
             const stateKey = `${symbol}-${label}`;
             // Gap 8: undefined = uninitialized, treat same as NEUTRAL for zone calc
@@ -558,7 +566,10 @@ export function useAlertEngine(
             }
 
             // ── Phase 1.5: Global Extreme Threshold Override ──
-            if (globalEnabled) {
+            // INTELLIGENCE: Only apply global override if NO manual alert is enabled for this specific timeframe.
+            // This ensures "Isolation" as requested by the user.
+            const hasManualSpecific = !!config?.[configKey as keyof typeof config];
+            if (globalEnabled && !hasManualSpecific) {
               const globalHysteresis = computeHysteresis(globalObT, globalOsT);
               const isGlobalInverted = globalObT < globalOsT;
               
@@ -583,7 +594,9 @@ export function useAlertEngine(
             const globalEnabled = globalThresholdsEnabledRef.current;
             
             // Allow alert if manually enabled OR if global extreme mode is on
+            // (Note: Phase 1.5 already isolated 'currentZone' if hasManualAlert is true)
             if (!hasManualAlert && !globalEnabled) return;
+
 
             const currentZone = currentZones.get(label);
             if (!currentZone || currentZone === 'NEUTRAL') {
@@ -616,12 +629,18 @@ export function useAlertEngine(
               }
             }
 
-            const shouldNotify = hasManualAlert || isGlobalHit;
+            // INTELLIGENCE: If the coin has a custom configuration, it is isolated from the global pool.
+            // Notifications only fire if the user has explicitly enabled the specific timeframe alert.
+            const shouldNotify = config ? hasManualAlert : (hasManualAlert || isGlobalHit);
+
 
             if (justEntered && (previousZone !== undefined || recentlyUpdated) && hasConfluence && shouldNotify) {
               const alertKey = `${symbol}-${label}`;
               const now = Date.now();
-              if (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
+              // Intelligence: If the config was recently updated (within 15s), we bypass the cooldown 
+              // to give the user "Instant Satisfaction" for their new settings.
+              if (recentlyUpdated || now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
+
                 lastTriggered.current.set(alertKey, now);
                 const val = timeframes.find(t => t.label === label)?.val ?? 0;
                 const formattedExchange = getExchange().charAt(0).toUpperCase() + getExchange().slice(1);
