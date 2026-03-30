@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getScreenerData } from '@/lib/screener-service';
-import { sendPushNotification } from '@/lib/push-service';
+import { sendPushNotificationWithRetry } from '@/lib/push-service';
 import { getSymbolAlias } from '@/lib/symbol-utils';
 import type { ScreenerEntry } from '@/lib/types';
 
@@ -103,13 +103,19 @@ export async function POST(request: Request) {
     }
 
     // 4. Fetch 3-minute cooldown from DB (consistent across cold starts)
+    // Task 14.1: Build cooldown map with BOTH old and new key formats for backward compatibility
     const THREE_MINUTES_AGO = new Date(Date.now() - 3 * 60 * 1000);
     const recentAlerts = await prisma.alertLog.findMany({
       where: { createdAt: { gte: THREE_MINUTES_AGO } }
     });
     const cooldownMap = new Map<string, boolean>();
     recentAlerts.forEach(a => {
+      // Legacy format: "BTCUSDT-5m"
       cooldownMap.set(`${a.symbol}-${a.timeframe}`, true);
+      // New format: "BTCUSDT:binance:5m:OVERSOLD"
+      if (a.exchange && a.type) {
+        cooldownMap.set(`${a.symbol}:${a.exchange}:${a.timeframe}:${a.type}`, true);
+      }
     });
     console.log(`[cron-alerts:${requestId}] Recent alerts in cooldown: ${recentAlerts.length}`);
 
@@ -292,7 +298,7 @@ export async function POST(request: Request) {
 
         for (const sub of targetSubs) {
           try {
-            const res = await sendPushNotification(sub, payload);
+            const res = await sendPushNotificationWithRetry(sub, payload);
             if (res.success) pushCount++;
             if (res.expired) {
               await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});

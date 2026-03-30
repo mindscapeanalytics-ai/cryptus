@@ -22,6 +22,48 @@ export interface CoinConfig {
   alertOnVolumeSpike: boolean;
   longCandleThreshold: number;
   volumeSpikeThreshold: number;
+  priority: string;
+  sound: string;
+  quietHoursEnabled: boolean;
+  quietHoursStart: number;
+  quietHoursEnd: number;
+}
+
+/**
+ * Task 14.1: Normalize a raw DB config to ensure all new fields have sensible defaults.
+ * Handles legacy rows that predate the priority/sound/quietHours columns.
+ * Requirement: 14.2
+ */
+export function normalizeCoinConfig(raw: any): CoinConfig {
+  return {
+    id: raw.id,
+    userId: raw.userId ?? '',
+    symbol: raw.symbol ?? '',
+    exchange: raw.exchange ?? 'binance',
+    rsi1mPeriod: raw.rsi1mPeriod ?? 14,
+    rsi5mPeriod: raw.rsi5mPeriod ?? 14,
+    rsi15mPeriod: raw.rsi15mPeriod ?? 14,
+    rsi1hPeriod: raw.rsi1hPeriod ?? 14,
+    overboughtThreshold: raw.overboughtThreshold ?? 70,
+    oversoldThreshold: raw.oversoldThreshold ?? 30,
+    alertOn1m: raw.alertOn1m ?? false,
+    alertOn5m: raw.alertOn5m ?? false,
+    alertOn15m: raw.alertOn15m ?? false,
+    alertOn1h: raw.alertOn1h ?? false,
+    alertOnCustom: raw.alertOnCustom ?? false,
+    alertConfluence: raw.alertConfluence ?? false,
+    alertOnStrategyShift: raw.alertOnStrategyShift ?? false,
+    alertOnLongCandle: raw.alertOnLongCandle ?? false,
+    alertOnVolumeSpike: raw.alertOnVolumeSpike ?? false,
+    longCandleThreshold: raw.longCandleThreshold ?? 5.0,
+    volumeSpikeThreshold: raw.volumeSpikeThreshold ?? 5.0,
+    // Task 14.1: New fields — default gracefully for legacy rows
+    priority: raw.priority ?? 'medium',
+    sound: raw.sound ?? 'default',
+    quietHoursEnabled: raw.quietHoursEnabled ?? false,
+    quietHoursStart: raw.quietHoursStart ?? 22,
+    quietHoursEnd: raw.quietHoursEnd ?? 8,
+  };
 }
 
 /**
@@ -82,6 +124,11 @@ export async function updateCoinConfig(config: Partial<CoinConfig> & { symbol: s
       alertOnVolumeSpike: config.alertOnVolumeSpike,
       longCandleThreshold: config.longCandleThreshold,
       volumeSpikeThreshold: config.volumeSpikeThreshold,
+      priority: config.priority ?? 'medium',
+      sound: config.sound ?? 'default',
+      quietHoursEnabled: config.quietHoursEnabled ?? false,
+      quietHoursStart: config.quietHoursStart ?? 22,
+      quietHoursEnd: config.quietHoursEnd ?? 8,
     };
 
     return await prisma.coinConfig.upsert({

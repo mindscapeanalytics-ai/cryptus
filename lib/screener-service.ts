@@ -1,4 +1,5 @@
 import { calculateRsi, calculateRsiWithState } from './rsi';
+import { LRUCache } from './lru-cache';
 import {
   latestEma, detectEmaCross, calculateMacd, calculateEma,
   calculateBollinger, calculateStochRsi, calculateVwap,
@@ -10,6 +11,9 @@ import {
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
 import { getAllCoinConfigs, type CoinConfig } from './coin-config';
 import { getSymbolAlias } from './symbol-utils';
+import { validateKline } from './data-validator';
+import { metricsCollector } from './metrics-collector';
+import { createInstanceCacheKey } from './instance-id';
 
 interface ScreenerOptions {
   smartMode?: boolean;
@@ -138,7 +142,8 @@ function getSmartModeDefault(): boolean {
 }
 
 function makeCacheKey(symbolCount: number, smartMode: boolean, rsiPeriod: number, exchange: string = 'binance'): string {
-  return `${symbolCount}:${smartMode ? 'smart' : 'classic'}:rsi${rsiPeriod}:${exchange}`;
+  const baseKey = `${symbolCount}:${smartMode ? 'smart' : 'classic'}:rsi${rsiPeriod}:${exchange}`;
+  return createInstanceCacheKey(baseKey);
 }
 
 function getTrafficWarmCandidates(symbolCount: number): number[] {
@@ -171,10 +176,10 @@ function maybeTrafficWarm(symbolCount: number, smartMode: boolean, exchange: str
 }
 
 // ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
-const indicatorCache = new Map<string, { entry: ScreenerEntry; ts: number }>();
 const INDICATOR_CACHE_TTL = 120_000; // 2 min — standard symbols
 const INDICATOR_CACHE_TTL_ALERT = 60_000; // 1 min — alert-active symbols (tighter accuracy)
 const INDICATOR_CACHE_MAX = 5000;
+const indicatorCache = new LRUCache<string, { entry: ScreenerEntry; ts: number }>(INDICATOR_CACHE_MAX);
 
 // ── Long-lived volatility baseline cache (average bar size/volume) ──
 const baselineCache = new Map<string, { avgBarSize1m: number; avgVolume1m: number; ts: number }>();
@@ -200,6 +205,7 @@ function getBaseline(symbol: string) {
  */
 export function invalidateSymbolCache(symbol: string) {
   // 1. Remove from indicator cache for any combination of cache keys
+  // Note: With instance isolation, we only clear this instance's cache
   const prefix = `${symbol}:`;
   for (const key of indicatorCache.keys()) {
     if (key.startsWith(prefix)) {
@@ -243,19 +249,10 @@ export function invalidateExchangeCache(exchange: string) {
 
 function pruneIndicatorCache() {
   const now = Date.now();
-  // Aggressive cleanup: remove anything older than TTL
+  // TTL-based cleanup: remove stale entries. LRU handles size eviction automatically.
   for (const [key, value] of indicatorCache.entries()) {
     if (now - value.ts > INDICATOR_CACHE_TTL) {
       indicatorCache.delete(key);
-    }
-  }
-
-  // Cap cleanup: if still too large, remove oldest
-  if (indicatorCache.size > INDICATOR_CACHE_MAX) {
-    const sorted = [...indicatorCache.entries()].sort((a, b) => a[1].ts - b[1].ts);
-    const removeCount = indicatorCache.size - INDICATOR_CACHE_MAX;
-    for (let i = 0; i < removeCount; i++) {
-      indicatorCache.delete(sorted[i][0]);
     }
   }
 }
@@ -492,7 +489,7 @@ async function fetchBybitApiWithRetry<T>(
         debugWarn(`[bybit] ${label}: all ${retries + 1} attempts failed:`, err instanceof Error ? err.message : String(err));
         throw err;
       }
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, Math.min(500 * Math.pow(2, attempt), 8000) + Math.random() * 500));
     }
   }
   throw lastError ?? new Error(`${label}: exhausted retries`);
@@ -710,7 +707,7 @@ async function fetchWithRetry(
         debugWarn(`[kline] ${label}: all ${retries + 1} attempts failed:`, err instanceof Error ? err.message : String(err));
         throw err;
       }
-      await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, Math.min(500 * Math.pow(2, attempt), 8000) + Math.random() * 500));
     }
   }
   throw lastError ?? new Error(`${label}: exhausted retries`);
@@ -928,7 +925,18 @@ function buildEntry(
   config?: CoinConfig,
 ): ScreenerEntry | null {
   try {
-    const validKlines = klines1m.filter((k) => k !== null && k.length >= 6);
+    const validKlines = klines1m.filter((k) => {
+      if (k === null || k.length < 6) return false;
+      const result = validateKline(k);
+      if (!result.isValid) {
+        debugWarn(`[screener] Invalid kline for ${sym}:`, result.errors.join(', '));
+        return false;
+      }
+      if (result.warnings.length > 0) {
+        debugWarn(`[screener] Kline warning for ${sym}:`, result.warnings.join(', '));
+      }
+      return true;
+    });
     if (validKlines.length < rsiPeriod + 1) return null;
 
     const closes1m = validKlines.map((k) => parseFloat(k[4]));
@@ -1189,9 +1197,10 @@ function runRefresh(
 
     // 2. Fetch klines only for symbols with stale/missing indicator cache
     // Alert-active symbols use a shorter TTL for more accurate RSI state refresh
-    const uncachedSymbols = symbols.filter((sym) => !indicatorCache.has(`${sym}:${rsiPeriod}:${exchange}`));
+    const getCacheKey = (sym: string) => createInstanceCacheKey(`${sym}:${rsiPeriod}:${exchange}`);
+    const uncachedSymbols = symbols.filter((sym) => !indicatorCache.has(getCacheKey(sym)));
     let symbolsToRefresh = symbols.filter((sym) => {
-      const cached = indicatorCache.get(`${sym}:${rsiPeriod}:${exchange}`);
+      const cached = indicatorCache.get(getCacheKey(sym));
       if (!cached) return true;
       const cfg = coinConfigs.get(sym);
       const hasAlerts = cfg && (cfg.alertOn1m || cfg.alertOn5m || cfg.alertOn15m || cfg.alertOn1h || cfg.alertOnCustom || cfg.alertOnStrategyShift);
@@ -1243,12 +1252,12 @@ function runRefresh(
         if (Math.abs(volA - volB) > 2) return volB - volA;
 
         // 3. Gap Fill priority (Uncached symbols)
-        const aCached = indicatorCache.has(`${a}:${rsiPeriod}:${exchange}`);
-        const bCached = indicatorCache.has(`${b}:${rsiPeriod}:${exchange}`);
+        const aCached = indicatorCache.has(getCacheKey(a));
+        const bCached = indicatorCache.has(getCacheKey(b));
         if (aCached !== bCached) return aCached ? 1 : -1;
         
-        const ta = indicatorCache.get(`${a}:${rsiPeriod}:${exchange}`)?.ts ?? 0;
-        const tb = indicatorCache.get(`${b}:${rsiPeriod}:${exchange}`)?.ts ?? 0;
+        const ta = indicatorCache.get(getCacheKey(a))?.ts ?? 0;
+        const tb = indicatorCache.get(getCacheKey(b))?.ts ?? 0;
         return ta - tb; // oldest first
       });
       symbolsToRefresh = symbolsToRefresh.slice(0, refreshCap);
@@ -1278,6 +1287,11 @@ function runRefresh(
 
     if (failedCount > 0) {
       console.warn(`[screener] ${failedCount}/${symbolsToRefresh.length} kline fetches failed or were throttled. Check BINANCE_APIS connectivity.`);
+      // Task 12.3: Record kline fetch errors in metrics
+      metricsCollector.recordError(
+        new Error(`${failedCount} kline fetches failed`),
+        { exchange, failedCount, totalRequested: symbolsToRefresh.length }
+      );
       // Log first few failure reasons for diagnosis
       let logged = 0;
       for (const sym of symbolsToRefresh) {
@@ -1324,7 +1338,7 @@ function runRefresh(
         if (!klines1m || klines1m.length === 0) {
           debugWarn(`[screener] ${sym}: kline fetch returned empty`);
         } else {
-          const prevEntry = indicatorCache.get(`${sym}:${rsiPeriod}:${exchange}`)?.entry;
+          const prevEntry = indicatorCache.get(getCacheKey(sym))?.entry;
           const entry = buildEntry(
             sym,
             klines1m,
@@ -1337,13 +1351,13 @@ function runRefresh(
           );
           if (entry) {
             entries.push(entry);
-            indicatorCache.set(`${sym}:${rsiPeriod}:${exchange}`, { entry: entry, ts: nowTs });
+            indicatorCache.set(getCacheKey(sym), { entry: entry, ts: nowTs });
             continue;
           }
         }
       }
 
-      const cached = indicatorCache.get(`${sym}:${rsiPeriod}:${exchange}`);
+      const cached = indicatorCache.get(getCacheKey(sym));
       if (cached) {
         entries.push(withTickerOverlay(cached.entry, ticker, nowTs));
         continue;
@@ -1361,6 +1375,13 @@ function runRefresh(
     const withIndicators = entries.filter((e) => e.rsi15m !== null).length;
     const computeTimeMs = Date.now() - start;
     debugLog(`[screener] Done: ${entries.length} entries (${withIndicators} with indicators, ${entries.length - withIndicators} ticker-only) in ${computeTimeMs}ms`);
+
+    // Task 12.3: Record screener fetch latency and cache metrics
+    metricsCollector.recordLatency('screenerFetch', computeTimeMs);
+    metricsCollector.recordAPIWeight(exchange, globalWeight);
+    const cacheHits = entries.length - symbolsToRefresh.length;
+    if (cacheHits > 0) metricsCollector.recordCacheHit(true);
+    if (symbolsToRefresh.length > 0) metricsCollector.recordCacheHit(false);
 
     if (smartMode) {
       const failureRate = symbolsToRefresh.length > 0 ? failedCount / symbolsToRefresh.length : 0;

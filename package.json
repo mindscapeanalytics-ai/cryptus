@@ -8,7 +8,14 @@
     "build:sync": "node scripts/sync-assets.js",
     "start": "node .next/standalone/server.js",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "postinstall": "prisma generate",
+    "db:sync": "node scripts/sync-database.js",
+    "db:sync:force": "node scripts/sync-database.js --force",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:status": "prisma migrate status"
   },
   "keywords": [
     "crypto",
@@ -25,9 +32,12 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/web-push": "^3.6.4",
+    "@vitest/coverage-v8": "^2.1.9",
+    "fast-check": "^3.23.2",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

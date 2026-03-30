@@ -5,6 +5,8 @@ import { approximateRsi, approximateEma } from '@/lib/rsi';
 import { computeStrategyScore } from '@/lib/indicators';
 import { getSymbolAlias } from '@/lib/symbol-utils';
 import { formatPrice } from '@/lib/utils';
+import { alertCoordinator } from '@/lib/alert-coordinator-client';
+import { shouldSuppressAlert, getAlertBehavior, type AlertPriority } from '@/lib/alert-priority';
 
 // ── Wake Lock for mobile alert reliability (GAP-E4) ──
 let wakeLock: WakeLockSentinel | null = null;
@@ -612,9 +614,15 @@ export function useAlertEngine(
 
             let hasConfluence = true;
             if (confluenceMode) {
-              hasConfluence = timeframes
-                .filter(tf => tf.label !== label && config[tf.configKey as keyof typeof config])
-                .some(tf => currentZones.get(tf.label) === currentZone);
+              // Task 6.1: Require at least 2 valid (non-null) timeframes in the same zone.
+              // Exclude timeframes with null/undefined RSI values from the count.
+              const validTimeframesInZone = timeframes.filter(tf => {
+                if (tf.label === label) return false;
+                if (!config[tf.configKey as keyof typeof config]) return false;
+                if (tf.val === null || tf.val === undefined) return false; // exclude null values
+                return currentZones.get(tf.label) === currentZone;
+              });
+              hasConfluence = validTimeframesInZone.length >= 1; // at least 1 other = 2 total
             }
 
             // Allow "cold-start" alerts if the config was updated in the last 15 seconds
@@ -646,14 +654,29 @@ export function useAlertEngine(
               const now = Date.now();
               // Intelligence: If the config was recently updated (within 15s), we bypass the cooldown 
               // to give the user "Instant Satisfaction" for their new settings.
-              if (recentlyUpdated || now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
+              const coordinatorKey = alertCoordinator.getCooldownKey(symbol, getExchange(), label, currentZone as string);
+              if (recentlyUpdated || (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS && !alertCoordinator.isInCooldown(coordinatorKey, COOLDOWN_MS))) {
+
+                // Task 8.4: Quiet hours suppression — check per-coin config
+                const alertPriority: AlertPriority = (config?.priority as AlertPriority) ?? 'medium';
+                const quietEnabled = config?.quietHoursEnabled ?? false;
+                const quietStart = config?.quietHoursStart ?? 22;
+                const quietEnd = config?.quietHoursEnd ?? 8;
+                if (shouldSuppressAlert(alertPriority, quietEnabled, quietStart, quietEnd)) {
+                  zoneState.current.set(stateKey, currentZone);
+                  return; // Suppressed by quiet hours
+                }
 
                 lastTriggered.current.set(alertKey, now);
+                alertCoordinator.setCooldown(coordinatorKey);
                 const val = timeframes.find(t => t.label === label)?.val ?? 0;
                 const formattedExchange = getExchange().charAt(0).toUpperCase() + getExchange().slice(1);
                 const zoneLabel = currentZone === 'OVERSOLD' ? 'BUY' : 'SELL';
                 const isGlobalAlert = isGlobalHit && !hasManualAlert;
                 const priceStr = formatPrice(live.price);
+
+                // Task 8.2/8.6: Use priority-based behavior for toast duration
+                const behavior = getAlertBehavior(alertPriority);
 
                 if (document.visibilityState === 'visible') {
                   toast[currentZone === 'OVERSOLD' ? 'success' : 'error'](
@@ -763,9 +786,16 @@ export function useAlertEngine(
           : `${symbol}-${timeframe === 'STRATEGY' ? 'STRAT' : timeframe}`;
 
         const now = Date.now();
-        if (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS) {
+        const coordinatorKey = alertCoordinator.getCooldownKey(
+          symbol,
+          exchange ?? getExchange(),
+          isVolatility ? type : (timeframe === 'STRATEGY' ? 'STRAT' : timeframe),
+          type
+        );
+        if (now - (lastTriggered.current.get(alertKey) || 0) > COOLDOWN_MS && !alertCoordinator.isInCooldown(coordinatorKey, COOLDOWN_MS)) {
           // Set cooldown for BOTH this handler AND the batch evaluator
           lastTriggered.current.set(alertKey, now);
+          alertCoordinator.setCooldown(coordinatorKey);
 
           const isVolatility = type === 'LONG_CANDLE' || type === 'VOLUME_SPIKE';
           const isStrat = timeframe === 'STRATEGY';
@@ -828,6 +858,8 @@ export function useAlertEngine(
     const handleExchangeChange = () => {
       zoneState.current.clear();
       lastTriggered.current.clear();
+      alertCoordinator.clearAllCooldowns();
+      console.log('[alerts] Exchange changed — zone states and cooldowns reset for isolation');
     };
 
     engineInstance.addEventListener('exchange-changed', handleExchangeChange);

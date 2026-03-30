@@ -22,6 +22,7 @@ model User {
   sessions      Session[]
   pushSubscriptions PushSubscription[]
   coinConfigs       CoinConfig[]
+  alertTemplates    AlertTemplate[]
 
   @@map("user")
 }
@@ -98,6 +99,11 @@ model CoinConfig {
   alertOnVolumeSpike   Boolean  @default(false)
   longCandleThreshold  Float    @default(5.0)
   volumeSpikeThreshold Float    @default(5.0)
+  priority             String   @default("medium")
+  sound                String   @default("default")
+  quietHoursEnabled    Boolean  @default(false)
+  quietHoursStart      Int      @default(22)
+  quietHoursEnd        Int      @default(8)
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, symbol])
@@ -113,6 +119,7 @@ model AlertLog {
   timeframe String
   value     Float
   type      String
+  priority  String   @default("medium")
   createdAt DateTime @default(now())
 
   @@map("alert_log")
@@ -130,4 +137,29 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscription")
+}
+
+model AlertTemplate {
+  id                   String   @id @default(uuid())
+  userId               String
+  name                 String
+  description          String?
+  rsi1mPeriod          Int      @default(14)
+  rsi5mPeriod          Int      @default(14)
+  rsi15mPeriod         Int      @default(14)
+  rsi1hPeriod          Int      @default(14)
+  overboughtThreshold  Int      @default(70)
+  oversoldThreshold    Int      @default(30)
+  alertOn1m            Boolean  @default(false)
+  alertOn5m            Boolean  @default(false)
+  alertOn15m           Boolean  @default(false)
+  alertOn1h            Boolean  @default(false)
+  priority             String   @default("medium")
+  sound                String   @default("default")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("alert_template")
 }

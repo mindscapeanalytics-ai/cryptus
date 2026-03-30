@@ -3413,7 +3413,6 @@ export default function ScreenerDashboard() {
             setAlertsEnabled={setAlertsEnabled}
             soundEnabled={soundEnabled}
             setSoundEnabled={setSoundEnabled}
-            triggerTestAlert={triggerTestAlert}
             resumeAudioContext={resumeAudioContext}
             globalThresholdsEnabled={globalThresholdsEnabled}
             setGlobalThresholdsEnabled={setGlobalThresholdsEnabled}
@@ -3517,6 +3516,13 @@ function CoinSettingsModal({
     alertOnVolumeSpike: currentConfig?.alertOnVolumeSpike ?? false,
     longCandleThreshold: currentConfig?.longCandleThreshold ?? 10.0,
     volumeSpikeThreshold: currentConfig?.volumeSpikeThreshold ?? 10.0,
+    // Task 15.1: Priority and sound selection
+    priority: currentConfig?.priority ?? 'medium',
+    sound: currentConfig?.sound ?? 'default',
+    // Task 15.2: Quiet hours
+    quietHoursEnabled: currentConfig?.quietHoursEnabled ?? false,
+    quietHoursStart: currentConfig?.quietHoursStart ?? 22,
+    quietHoursEnd: currentConfig?.quietHoursEnd ?? 8,
   });
 
   const { status: pushStatus, toggle: togglePush, isLoading: pushLoading } = usePushNotifications();
@@ -3665,6 +3671,124 @@ function CoinSettingsModal({
                 min={2} max={50}
                 loading={loading}
               />
+            </div>
+
+            <div className="h-px bg-white/5" />
+
+            {/* Task 15.1: Priority and Sound Selection */}
+            <div className="space-y-2">
+              <label className="text-[7px] font-black uppercase tracking-widest text-slate-400 ml-0.5 flex items-center gap-1.5">
+                <Flame size={10} className="text-orange-400" /> Alert Priority & Sound
+              </label>
+              
+              <div className="grid grid-cols-2 gap-2">
+                {/* Priority Selection */}
+                <div className="space-y-1.5">
+                  <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">Priority</span>
+                  <select
+                    value={config.priority}
+                    onChange={(e) => setConfig({ ...config, priority: e.target.value })}
+                    disabled={loading}
+                    className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-[#39FF14]/30 transition-all disabled:opacity-50"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+
+                {/* Sound Selection */}
+                <div className="space-y-1.5">
+                  <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">Sound</span>
+                  <select
+                    value={config.sound}
+                    onChange={(e) => setConfig({ ...config, sound: e.target.value })}
+                    disabled={loading}
+                    className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-[#39FF14]/30 transition-all disabled:opacity-50"
+                  >
+                    <option value="default">Default</option>
+                    <option value="soft">Soft</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="bell">Bell</option>
+                    <option value="ping">Ping</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Priority Info */}
+              <div className="p-2 rounded-xl bg-slate-950/30 border border-white/5">
+                <p className="text-[8px] text-slate-500 font-bold leading-tight">
+                  {config.priority === 'low' && '🔵 Low: Soft sound, 5s toast'}
+                  {config.priority === 'medium' && '🟢 Medium: Default sound, 8s toast'}
+                  {config.priority === 'high' && '🟠 High: Bell sound, 12s persistent'}
+                  {config.priority === 'critical' && '🔴 Critical: Urgent sound, requires interaction'}
+                </p>
+              </div>
+            </div>
+
+            {/* Task 15.2: Quiet Hours Configuration */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/5 border border-purple-500/20 group">
+                <div className="flex flex-col">
+                  <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={11} />
+                    Quiet Hours
+                  </span>
+                  <span className="text-[7px] text-slate-500 font-bold uppercase mt-0.5 leading-tight pr-4">
+                    Suppress low/medium priority alerts
+                  </span>
+                </div>
+                <button
+                  onClick={() => setConfig({ ...config, quietHoursEnabled: !config.quietHoursEnabled })}
+                  disabled={loading}
+                  className={cn(
+                    "w-9 h-4.5 rounded-full p-0.5 transition-all flex items-center",
+                    config.quietHoursEnabled ? "bg-purple-500" : "bg-slate-800"
+                  )}
+                >
+                  <div className={cn(
+                    "w-3.5 h-3.5 rounded-full bg-white transition-all shadow-sm",
+                    config.quietHoursEnabled ? "translate-x-4.5" : "translate-x-0"
+                  )} />
+                </button>
+              </div>
+
+              {config.quietHoursEnabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="grid grid-cols-2 gap-2"
+                >
+                  <div className="space-y-1.5">
+                    <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">Start (24h)</span>
+                    <select
+                      value={config.quietHoursStart}
+                      onChange={(e) => setConfig({ ...config, quietHoursStart: parseInt(e.target.value) })}
+                      disabled={loading}
+                      className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500/30 transition-all disabled:opacity-50"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">End (24h)</span>
+                    <select
+                      value={config.quietHoursEnd}
+                      onChange={(e) => setConfig({ ...config, quietHoursEnd: parseInt(e.target.value) })}
+                      disabled={loading}
+                      className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500/30 transition-all disabled:opacity-50"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             <div className="h-px bg-white/5" />
@@ -4135,7 +4259,6 @@ function GlobalSettingsModal({
   setAlertsEnabled,
   soundEnabled,
   setSoundEnabled,
-  triggerTestAlert,
   resumeAudioContext,
   globalThresholdsEnabled,
   setGlobalThresholdsEnabled,
@@ -4187,7 +4310,6 @@ function GlobalSettingsModal({
   setAlertsEnabled: (v: boolean) => void;
   soundEnabled: boolean;
   setSoundEnabled: (v: boolean) => void;
-  triggerTestAlert: () => void;
   resumeAudioContext: () => Promise<void>;
   globalThresholdsEnabled: boolean;
   setGlobalThresholdsEnabled: (v: boolean) => void;
@@ -4227,19 +4349,7 @@ function GlobalSettingsModal({
   setGlobalUseMomentum: (v: boolean) => void;
 }) {
   const { status: pushStatus, toggle: togglePush, isLoading: pushLoading } = usePushNotifications();
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
-  }, []);
-
-  const requestPermission = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    const permission = await Notification.requestPermission();
-    setNotificationPermission(permission);
-  };
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -4310,10 +4420,12 @@ function GlobalSettingsModal({
                   <span className="text-[8px] text-slate-500 font-bold uppercase mt-0.5">Master switch for all real-time alerts</span>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     const next = !alertsEnabled;
+                    if (next && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                      await Notification.requestPermission();
+                    }
                     setAlertsEnabled(next);
-                    if (next) requestPermission();
                   }}
                   className={cn(
                     "w-12 h-6 rounded-full p-1 transition-all flex items-center",
@@ -4399,30 +4511,7 @@ function GlobalSettingsModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <button
-                  onClick={triggerTestAlert}
-                  className="px-4 py-3 rounded-2xl bg-slate-800 border border-white/5 text-[10px] font-black text-slate-300 uppercase tracking-widest hover:bg-slate-700 hover:text-white transition-all active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Activity size={12} />
-                  Test Flow
-                </button>
 
-                {notificationPermission !== 'granted' ? (
-                  <button
-                    onClick={requestPermission}
-                    className="px-4 py-3 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/30 text-[10px] font-black text-[#39FF14] uppercase tracking-widest hover:bg-[#39FF14]/20 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <ShieldCheck size={12} />
-                    Enable Native
-                  </button>
-                ) : (
-                  <div className="px-4 py-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-[8px] font-black text-emerald-500 uppercase tracking-widest flex items-center justify-center gap-2 opacity-60">
-                    <ShieldCheck size={12} />
-                    OS Granted
-                  </div>
-                )}
-              </div>
 
               <div className="flex flex-col gap-4 mt-6">
                 <div className="flex items-center justify-between ml-1">

@@ -16,11 +16,15 @@ const RECONNECT_MAX_DELAY = 30000;
 const HEARTBEAT_MS = 30000;
 const ZOMBIE_WATCHDOG_MS = 30000;   // check every 30s
 const ZOMBIE_THRESHOLD_MS = 60000;  // force reconnect if no data for 60s
+const BYBIT_SPOT_REST_POLL_MS = 2000;  // Task 2.7: REST poll interval for stale Bybit Spot symbols
+const BYBIT_SPOT_STALE_THRESHOLD_MS = 5000; // Symbol is stale if no WS update for 5s
 
 // Internal buffer to minimize postMessage frequency
 let tickerBuffer = new Map();
 let flushInterval = null;
 let zombieWatchdog = null;
+let stalenessInterval = null; // Task 2.3: periodic staleness check handle
+let bybitSpotRestPollInterval = null; // Task 2.7: REST polling for Bybit Spot overflow
 let lastDataReceived = Date.now();  // track data freshness
 let currentSymbols = new Set();
 let volatilityBuffer = new Map();
@@ -138,7 +142,15 @@ class BinanceAdapter extends ExchangeAdapter {
         lastDataReceived = Date.now();
         const data = JSON.parse(event.data);
         if (Array.isArray(data)) {
-          data.forEach(t => this.process(t));
+          // Task 13.1: Process in batches of 50 to prevent event loop blocking
+          const BATCH = 50;
+          let i = 0;
+          const processBatch = () => {
+            const end = Math.min(i + BATCH, data.length);
+            for (; i < end; i++) this.process(data[i]);
+            if (i < data.length) setTimeout(processBatch, 0);
+          };
+          processBatch();
         } else if (data && typeof data === 'object' && 's' in data) {
           this.process(data);
         }
@@ -354,6 +366,71 @@ function stopZombieWatchdog() {
   }
 }
 
+// ── Task 2.7: Bybit Spot REST Polling Fallback ─────────────────────────────
+// Bybit Spot WS subscriptions are capped at 200 topics per connection.
+// For symbols beyond that cap, or symbols that go stale (no WS update for 5s),
+// we fall back to REST polling at 2-second intervals.
+
+function startBybitSpotRestPoll() {
+  stopBybitSpotRestPoll();
+  bybitSpotRestPollInterval = setInterval(async () => {
+    if (currentExchangeName !== 'bybit') return;
+    if (currentSymbols.size === 0) return;
+
+    // Find symbols that are stale (no WS update in BYBIT_SPOT_STALE_THRESHOLD_MS)
+    const now = Date.now();
+    const staleSymbols = [];
+    for (const sym of currentSymbols) {
+      const trackingKey = `bybit:${sym}`;
+      const state = latestTickerState.get(trackingKey);
+      if (!state || (now - state.lastUpdate) > BYBIT_SPOT_STALE_THRESHOLD_MS) {
+        staleSymbols.push(sym);
+      }
+    }
+
+    if (staleSymbols.length === 0) return;
+
+    // Batch REST requests: Bybit allows multiple symbols in one call
+    // Cap at 50 per request to avoid URL length limits
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < staleSymbols.length; i += BATCH_SIZE) {
+      const batch = staleSymbols.slice(i, i + BATCH_SIZE);
+      try {
+        const symbolParam = batch.join(',');
+        const url = `https://api.bybit.com/v5/market/tickers?category=spot&symbol=${symbolParam}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+        if (!res.ok) continue;
+        const payload = await res.json();
+        const rows = payload.result?.list ?? [];
+        for (const row of rows) {
+          if (!row.symbol || !row.lastPrice) continue;
+          processNormalizedTicker({
+            s: row.symbol,
+            c: parseFloat(row.lastPrice),
+            o: parseFloat(row.prevPrice24h) || parseFloat(row.lastPrice),
+            q: parseFloat(row.turnover24h) || 0,
+            v: parseFloat(row.volume24h) || 0,
+            ts: Date.now()
+          }, 'bybit');
+        }
+      } catch (e) {
+        // Silent fail — WS is primary, REST is fallback
+      }
+      // Small stagger between batches to avoid rate limits
+      if (i + BATCH_SIZE < staleSymbols.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+  }, BYBIT_SPOT_REST_POLL_MS);
+}
+
+function stopBybitSpotRestPoll() {
+  if (bybitSpotRestPollInterval) {
+    clearInterval(bybitSpotRestPollInterval);
+    bybitSpotRestPollInterval = null;
+  }
+}
+
 function stopExchange(name) {
   const adapter = activeAdapters.get(name);
   if (adapter) {
@@ -364,7 +441,10 @@ function stopExchange(name) {
 
 function processNormalizedTicker(t, exchangeName = 'binance') {
   if (!currentSymbols.has(t.s)) return;
-  
+
+  // Task 2.1: Explicit validation — skip update if symbol missing or price invalid
+  if (!t.s || t.c == null || isNaN(t.c) || t.c === 0) return;
+
   const trackingKey = `${exchangeName}:${t.s}`;
   const prevState = latestTickerState.get(trackingKey) || {};
 
@@ -375,8 +455,12 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
   const curQ = (t.q != null && !isNaN(t.q)) ? t.q : (prevState.q || 0);
   const curV = (t.v != null && !isNaN(t.v)) ? t.v : (prevState.v || 0);
 
-  // Store the most recent valid values for next delta update
-  latestTickerState.set(trackingKey, { c: curC, o: curO, q: curQ, v: curV });
+  // Task 2.1: Track session high/low and timestamp every update
+  const curH = Math.max(prevState.h || curC, curC);
+  const curL = Math.min(prevState.l || curC, curC);
+
+  // Store the most recent valid values for next delta update, including h/l and lastUpdate
+  latestTickerState.set(trackingKey, { c: curC, o: curO, q: curQ, v: curV, h: curH, l: curL, lastUpdate: Date.now() });
 
   // Guard: price must be valid for any indicator processing
   if (!curC || curC <= 0) return;
@@ -732,12 +816,16 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
 
   // ── Update UI Buffer (Prioritize Active Exchange) ──
   if (exchangeName === currentExchangeName || !tickerBuffer.has(t.s)) {
+    // Task 2.1: Expose isStale flag — false on every live update (staleness check sets it later)
+    const tickerEntry = latestTickerState.get(trackingKey);
+    const isStale = tickerEntry ? (Date.now() - tickerEntry.lastUpdate > 60000) : false;
     tickerBuffer.set(t.s, {
       price: curC,
       change24h,
       volume24h: curQ,
       exchange: exchangeName,
       updatedAt: Date.now(),
+      isStale,
       ...liveIndicators
     });
   }
@@ -797,10 +885,17 @@ function handleMessage(e, port = null) {
         if (cfg.alertsEnabled !== undefined) globalAlertsEnabled = cfg.alertsEnabled;
         if (cfg.volatilityEnabled !== undefined) globalVolatilityEnabled = cfg.volatilityEnabled;
         console.log(`[worker] Rehydrated config: rsi=${globalRsiPeriod}, alerts=${globalAlertsEnabled}, vol=${globalVolatilityEnabled}`);
+        // Task 2.5: Confirm baseline sync is ready — open1m/volStart1m will arrive via SYNC_STATES
+        console.log('[worker] Cold-start baseline sync ready — awaiting SYNC_STATES with open1m/volStart1m');
       });
 
       startFlushing(payload.flushInterval || 300);
       startZombieWatchdog();
+      startStalenessCheck(); // Task 2.3: begin periodic staleness detection
+      // Task 2.7: Start REST polling fallback for Bybit Spot stale symbols
+      if (currentExchangeName === 'bybit') {
+        startBybitSpotRestPoll();
+      }
       break;
 
     case 'RESUME': {
@@ -840,6 +935,12 @@ function handleMessage(e, port = null) {
       ensureExchange(currentExchangeName);
       // Persist exchange to IndexedDB for Service Worker background sync (GAP-A5)
       persistExchangeToConfig(currentExchangeName);
+      // Task 2.7: Start/stop REST polling based on exchange
+      if (currentExchangeName === 'bybit') {
+        startBybitSpotRestPoll();
+      } else {
+        stopBybitSpotRestPoll();
+      }
       console.log(`[worker] Multi-tab exchange switch: ${prevExchange} → ${currentExchangeName}`);
       break;
     }
@@ -849,7 +950,7 @@ function handleMessage(e, port = null) {
       if (setsEqual(currentSymbols, updateSyms)) break;
       
       currentSymbols = updateSyms;
-      // Memory Hygiene
+      // Memory Hygiene — Task 3.4: full cleanup of all per-symbol state maps
       for (const [s] of rsiStates) { if (!currentSymbols.has(s)) rsiStates.delete(s); }
       for (const [s] of coinConfigs) { if (!currentSymbols.has(s)) coinConfigs.delete(s); }
       for (const [k] of zoneStates) {
@@ -863,6 +964,15 @@ function handleMessage(e, port = null) {
         if (!currentSymbols.has(bare)) volatilityBuffer.delete(s);
       }
       for (const [s] of tickerBuffer) { if (!currentSymbols.has(s)) tickerBuffer.delete(s); }
+      // Task 3.4: Also clean latestTickerState and liveCandleStates keyed as "exchange:symbol"
+      for (const [k] of latestTickerState) {
+        const bare = k.includes(':') ? k.split(':').slice(1).join(':') : k;
+        if (!currentSymbols.has(bare)) latestTickerState.delete(k);
+      }
+      for (const [k] of liveCandleStates) {
+        const bare = k.includes(':') ? k.split(':').slice(1).join(':') : k;
+        if (!currentSymbols.has(bare)) liveCandleStates.delete(k);
+      }
 
       activeAdapters.forEach(adapter => adapter.updateSymbols(currentSymbols));
       break;
@@ -917,6 +1027,13 @@ function handleMessage(e, port = null) {
           
           // NEW: Patch liveCandleStates with true API open and volume baseline
           const trackingKey = `${currentExchangeName}:${s}`;
+          // Task 2.5 — Cold-start baseline mechanism:
+          // When the worker first starts it has no open price or accumulated volume for the
+          // current 1-minute candle. The main thread sends `open1m` (the true API open from
+          // the most recent kline) and `volStart1m` (volume already traded in this minute)
+          // via SYNC_STATES. We patch liveCandleStates here so that the very first RSI
+          // approximation uses the real candle open rather than the first WebSocket tick,
+          // and volume accumulation starts from the correct baseline rather than zero.
           const cs = liveCandleStates.get(trackingKey);
           if (cs && cs.lastMin === currentMinKey) {
             if (newState.open1m != null) cs.open = newState.open1m;
@@ -995,6 +1112,8 @@ function teardown() {
   activeAdapters.clear();
   stopFlushing();
   stopZombieWatchdog();
+  stopStalenessCheck(); // Task 2.3: stop staleness interval on teardown
+  stopBybitSpotRestPoll(); // Task 2.7: stop REST polling fallback
   console.log('[worker] Stream fully terminated');
 }
 
@@ -1256,6 +1375,49 @@ function computeWorkerStrategyScore(params) {
   else if (normalized <= -20) signal = 'sell';
 
   return { score: normalized, signal };
+}
+
+// ── Task 2.3: Staleness Detection ────────────────────────────────
+const STALE_THRESHOLD_MS = 60000; // 60 seconds
+const STALENESS_CHECK_INTERVAL_MS = 10000; // check every 10 seconds
+
+/**
+ * Iterates latestTickerState and marks symbols as stale if they haven't
+ * received an update within STALE_THRESHOLD_MS. Returns the list of stale
+ * symbol names (bare, without exchange prefix).
+ */
+function detectAndMarkStaleSymbols() {
+  const now = Date.now();
+  const staleSymbols = [];
+
+  for (const [key, state] of latestTickerState) {
+    if (now - state.lastUpdate > STALE_THRESHOLD_MS) {
+      // Mark as stale in the state entry
+      state.isStale = true;
+      // Extract bare symbol (key format is "exchange:SYMBOL")
+      const bareSymbol = key.includes(':') ? key.split(':').pop() : key;
+      staleSymbols.push(bareSymbol);
+    }
+  }
+
+  return staleSymbols;
+}
+
+function startStalenessCheck() {
+  stopStalenessCheck();
+  stalenessInterval = setInterval(() => {
+    const staleSymbols = detectAndMarkStaleSymbols();
+    if (staleSymbols.length > 0) {
+      broadcast({ type: 'STALENESS_ALERT', payload: { staleSymbols } });
+    }
+  }, STALENESS_CHECK_INTERVAL_MS);
+}
+
+function stopStalenessCheck() {
+  if (stalenessInterval) {
+    clearInterval(stalenessInterval);
+    stalenessInterval = null;
+  }
 }
 
 function startFlushing(interval) {
