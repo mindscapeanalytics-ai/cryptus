@@ -58,31 +58,63 @@ function stripeModeFromKey(key: string | undefined): "test" | "live" | "unknown"
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const authPlugins: any[] = [adminPlugin()];
 
 if (!stripeSecretKey) {
-  throw new Error("Missing STRIPE_SECRET_KEY. Stripe subscription features cannot initialize.");
+  console.warn("[auth] STRIPE_SECRET_KEY is missing. Stripe subscription plugin is disabled.");
+} else {
+  const secretMode = stripeModeFromKey(stripeSecretKey);
+  const publishableMode = stripeModeFromKey(stripePublishableKey);
+
+  if (
+    publishableMode !== "unknown" &&
+    secretMode !== "unknown" &&
+    publishableMode !== secretMode
+  ) {
+    console.warn(
+      `[auth] Stripe key mode mismatch (publishable=${publishableMode}, secret=${secretMode}). Stripe subscription plugin is disabled.`,
+    );
+  } else if (process.env.NODE_ENV === "production" && !stripeWebhookSecret) {
+    console.warn("[auth] STRIPE_WEBHOOK_SECRET missing in production. Stripe subscription plugin is disabled.");
+  } else {
+    const stripeClient = new Stripe(stripeSecretKey, {
+      apiVersion: "2025-11-17.clover" as any,
+    });
+
+    authPlugins.push(
+      stripe({
+        stripeClient,
+        stripeWebhookSecret: stripeWebhookSecret || "",
+        createCustomerOnSignUp: true,
+        subscription: {
+          enabled: true,
+          plans: async () => getPlansFromStripe(stripeClient),
+          authorizeReference: async ({ user, referenceId, action }) => {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { id: true, email: true, role: true },
+            });
+
+            if (!dbUser) return false;
+
+            const isOwner =
+              dbUser.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL ||
+              dbUser.role === "owner";
+
+            if (isOwner) return true;
+
+            // User-scoped subscriptions: members can only read/update their own reference.
+            if (action === "list-subscription") {
+              return referenceId === dbUser.id;
+            }
+
+            return referenceId === dbUser.id;
+          },
+        },
+      }),
+    );
+  }
 }
-
-const secretMode = stripeModeFromKey(stripeSecretKey);
-const publishableMode = stripeModeFromKey(stripePublishableKey);
-
-if (
-  publishableMode !== "unknown" &&
-  secretMode !== "unknown" &&
-  publishableMode !== secretMode
-) {
-  throw new Error(
-    `Stripe key mode mismatch: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${publishableMode}, STRIPE_SECRET_KEY=${secretMode}.`,
-  );
-}
-
-if (process.env.NODE_ENV === "production" && !stripeWebhookSecret) {
-  throw new Error("Missing STRIPE_WEBHOOK_SECRET in production.");
-}
-
-const stripeClient = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-11-17.clover" as any,
-});
 
 export const auth = betterAuth({
   baseURL: resolvedAppUrl,
@@ -118,39 +150,7 @@ export const auth = betterAuth({
     },
   },
 
-  plugins: [
-    adminPlugin(),
-    stripe({
-      stripeClient,
-      stripeWebhookSecret: stripeWebhookSecret || "",
-      createCustomerOnSignUp: true,
-      subscription: {
-        enabled: true,
-        plans: async () => getPlansFromStripe(stripeClient),
-        authorizeReference: async ({ user, referenceId, action }) => {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: { id: true, email: true, role: true },
-          });
-
-          if (!dbUser) return false;
-
-          const isOwner =
-            dbUser.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL ||
-            dbUser.role === "owner";
-
-          if (isOwner) return true;
-
-          // User-scoped subscriptions: members can only read/update their own reference.
-          if (action === "list-subscription") {
-            return referenceId === dbUser.id;
-          }
-
-          return referenceId === dbUser.id;
-        },
-      },
-    }),
-  ],
+  plugins: authPlugins,
 
   trustedOrigins,
 });

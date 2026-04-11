@@ -3,17 +3,19 @@ import Stripe from "stripe";
 import { getSessionUser } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-
-if (!stripeSecretKey) {
-  throw new Error("Missing STRIPE_SECRET_KEY for billing portal.");
-}
-
-const stripeClient = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-11-17.clover" as any,
-});
-
 export async function POST() {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    return NextResponse.json(
+      { error: "Billing portal is unavailable: Stripe is not configured." },
+      { status: 503 },
+    );
+  }
+
+  const stripeClient = new Stripe(stripeSecretKey, {
+    apiVersion: "2025-11-17.clover" as any,
+  });
+
   const ctx = await getSessionUser();
   if (ctx.error) return ctx.error;
 
