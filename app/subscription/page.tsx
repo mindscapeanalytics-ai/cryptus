@@ -11,8 +11,9 @@ export default function SubscriptionPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [subscriptionRequired, setSubscriptionRequired] = useState(false);
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const session = authClient.useSession();
-  const { subscription, isTrialing, hasActiveSubscription } = useSubscription();
+  const { subscription, isTrialing, hasActiveSubscription, daysLeft } = useSubscription();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -25,13 +26,37 @@ export default function SubscriptionPage() {
     (session.data?.user as { role?: string | null } | undefined)?.role === "owner";
 
   const handleSubscribe = async (plan: "monthly" | "yearly") => {
+    setCheckoutMessage(null);
+
     if (!session.data?.user?.id) {
-      alert("Please sign in first.");
+      setCheckoutMessage("Please sign in first.");
+      return;
+    }
+
+    if (isTrialing) {
+      setCheckoutMessage(
+        `Your free trial is active${typeof daysLeft === "number" ? ` for ${daysLeft} more day${daysLeft === 1 ? "" : "s"}` : ""}. Billing starts after trial ends.`,
+      );
       return;
     }
 
     setLoadingPlan(plan);
     try {
+      const preflightRes = await fetch("/api/subscription/checkout-ready", {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const preflight = await preflightRes.json().catch(() => null) as {
+        canCheckout?: boolean;
+        message?: string;
+      } | null;
+
+      if (!preflightRes.ok || !preflight?.canCheckout) {
+        setCheckoutMessage(preflight?.message || "Checkout is not available right now.");
+        return;
+      }
+
       const { error } = await authClient.subscription.upgrade({
         plan,
         annual: plan === "yearly",
@@ -44,11 +69,17 @@ export default function SubscriptionPage() {
 
       if (error) {
         console.error("Subscription error:", error);
-        alert("Failed to start checkout. Please try again.");
+        const message =
+          typeof error === "string"
+            ? error
+            : (error as { message?: string })?.message ||
+              (error as { statusText?: string })?.statusText ||
+              "Checkout could not be started right now. Please retry in a moment.";
+        setCheckoutMessage(message);
       }
     } catch (error) {
       console.error("Checkout error:", error);
-      alert("An error occurred. Please try again.");
+      setCheckoutMessage("Checkout is temporarily unavailable. Please retry in a minute.");
     } finally {
       setLoadingPlan(null);
     }
@@ -61,11 +92,18 @@ export default function SubscriptionPage() {
       return "CURRENT PLAN";
     }
 
-    if (isTrialing || hasActiveSubscription) {
+    if (isTrialing) {
+      if (typeof daysLeft === "number") {
+        return `AVAILABLE IN ${daysLeft} DAY${daysLeft === 1 ? "" : "S"}`;
+      }
+      return "AVAILABLE AFTER TRIAL";
+    }
+
+    if (hasActiveSubscription) {
       return plan === "monthly" ? "ACTIVATE MONTHLY" : "ACTIVATE YEARLY";
     }
 
-    return `START FREE ${AUTH_CONFIG.TRIAL_DAYS}-DAY ACCESS`;
+    return "SUBSCRIBE NOW";
   };
 
   const openBillingPortal = async () => {
@@ -115,6 +153,18 @@ export default function SubscriptionPage() {
           </div>
         ) : null}
 
+        {checkoutMessage ? (
+          <div className="mb-8 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-xs text-amber-100 uppercase tracking-[0.15em] font-bold">
+            {checkoutMessage}
+          </div>
+        ) : null}
+
+        {isTrialing ? (
+          <div className="mb-8 rounded-2xl border border-[#39FF14]/35 bg-[#39FF14]/10 px-4 py-3 text-xs text-[#b7ffab] uppercase tracking-[0.15em] font-bold">
+            Trial active{typeof daysLeft === "number" ? `: ${daysLeft} day${daysLeft === 1 ? "" : "s"} remaining` : ""}. Payment is requested after day {AUTH_CONFIG.TRIAL_DAYS}.
+          </div>
+        ) : null}
+
         {subscription ? (
           <div className="mb-8 rounded-2xl border border-white/10 bg-[#0a0f1a] px-4 py-4 flex items-center justify-between gap-4 flex-wrap">
             <div>
@@ -147,7 +197,7 @@ export default function SubscriptionPage() {
             ]}
             loading={loadingPlan === "monthly"}
             onClick={() => handleSubscribe("monthly")}
-            disabled={!!loadingPlan || (subscription?.plan === "monthly" && subscription?.status === "active")}
+            disabled={isTrialing || !!loadingPlan || (subscription?.plan === "monthly" && subscription?.status === "active")}
             buttonText={getButtonText("monthly")}
           />
 
@@ -165,7 +215,7 @@ export default function SubscriptionPage() {
             highlight
             loading={loadingPlan === "yearly"}
             onClick={() => handleSubscribe("yearly")}
-            disabled={!!loadingPlan || (subscription?.plan === "yearly" && subscription?.status === "active")}
+            disabled={isTrialing || !!loadingPlan || (subscription?.plan === "yearly" && subscription?.status === "active")}
             buttonText={getButtonText("yearly")}
           />
         </div>

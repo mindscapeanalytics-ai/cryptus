@@ -79,7 +79,7 @@ export function useSubscription() {
         if (data.subscription) {
           const sub = data.subscription as Subscription;
           setSubscription(sub);
-          setIsTrialing(sub.status === "trialing");
+          setIsTrialing(Boolean(data.isTrialing ?? sub.status === "trialing"));
 
           const endSource = sub.trialEnd || sub.periodEnd;
           if (endSource) {
@@ -88,7 +88,7 @@ export function useSubscription() {
             const diff = Math.max(0, Math.ceil((end - now) / (1000 * 60 * 60 * 24)));
             setDaysLeft(diff);
           } else {
-            setDaysLeft(null);
+            setDaysLeft(typeof data.daysLeft === "number" ? data.daysLeft : null);
           }
         } else {
           setSubscription(null);

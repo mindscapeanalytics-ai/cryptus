@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, ArrowRight } from "lucide-react";
-import { signUp } from "@/lib/auth-client";
+import { signIn, signUp } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const registerSchema = z.object({
@@ -33,6 +33,8 @@ export default function RegisterPage() {
   const onSubmit = async (values: RegisterValues) => {
     setIsLoading(true);
     setError(null);
+    setSuccess(null);
+    let signUpFailed = false;
 
     try {
       await signUp.email(
@@ -40,18 +42,38 @@ export default function RegisterPage() {
           email: values.email,
           password: values.password,
           name: values.name,
+        },
+        {
+          onError: (ctx) => {
+            signUpFailed = true;
+            setError(ctx.error.message || "Failed to create account. Please try again.");
+          },
+        }
+      );
+
+      if (signUpFailed) {
+        setIsLoading(false);
+        return;
+      }
+
+      setSuccess("Account created. Signing you in...");
+
+      await signIn.email(
+        {
+          email: values.email,
+          password: values.password,
           callbackURL: "/terminal",
         },
         {
           onError: (ctx) => {
-            setError(ctx.error.message || "Failed to create account. Please try again.");
+            setError(ctx.error.message || "Account created, but auto-login failed. Please sign in.");
             setIsLoading(false);
           },
           onSuccess: () => {
-            setSuccess("Account Created. Synchronizing Profile...");
+            setSuccess("Connected. Launching terminal...");
             setIsLoading(false);
-          }
-        }
+          },
+        },
       );
     } catch (err) {
       console.error("Signup error:", err);

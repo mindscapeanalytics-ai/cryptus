@@ -8,6 +8,7 @@ type SubscriptionStatusRef = {
   status: string | null;
   endedAt: Date | null;
   periodEnd: Date | null;
+  trialEnd: Date | null;
 };
 
 export async function getSessionUser() {
@@ -56,8 +57,13 @@ export async function checkSubscription(
   const subs = await prisma.subscription.findMany({
     where: { referenceId },
     orderBy: { updatedAt: "desc" },
-    select: { status: true, endedAt: true, periodEnd: true },
+    select: { status: true, endedAt: true, periodEnd: true, trialEnd: true },
   }) as SubscriptionStatusRef[];
+
+  const user = await prisma.user.findUnique({
+    where: { id: referenceId },
+    select: { createdAt: true },
+  });
 
   const statusPriority: Record<string, number> = { active: 0, trialing: 1, past_due: 2 };
   const subscription = subs.length > 0
@@ -76,6 +82,11 @@ export async function checkSubscription(
     const now = Date.now();
     const hasEnded = subscription.endedAt && subscription.endedAt.getTime() < now;
     const periodEndMs = subscription.periodEnd ? new Date(subscription.periodEnd).getTime() : null;
+    const explicitTrialEndMs = subscription.trialEnd ? new Date(subscription.trialEnd).getTime() : null;
+    const fallbackTrialEndMs = user
+      ? user.createdAt.getTime() + AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000
+      : null;
+    const trialEndMs = explicitTrialEndMs ?? periodEndMs ?? fallbackTrialEndMs;
     const graceMs = AUTH_CONFIG.PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
     const activeButExpired =
@@ -84,15 +95,13 @@ export async function checkSubscription(
     const withinPastDueGrace =
       isPastDue && !!periodEndMs && !Number.isNaN(periodEndMs) && now <= periodEndMs + graceMs;
 
-    if (((isActive && !activeButExpired) || isTrialing || withinPastDueGrace) && !hasEnded) {
+    const withinTrialWindow =
+      isTrialing && !!trialEndMs && !Number.isNaN(trialEndMs) && now < trialEndMs;
+
+    if (((isActive && !activeButExpired) || withinTrialWindow || withinPastDueGrace) && !hasEnded) {
       return { ok: true, subscription };
     }
   }
-
-  const user = await prisma.user.findUnique({
-    where: { id: referenceId },
-    select: { createdAt: true },
-  });
 
   if (user) {
     const createdAt = user.createdAt.getTime();

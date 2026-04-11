@@ -27,22 +27,40 @@ export async function GET() {
     }, { headers: NO_STORE_HEADERS });
   }
 
-  const subscriptions = await prisma.subscription.findMany({
-    where: { referenceId: user.id },
-    orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      referenceId: true,
-      status: true,
-      plan: true,
-      periodStart: true,
-      periodEnd: true,
-      trialEnd: true,
-      stripeSubscriptionId: true,
-      invoiceRef: true,
-      renewalNotes: true,
-    },
-  });
+  let subscriptions: Array<{
+    id: string;
+    referenceId: string;
+    status: string;
+    plan: string | null;
+    periodStart: Date | null;
+    periodEnd: Date | null;
+    trialEnd: Date | null;
+    stripeSubscriptionId: string | null;
+    invoiceRef: string | null;
+    renewalNotes: string | null;
+  }> = [];
+
+  try {
+    subscriptions = await prisma.subscription.findMany({
+      where: { referenceId: user.id },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        referenceId: true,
+        status: true,
+        plan: true,
+        periodStart: true,
+        periodEnd: true,
+        trialEnd: true,
+        stripeSubscriptionId: true,
+        invoiceRef: true,
+        renewalNotes: true,
+      },
+    });
+  } catch (error: any) {
+    if (error?.code !== "P2021") throw error;
+    subscriptions = [];
+  }
 
   const statusPriority: Record<string, number> = {
     active: 0,
@@ -63,10 +81,23 @@ export async function GET() {
     const isTrialing = subscription.status === "trialing";
     const isPastDue = subscription.status === "past_due";
     const now = Date.now();
+    const trialMs = AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
+    const createdAtMs = new Date(user.createdAt).getTime();
 
     const periodEndMs = subscription.periodEnd
       ? new Date(subscription.periodEnd).getTime()
       : null;
+
+    const explicitTrialEndMs = subscription.trialEnd
+      ? new Date(subscription.trialEnd).getTime()
+      : null;
+
+    const fallbackTrialEndMs = createdAtMs + trialMs;
+    const trialEndMs = explicitTrialEndMs ?? periodEndMs ?? fallbackTrialEndMs;
+    const trialActive = isTrialing && !Number.isNaN(trialEndMs) && now < trialEndMs;
+    const daysLeft = trialActive
+      ? Math.max(0, Math.ceil((trialEndMs - now) / (1000 * 60 * 60 * 24)))
+      : 0;
 
     const activeAndExpired =
       isActive && !!periodEndMs && !Number.isNaN(periodEndMs) && periodEndMs < now;
@@ -76,11 +107,13 @@ export async function GET() {
       isPastDue && !!periodEndMs && !Number.isNaN(periodEndMs) && now <= periodEndMs + graceMs;
 
     const hasActiveSubscription =
-      (isActive && !activeAndExpired) || isTrialing || withinPastDueGrace;
+      (isActive && !activeAndExpired) || trialActive || withinPastDueGrace;
 
     return NextResponse.json({
       hasActiveSubscription,
       subscription,
+      isTrialing: trialActive,
+      daysLeft,
     }, { headers: NO_STORE_HEADERS });
   }
 

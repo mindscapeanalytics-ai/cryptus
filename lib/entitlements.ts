@@ -31,6 +31,7 @@ export interface ResolvedEntitlements {
 type SubscriptionLite = {
   status: string;
   periodEnd: Date | null;
+  trialEnd: Date | null;
   endedAt: Date | null;
 };
 
@@ -107,6 +108,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
       select: {
         status: true,
         periodEnd: true,
+        trialEnd: true,
         endedAt: true,
       },
     });
@@ -124,6 +126,9 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
 
   if (best) {
     const periodEndMs = best.periodEnd ? new Date(best.periodEnd).getTime() : null;
+    const explicitTrialEndMs = best.trialEnd ? new Date(best.trialEnd).getTime() : null;
+    const fallbackTrialEndMs = user.createdAt.getTime() + AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
+    const trialEndMs = explicitTrialEndMs ?? periodEndMs ?? fallbackTrialEndMs;
     const hasEnded = !!best.endedAt && new Date(best.endedAt).getTime() < now;
     const graceMs = AUTH_CONFIG.PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
@@ -137,7 +142,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
     }
 
     if (best.status === "trialing") {
-      isTrialing = true;
+      isTrialing = !Number.isNaN(trialEndMs) && now < trialEndMs;
     }
   }
 
