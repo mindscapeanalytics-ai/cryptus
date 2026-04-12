@@ -34,12 +34,14 @@ export const viewport: Viewport = {
 
 import { Toaster } from 'sonner';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
+import { PWAServiceWorkerRegistration } from '@/components/pwa-service-worker-registration';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased bg-[#0a0e17]" suppressHydrationWarning>
         {children}
+        <PWAServiceWorkerRegistration />
         <PWAInstallPrompt />
         <Toaster theme="dark" position="top-right" closeButton richColors />
       </body>

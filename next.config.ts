@@ -7,8 +7,36 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: false,
   aggressiveFrontEndNavCaching: false,
   reloadOnOnline: true,
+  fallbacks: {
+    document: '/offline',
+    image: '/logo/rsiq-pro-icon.png',
+    audio: undefined,
+    video: undefined,
+  },
   workboxOptions: {
-    // Custom workbox options
+    // Ensure offline page is precached
+    skipWaiting: true,
+    clientsClaim: true,
+    navigateFallback: '/offline',
+    navigateFallbackDenylist: [/^\/api/, /^\/login$/, /^\/register$/],
+    runtimeCaching: [
+      {
+        urlPattern: /^https:\/\/fonts\.googleapis\.com/,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'google-fonts-stylesheets',
+          expiration: { maxAgeSeconds: 604800 }, // 1 week
+        },
+      },
+      {
+        urlPattern: /^https:\/\/fonts\.gstatic\.com/,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'google-fonts-webfonts',
+          expiration: { maxAgeSeconds: 31536000 }, // 1 year
+        },
+      },
+    ],
   },
 });
 
@@ -21,9 +49,40 @@ const nextConfig: NextConfig = {
   // Ensure native Node.js modules are not bundled by webpack
   serverExternalPackages: ["pg"],
 
-  // Security Headers
+  // Security Headers + Caching Strategy
   async headers() {
     return [
+      // PWA & Manifest files: always revalidate
+      {
+        source: "/(manifest.json|sw.js|offline)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
+      // Static assets: cache for 1 year (fingerprinted)
+      {
+        source: "/(_next/static|logo|images)/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      // Web fonts: cache for 1 week
+      {
+        source: "/:path*.(woff|woff2|ttf|eot|otf)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800" },
+        ],
+      },
+      // HTML pages: revalidate frequently for PWA shell
+      {
+        source: "/:path*.html",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600, s-maxage=3600" },
+        ],
+      },
+      // Global security headers
       {
         source: "/(.*)",
         headers: [

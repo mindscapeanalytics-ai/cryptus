@@ -1,4 +1,6 @@
-export const dynamic = "force-dynamic";
+// Cache shell for 5 minutes, but client-side real-time updates handle fresh data
+export const revalidate = 300;
+
 import Link from 'next/link';
 import ScreenerDashboard from '@/components/screener-dashboard';
 import { SubscriptionGate } from '@/components/subscription-gate';

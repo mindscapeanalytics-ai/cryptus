@@ -7,6 +7,24 @@ type Session = typeof auth.$Infer.Session;
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Always allow static/public assets so PWA files and icons are reachable before auth.
+  const isStaticAsset =
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/images/") ||
+    pathname.startsWith("/logo/") ||
+    pathname === "/favicon.ico" ||
+    pathname === "/manifest.json" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/workbox-") ||
+    pathname.startsWith("/worker-") ||
+    /\.[a-z0-9]+$/i.test(pathname);
+
+  if (isStaticAsset) {
+    return NextResponse.next();
+  }
+
   const publicPrefixes = ["/login", "/register", "/about", "/services", "/subscription"];
   const isPublicRoute =
     pathname === "/" ||
@@ -124,9 +142,9 @@ export const config = {
      * - api (API routes — must be excluded so auth endpoints work)
      * - _next/static (static files)
      * - _next/image (image optimization)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-     * - assets (images, fonts, etc.)
+     * - metadata and PWA assets (manifest, sw, robots, favicon)
+     * - any file with an extension (public assets: images, icons, js, css, etc.)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|assets|images).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.json|sw.js|.*\\..*).*)",
   ],
 };
