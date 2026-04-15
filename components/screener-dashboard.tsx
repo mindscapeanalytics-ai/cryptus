@@ -21,6 +21,8 @@ import type { ScreenerEntry, ScreenerResponse, SortKey, SortDir, SignalFilter } 
 import { useLivePrices, useSymbolPrice } from '@/hooks/use-live-prices';
 import { useAlertEngine } from '@/hooks/use-alert-engine';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { useDerivativesIntel } from '@/hooks/use-derivatives-intel';
+import { DerivativesPanel, OrderFlowBar } from '@/components/derivatives-panel';
 import { approximateRsi, approximateEma } from '@/lib/rsi';
 import { computeStrategyScore, deriveSignal } from '@/lib/indicators';
 import { getSymbolAlias } from '@/lib/symbol-utils';
@@ -179,6 +181,9 @@ const ScreenerRow = memo(function ScreenerRow({
   globalVolatilityEnabled,
   globalLongCandleThreshold,
   globalVolumeSpikeThreshold,
+  fundingRate,
+  orderFlowData,
+  smartMoneyScore,
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -208,6 +213,9 @@ const ScreenerRow = memo(function ScreenerRow({
   globalVolatilityEnabled: boolean;
   globalLongCandleThreshold: number;
   globalVolumeSpikeThreshold: number;
+  fundingRate: { rate: number; annualized: number } | null;
+  orderFlowData: { ratio: number; pressure: string; buyVolume1m: number; sellVolume1m: number } | null;
+  smartMoneyScore: { score: number; label: string } | null;
 }) {
   const isStarred = watchlist.has(entry.symbol);
   const [isVisible, setIsVisible] = useState(false);
@@ -735,6 +743,56 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
+      {/* ─── Derivatives Intelligence Cells ─── */}
+      {visibleCols.has('fundingRate') && (
+        <td className="px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono">
+          {fundingRate ? (
+            <div className="flex flex-col items-end">
+              <span className={fundingRate.rate > 0 ? "text-green-400" : fundingRate.rate < 0 ? "text-red-400" : "text-slate-500"}>
+                {fundingRate.rate > 0 ? '+' : ''}{(fundingRate.rate * 100).toFixed(4)}%
+              </span>
+              <span className="text-[7px] text-slate-600">{fundingRate.annualized.toFixed(0)}% APR</span>
+            </div>
+          ) : <span className="text-slate-700">—</span>}
+        </td>
+      )}
+      {visibleCols.has('orderFlow') && (
+        <td className="px-3 py-4 text-right">
+          {orderFlowData ? (
+            <div className="flex items-center justify-end gap-1">
+              <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+                <div className="h-full bg-green-500/60" style={{ width: `${orderFlowData.ratio * 100}%` }} />
+                <div className="h-full bg-red-500/60" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
+              </div>
+              <span className={cn("text-[8px] font-black",
+                orderFlowData.pressure === 'strong-buy' ? "text-green-400" :
+                orderFlowData.pressure === 'buy' ? "text-green-400/70" :
+                orderFlowData.pressure === 'strong-sell' ? "text-red-400" :
+                orderFlowData.pressure === 'sell' ? "text-red-400/70" : "text-slate-500"
+              )}>
+                {(orderFlowData.ratio * 100).toFixed(0)}%
+              </span>
+            </div>
+          ) : <span className="text-slate-700 text-[10px]">—</span>}
+        </td>
+      )}
+      {visibleCols.has('smartMoney') && (
+        <td className="px-3 py-4 text-right">
+          {smartMoneyScore ? (
+            <span className={cn(
+              "text-[9px] font-black px-1.5 py-0.5 rounded-md",
+              smartMoneyScore.score >= 60 ? "bg-green-500/15 text-green-400" :
+              smartMoneyScore.score >= 30 ? "bg-green-500/10 text-green-400/70" :
+              smartMoneyScore.score <= -60 ? "bg-red-500/15 text-red-400" :
+              smartMoneyScore.score <= -30 ? "bg-red-500/10 text-red-400/70" :
+              "bg-slate-800 text-slate-500"
+            )}>
+              {smartMoneyScore.score > 0 ? '+' : ''}{smartMoneyScore.score}
+            </span>
+          ) : <span className="text-slate-700 text-[10px]">—</span>}
+        </td>
+      )}
+
       <td className="px-3 py-4 text-right">
         {display.signal !== 'neutral' && <SignalBadge signal={display.signal.toLowerCase() as any} />}
 
@@ -931,7 +989,8 @@ type ColumnId =
   | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
   | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy'
   | 'confluence' | 'divergence' | 'momentum'
-  | 'atr' | 'adx';
+  | 'atr' | 'adx'
+  | 'fundingRate' | 'orderFlow' | 'smartMoney';
 
 interface ColumnDef {
   id: ColumnId;
@@ -963,6 +1022,9 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'adx', label: 'ADX', group: 'Volatility', defaultVisible: false },
   { id: 'longCandle', label: 'Long Candle', group: 'Volatility', defaultVisible: true },
   { id: 'volumeSpike', label: 'Vol Spike', group: 'Volatility', defaultVisible: true },
+  { id: 'fundingRate', label: 'Funding', group: 'Derivatives', defaultVisible: true },
+  { id: 'orderFlow', label: 'Flow', group: 'Derivatives', defaultVisible: true },
+  { id: 'smartMoney', label: 'Smart $', group: 'Derivatives', defaultVisible: true },
   { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
 ];
 
@@ -1057,6 +1119,9 @@ const ScreenerCard = memo(function ScreenerCard({
   globalVolatilityEnabled,
   globalLongCandleThreshold,
   globalVolumeSpikeThreshold,
+  fundingRate,
+  orderFlowData,
+  smartMoneyScore,
 }: {
   entry: ScreenerEntry;
   idx: number;
@@ -1086,6 +1151,9 @@ const ScreenerCard = memo(function ScreenerCard({
   globalVolatilityEnabled: boolean;
   globalLongCandleThreshold: number;
   globalVolumeSpikeThreshold: number;
+  fundingRate: { rate: number; annualized: number } | null;
+  orderFlowData: { ratio: number; pressure: string; buyVolume1m: number; sellVolume1m: number } | null;
+  smartMoneyScore: { score: number; label: string } | null;
 }) {
   const isStarred = watchlist.has(entry.symbol);
 
@@ -1448,6 +1516,30 @@ const ScreenerCard = memo(function ScreenerCard({
                 ) : col.id === 'atr' || col.id === 'adx' ? (
                   <span className="text-[10px] font-black tabular-nums font-mono text-slate-300">
                     {globalVolatilityEnabled && typeof val === 'number' ? val.toFixed(col.id === 'atr' ? 4 : 1) : '—'}
+                  </span>
+                ) : col.id === 'fundingRate' ? (
+                  <span className={cn("text-[9px] font-black tabular-nums",
+                    fundingRate ? (fundingRate.rate > 0 ? "text-green-400" : fundingRate.rate < 0 ? "text-red-400" : "text-slate-500") : "text-slate-700"
+                  )}>
+                    {fundingRate ? `${fundingRate.rate > 0 ? '+' : ''}${(fundingRate.rate * 100).toFixed(3)}%` : '—'}
+                  </span>
+                ) : col.id === 'orderFlow' ? (
+                  orderFlowData ? (
+                    <div className="flex items-center gap-0.5">
+                      <div className="w-6 h-1 rounded-full bg-slate-800 overflow-hidden flex">
+                        <div className="h-full bg-green-500/60" style={{ width: `${orderFlowData.ratio * 100}%` }} />
+                        <div className="h-full bg-red-500/60" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
+                      </div>
+                    </div>
+                  ) : <span className="text-slate-700 text-[9px]">—</span>
+                ) : col.id === 'smartMoney' ? (
+                  <span className={cn("text-[8px] font-black",
+                    smartMoneyScore ? (
+                      smartMoneyScore.score >= 30 ? "text-green-400" :
+                      smartMoneyScore.score <= -30 ? "text-red-400" : "text-slate-500"
+                    ) : "text-slate-700"
+                  )}>
+                    {smartMoneyScore ? `${smartMoneyScore.score > 0 ? '+' : ''}${smartMoneyScore.score}` : '—'}
                   </span>
                 ) : (
                   <span className={cn(
@@ -1913,7 +2005,16 @@ export default function ScreenerDashboard() {
     globalOverbought, globalOversold, globalThresholdTimeframes, globalSignalThresholdMode
   ]);
 
-
+  // ─── Derivatives Intelligence Engine ───
+  const {
+    fundingRates,
+    liquidations,
+    whaleAlerts,
+    orderFlow,
+    openInterest,
+    smartMoney,
+    isConnected: derivativesConnected,
+  } = useDerivativesIntel(symbolSet, true);
 
   // ─── Hybrid Atomic Data ───
   // ProcessedData is the "base" data with non-live additions (like custom RSI values from the last API fetch).
@@ -3419,6 +3520,18 @@ export default function ScreenerDashboard() {
         </header>
       )}
 
+      {/* ─── DERIVATIVES INTELLIGENCE PANEL ─── */}
+      <div className="mb-4">
+        <DerivativesPanel
+          fundingRates={fundingRates}
+          liquidations={liquidations}
+          whaleAlerts={whaleAlerts}
+          orderFlow={orderFlow}
+          openInterest={openInterest}
+          smartMoney={smartMoney}
+          isConnected={derivativesConnected}
+        />
+      </div>
 
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-6">
         <div className="relative flex-1 rounded-2xl border border-white/5 bg-slate-900/40 focus-within:border-[#39FF14]/20 transition-all lg:max-w-xs shrink-0">
@@ -3748,6 +3861,9 @@ export default function ScreenerDashboard() {
                   globalVolatilityEnabled={globalVolatilityEnabled}
                   globalLongCandleThreshold={globalLongCandleThreshold}
                   globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
+                  fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
+                  orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
+                  smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
                 />
               ))}
             </>
@@ -3789,6 +3905,10 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('vwapDiff') && <SortHeader label="VWAP %" sortKey="vwapDiff" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('longCandle') && <SortHeader label="Long Candle" sortKey="longCandle" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('volumeSpike') && <SortHeader label="Vol Spike" sortKey="volumeSpike" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
+
+                  {visibleCols.has('fundingRate') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Funding</th>}
+                  {visibleCols.has('orderFlow') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Flow</th>}
+                  {visibleCols.has('smartMoney') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Smart $</th>}
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
@@ -3840,6 +3960,9 @@ export default function ScreenerDashboard() {
                         globalVolatilityEnabled={globalVolatilityEnabled}
                         globalLongCandleThreshold={globalLongCandleThreshold}
                         globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
+                        fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
+                        orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
+                        smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
                       />
                     ))}
                   </>

@@ -35,9 +35,9 @@ const withPWA = withPWAInit({
           cacheName: 'live-data-bypass',
         },
       },
-      // External exchange APIs (Binance/Bybit REST fallback) — always fresh
+      // External exchange APIs (Binance/Bybit REST + Futures) — always fresh
       {
-        urlPattern: /^https:\/\/api\.(binance\.com|bybit\.com)\//,
+        urlPattern: /^https:\/\/(api|fapi)\.(binance\.com|bybit\.com)\//,
         handler: 'NetworkOnly',
         options: {
           cacheName: 'exchange-api-bypass',
