@@ -164,7 +164,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ─── Hero Section ─── */}
-      <section className="relative pt-28 sm:pt-36 md:pt-44 pb-16 sm:pb-24 md:pb-32 px-4 sm:px-6 z-10 overflow-hidden">
+      <section className="relative pt-24 sm:pt-32 md:pt-36 pb-12 sm:pb-20 md:pb-24 px-4 sm:px-6 z-10 overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full pointer-events-none">
           <motion.div 
             animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
@@ -208,9 +208,9 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-base sm:text-lg md:text-2xl text-slate-400 max-w-4xl text-center leading-relaxed mb-10 sm:mb-16 font-medium px-2 sm:px-0"
+            className="text-sm sm:text-base md:text-xl text-slate-400 max-w-3xl text-center leading-relaxed mb-10 sm:mb-12 font-medium px-2 sm:px-0"
           >
-            <strong className="text-white">Stop missing critical setups.</strong> Retail traders lose edge by manually checking charts and relying on delayed, localized data. RSIQ Pro solves this by instantly scanning <span className="text-[#39FF14]">500+ assets (Crypto, Top Forex Pairs, and Metals)</span> in real-time, delivering institutional-grade indicators (RSI, MACD, Order Flow) so you never miss a profitable convergence again.
+            <strong className="text-white">Stop missing critical setups.</strong> Retail traders lose edge by manually checking charts. RSIQ Pro solves this by instantly scanning <span className="text-[#39FF14]">500+ assets in real-time</span>, delivering institutional-grade indicators (RSI, MACD, Order Flow) so you never miss a profitable convergence.
           </motion.p>
 
           <motion.div 
@@ -435,6 +435,10 @@ export default function LandingPage() {
                 <AnalysisItem 
                   title="Viral Signal Narration" 
                   desc="Transform technical setups into community growth. Generate professional, narratively-driven signal calls with one click for X, Discord, or Telegram." 
+                />
+                <AnalysisItem 
+                  title="Adaptive Load Shedding" 
+                  desc="In extreme high-volatility environments (Smart Mode), the engine downshifts UI repaints to prioritize raw data fidelity, ensuring zero connection loss." 
                 />
               </div>
             </div>
@@ -759,6 +763,39 @@ export default function LandingPage() {
               <a href={withUTM(MINDSCAPE_LINKS.services, { content: 'landing_connect_services' })} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/15 text-[10px] font-black uppercase tracking-[0.2em] text-slate-200 hover:border-[#39FF14]/40 hover:text-[#39FF14] transition-colors">Services <ExternalLink size={14} /></a>
               <a href={withUTM(MINDSCAPE_LINKS.projects, { content: 'landing_connect_case_studies' })} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/15 text-[10px] font-black uppercase tracking-[0.2em] text-slate-200 hover:border-[#39FF14]/40 hover:text-[#39FF14] transition-colors">Case Studies <ExternalLink size={14} /></a>
               <a href={withUTM(MINDSCAPE_LINKS.linkedin, { content: 'landing_connect_linkedin' })} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/15 text-[10px] font-black uppercase tracking-[0.2em] text-slate-200 hover:border-[#39FF14]/40 hover:text-[#39FF14] transition-colors">LinkedIn <ExternalLink size={14} /></a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Affiliates & Collaboration ─── */}
+      <section id="affiliate" className="py-20 sm:py-32 bg-gradient-to-b from-[#05080F] to-[#0A0E17] border-t border-white/5 relative overflow-hidden px-4 sm:px-6">
+        <div className="absolute top-1/2 left-1/2 w-full max-w-3xl h-[400px] bg-[#39FF14]/5 blur-[120px] rounded-full pointer-events-none transform -translate-x-1/2 -translate-y-1/2" />
+        
+        <div className="max-w-5xl mx-auto relative z-10">
+          <div className="p-8 sm:p-16 rounded-[4rem] bg-white/[0.02] border border-white/5 shadow-2xl flex flex-col items-center text-center group">
+            <div className="w-16 h-16 rounded-3xl bg-white/5 flex items-center justify-center text-white mb-8 border border-white/10 shadow-lg group-hover:scale-110 group-hover:border-[#39FF14]/30 group-hover:text-[#39FF14] transition-all duration-500">
+              <Handshake size={32} />
+            </div>
+            <h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14] mb-4">Strategic Partnerships</h2>
+            <h3 className="text-4xl sm:text-6xl font-black text-white tracking-tighter mb-6">Open for Collaboration.</h3>
+            <p className="text-slate-400 text-sm sm:text-lg max-w-2xl mx-auto mb-10 sm:mb-14 leading-relaxed font-medium">
+              We are actively looking for elite traders, fund managers, and community leaders to join our exclusive affiliate network. Bring institutional-grade tools to your audience and earn high-tier revenue share.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+              <a 
+                href="mailto:partners@mindscapeanalytics.com"
+                className="w-full sm:w-auto px-10 py-5 sm:py-6 rounded-2xl bg-white text-black font-black uppercase tracking-[0.2em] hover:bg-slate-200 transition-all text-xs text-center shadow-xl hover:scale-105"
+              >
+                Apply as Affiliate
+              </a>
+              <a 
+                href="mailto:contact@mindscapeanalytics.com"
+                className="w-full sm:w-auto px-10 py-5 sm:py-6 rounded-2xl border border-white/20 text-white font-black uppercase tracking-[0.2em] hover:bg-white/5 transition-all text-xs text-center hover:scale-105"
+              >
+                Contact for Synergy
+              </a>
             </div>
           </div>
         </div>
