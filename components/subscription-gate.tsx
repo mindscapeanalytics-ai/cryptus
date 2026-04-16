@@ -16,8 +16,8 @@ import { authClient } from "@/lib/auth-client";
 import { useSubscription } from "@/hooks/use-subscription";
 import { AUTH_CONFIG } from "@/lib/config";
 
-const MAX_SESSION_RETRIES = 3;
-const SESSION_RETRY_DELAY_MS = 1500;
+const MAX_SESSION_RETRIES = 5; // More frequent, faster checks
+const SESSION_RETRY_DELAY_MS = 250; // Ultra-fast hydration (250ms insted of 1.5s)
 
 export function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const session = authClient.useSession();

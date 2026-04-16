@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowRight } from "lucide-react";
-import { signIn } from "@/lib/auth-client";
+import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
+import { signIn, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const loginSchema = z.object({
@@ -23,6 +23,16 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
+  const { data: session, isPending: isSessionLoading } = useSession();
+
+  // ── Auto-Redirect ──
+  // If the user already has a valid session, zip them to the terminal immediately.
+  React.useEffect(() => {
+    if (session) {
+      setSuccess("Secure connection detected. Synchronizing...");
+      setTimeout(() => router.push("/terminal"), 600);
+    }
+  }, [session, router]);
 
   const {
     register,
@@ -49,11 +59,9 @@ export default function LoginPage() {
           },
           onSuccess: () => {
             setSuccess("Connection Established. Accessing Terminal...");
-            // Allow session cookie to fully propagate and refresh local state
+            // Faster, dynamic transition
             router.refresh();
-            setTimeout(() => {
-              router.push("/terminal");
-            }, 800);
+            router.push("/terminal");
           }
         }
       );

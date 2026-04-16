@@ -189,22 +189,31 @@ class BybitAdapter extends ExchangeAdapter {
   constructor(type = 'spot') {
     super();
     this.type = type; // 'spot' or 'linear'
-    this.subscribedTopics = [];
+    this.sockets = []; // Multi-socket pool for Spot
+    this.subscribedTopics = new Map(); // socket -> topics[]
   }
 
   connect() {
-    const url = this.type === 'spot'
-      ? 'wss://stream.bybit.com/v5/public/spot'
-      : 'wss://stream.bybit.com/v5/public/linear';
+    if (this.type === 'linear') {
+      this._connectSocket('wss://stream.bybit.com/v5/public/linear');
+    } else {
+      // For Spot, we start with one socket; subscribeAll will add more if needed
+      this._connectSocket('wss://stream.bybit.com/v5/public/spot');
+    }
+  }
 
-    this.socket = new WebSocket(url);
-    this.socket.onopen = () => {
-      console.log(`[worker] Bybit ${this.type} Connected`);
+  _connectSocket(url) {
+    const ws = new WebSocket(url);
+    this.sockets.push(ws);
+    
+    ws.onopen = () => {
+      console.log(`[worker] Bybit ${this.type} Socket Connected (${this.sockets.length})`);
       resetReconnectAttempts(this.exchangeName || 'bybit');
       this.startHeartbeat();
       this.subscribeAll();
     };
-    this.socket.onmessage = (event) => {
+
+    ws.onmessage = (event) => {
       try {
         lastDataReceived = Date.now();
         const data = JSON.parse(event.data);
@@ -221,90 +230,113 @@ class BybitAdapter extends ExchangeAdapter {
         }
       } catch (e) { }
     };
-    this.socket.onclose = () => {
+
+    ws.onclose = () => {
       const delay = getReconnectDelay(this.exchangeName || 'bybit');
-      console.log(`[worker] Bybit ${this.type} Closed, reconnecting in ${Math.round(delay)}ms...`);
+      console.log(`[worker] Bybit ${this.type} Socket Closed, reconnecting in ${Math.round(delay)}ms...`);
       this.disconnect();
       setTimeout(() => ensureExchange(this.exchangeName || currentExchangeName), delay);
     };
-    this.socket.onerror = () => this.socket?.close();
+
+    ws.onerror = () => ws.close();
+  }
+
+  disconnect() {
+    this.sockets.forEach(s => {
+      if (s.readyState <= WebSocket.OPEN) s.close();
+    });
+    this.sockets = [];
+    this.subscribedTopics.clear();
+    this.stopHeartbeat();
   }
 
   sendPing() {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ op: 'ping' }));
-    }
+    this.sockets.forEach(s => {
+      if (s.readyState === WebSocket.OPEN) s.send(JSON.stringify({ op: 'ping' }));
+    });
   }
 
   updateSymbols(symbols) {
-    if (this.socket?.readyState === WebSocket.OPEN && this.type === 'spot') {
+    if (this.type === 'spot') {
       this.subscribeAll();
     }
   }
 
   subscribeAll() {
-    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    if (this.sockets.length === 0) return;
 
     if (this.type !== 'spot') {
-      // PRO TRICK: For Linear/Inverse, use unified "tickers" topic to get ALL symbols at once
-      if (this.subscribedTopics.includes('tickers')) return;
-      this.socket.send(JSON.stringify({
-        op: 'subscribe',
-        args: ['tickers']
-      }));
-      this.subscribedTopics = ['tickers'];
+      const ws = this.sockets[0];
+      if (ws.readyState !== WebSocket.OPEN) return;
+      const topics = this.subscribedTopics.get(ws) || [];
+      if (topics.includes('tickers')) return;
+      
+      ws.send(JSON.stringify({ op: 'subscribe', args: ['tickers'] }));
+      this.subscribedTopics.set(ws, ['tickers']);
       return;
     }
 
-    // Bybit Spot requires explicit subscription. Max 10 per message. Max 33 topics per connection.
-    // Unsubscribe all previous to keep topic count low
-    if (this.subscribedTopics.length > 0) {
-      for (let i = 0; i < this.subscribedTopics.length; i += 10) {
-        this.socket.send(JSON.stringify({
-          op: 'unsubscribe',
-          args: this.subscribedTopics.slice(i, i + 10)
-        }));
-      }
-    }
-
-    // Prioritise: alert symbols → viewport symbols → major pairs → remaining by volume
+    // Bybit Spot Multi-WebSocket Scaling Logic (2026 Strategy)
     const allSymbols = Array.from(currentSymbols);
     const alertSymbols = allSymbols.filter(s => {
       const cfg = coinConfigs.get(s);
       return cfg && (cfg.alertOn1m || cfg.alertOn5m || cfg.alertOn15m || cfg.alertOn1h || cfg.alertOnCustom || cfg.alertOnStrategyShift);
     });
-
-    // Major pairs should always get live ticks for best UX
     const majorPairs = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT'];
     const majors = majorPairs.filter(s => currentSymbols.has(s));
-
     const remaining = allSymbols.filter(s => !alertSymbols.includes(s) && !majors.includes(s));
-    // GAP-B3 FIX: Increased subscription limit for Bybit Spot (v5 supports up to 500, we'll use 200 for stability)
-    const prioritised = [...new Set([...alertSymbols, ...majors, ...remaining])].slice(0, 200);
+    
+    const prioritised = [...new Set([...alertSymbols, ...majors, ...remaining])];
     const topicSet = prioritised.map(s => `tickers.${s}`);
-    this.subscribedTopics = topicSet;
+    
+    // Bybit V5 allows up to 500 topics per connection, but 100/200 is safer for stability.
+    const TOPICS_PER_WS = 200;
+    const requiredSockets = Math.ceil(topicSet.length / TOPICS_PER_WS);
 
-    for (let i = 0; i < topicSet.length; i += 10) {
-      const batch = topicSet.slice(i, i + 10);
-      this.socket.send(JSON.stringify({
-        op: 'subscribe',
-        args: batch
-      }));
+    // Add missing sockets if needed (limit to 5 to avoid resource exhaustion)
+    while (this.sockets.length < requiredSockets && this.sockets.length < 5) {
+      this._connectSocket('wss://stream.bybit.com/v5/public/spot');
+      return; // Wait for onopen
     }
-    console.log(`[worker] Bybit Spot subscribed to ${topicSet.length} symbols (${alertSymbols.length} alerts, ${majors.length} majors)`);
+
+    this.sockets.forEach((s, idx) => {
+      if (s.readyState !== WebSocket.OPEN) return;
+      
+      const start = idx * TOPICS_PER_WS;
+      const end = start + TOPICS_PER_WS;
+      const batchTopics = topicSet.slice(start, end);
+      
+      if (batchTopics.length === 0) return;
+
+      // Only re-subscribe if topics changed
+      const current = this.subscribedTopics.get(s) || [];
+      if (JSON.stringify(current) === JSON.stringify(batchTopics)) return;
+
+      // Unsubscribe old
+      if (current.length > 0) {
+        for (let i = 0; i < current.length; i += 10) {
+          s.send(JSON.stringify({ op: 'unsubscribe', args: current.slice(i, i + 10) }));
+        }
+      }
+
+      // Subscribe new
+      for (let i = 0; i < batchTopics.length; i += 10) {
+        const batch = batchTopics.slice(i, i + 10);
+        s.send(JSON.stringify({ op: 'subscribe', args: batch }));
+      }
+      this.subscribedTopics.set(s, batchTopics);
+    });
   }
 
   process(data, ts) {
     if (!data) return;
-    // Normalize Bybit V5 ticker to internal schema
-    // Bybit payloads vary slightly between linear and spot, but v5 is unified.
     processNormalizedTicker({
       s: data.symbol,
       c: parseFloat(data.lastPrice),
       o: parseFloat(data.prevPrice24h),
       q: parseFloat(data.turnover24h),
       v: parseFloat(data.volume24h),
-      ts: ts
+      ts: ts || Date.now()
     }, this.exchangeName || 'bybit');
   }
 }
@@ -1444,18 +1476,59 @@ function stopStalenessCheck() {
 
 function startFlushing(interval) {
   if (flushInterval) clearInterval(flushInterval);
-  flushInterval = setInterval(() => {
+  
+  const performFlush = () => {
     if (tickerBuffer.size > 0) {
       const payload = Array.from(tickerBuffer.entries());
       broadcast({
         type: 'TICKS',
         payload
       });
-      // Mirror to IndexedDB (Instant Start Persistence)
       persistToDB(payload);
       tickerBuffer.clear();
     }
-  }, interval || 100);
+
+    // Adaptive Flushing Logic (2026 Optimization)
+    // Faster flushes (50ms) during high volatility/large buffers.
+    // Slower flushes (300ms) during idle periods to save battery/CPU.
+    const currentSize = tickerBuffer.size;
+    let nextInterval = 300; 
+    if (currentSize > 100) nextInterval = 50; 
+    else if (currentSize > 40) nextInterval = 100;
+    else if (currentSize > 15) nextInterval = 200;
+
+    flushInterval = setTimeout(performFlush, nextInterval);
+  };
+
+  flushInterval = setTimeout(performFlush, interval || 100);
 }
 
-function stopFlushing() { if (flushInterval) clearInterval(flushInterval); }
+function stopFlushing() {
+  if (flushInterval) {
+    clearTimeout(flushInterval);
+    clearInterval(flushInterval);
+    flushInterval = null;
+  }
+}
+
+// ── Task: Mathematical Drift Guard (Resync) ───────────────────
+let driftGuardInterval = null;
+function startDriftGuard() {
+  if (driftGuardInterval) clearInterval(driftGuardInterval);
+  driftGuardInterval = setInterval(() => {
+    // Every 10 minutes, request a full state refresh for all active symbols
+    // to recalibrate the incremental RSI/EMA math and clear any rounding drift.
+    if (currentSymbols.size > 0 && isAnyTabVisible()) {
+      broadcast({ type: 'RECALIBRATE_REQUEST' });
+      console.log(`[worker] Drift Guard: Requesting state recalibration for ${currentSymbols.size} symbols`);
+    }
+  }, 10 * 60 * 1000);
+}
+
+function stopDriftGuard() {
+  if (driftGuardInterval) clearInterval(driftGuardInterval);
+  driftGuardInterval = null;
+}
+
+// Start mathematical safety monitor
+startDriftGuard();

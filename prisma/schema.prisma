@@ -158,9 +158,9 @@ model AlertLog {
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
   @@index([userId, createdAt])
-
+  @@index([symbol, createdAt])
+  @@index([type])
   @@map("alert_log")
 }
 

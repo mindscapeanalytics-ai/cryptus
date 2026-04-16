@@ -45,6 +45,7 @@ class PriceTickEngine extends EventTarget {
   private virtualPollInterval: any = null;
   private exchange: string = 'binance';
   private isMasterTab: boolean = false;
+  private heartbeatInterval: any = null;
 
   constructor() {
     super();
@@ -72,8 +73,8 @@ class PriceTickEngine extends EventTarget {
           });
           this.isMasterTab = false;
         });
-        // If we lose the lock, wait a bit and try to re-acquire
-        await new Promise(r => setTimeout(r, 1000));
+        // If we lose the lock, wait a bit and try to re-acquire (faster handover)
+        await new Promise(r => setTimeout(r, 100));
       }
     } catch (e) {
       this.isMasterTab = true; // Safe fallback
@@ -136,6 +137,12 @@ class PriceTickEngine extends EventTarget {
         }
       } else if (type === 'PRIORITY_SYNC') {
         this.dispatchEvent(new CustomEvent('priority-sync', { detail: payload }));
+      } else if (type === 'RECALIBRATE_REQUEST') {
+        // Task: Drift Guard Recalibration (2026 Strategy)
+        // When worker detects mathematical drift, we force a re-fetch of the 
+        // accurate server-side indicators to reset the Wilder smoothing baseline.
+        console.log('[PriceEngine] Worker requested recalibration. Refreshing seeds...');
+        this.triggerRecalibration();
       }
     };
 
@@ -187,6 +194,7 @@ class PriceTickEngine extends EventTarget {
     }
 
     this.startVirtualPolling();
+    this.startSessionHeartbeat();
   }
 
   private startVirtualPolling() {
@@ -244,6 +252,52 @@ class PriceTickEngine extends EventTarget {
     }, 5000); // 5s poll cycle
   }
 
+  private async triggerRecalibration() {
+    try {
+      // Trigger SWR mutation to fetch fresh indicators from the server
+      const searchParams = new URLSearchParams({
+        count: Math.max(100, this.symbols.size).toString(),
+        exchange: this.exchange,
+        smartMode: '1'
+      });
+      const url = `/api/screener?${searchParams.toString()}`;
+      
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = await res.json();
+      
+      // Extract fresh seeds and sync them to the worker
+      const rsiStates: Record<string, any> = {};
+      const configs: Record<string, any> = {};
+      
+      json.data.forEach((entry: any) => {
+        if (entry.rsiState1m) {
+          rsiStates[entry.symbol] = {
+            rsiState1m: entry.rsiState1m,
+            rsiState5m: entry.rsiState5m,
+            rsiState15m: entry.rsiState15m,
+            rsiState1h: entry.rsiState1h,
+            rsiStateCustom: entry.rsiStateCustom,
+            ema9State: entry.ema9State,
+            ema21State: entry.ema21State,
+            macdFastState: entry.macdFastState,
+            macdSlowState: entry.macdSlowState,
+            macdSignalState: entry.macdSignalState,
+            avgBarSize1m: entry.avgBarSize1m,
+            avgVolume1m: entry.avgVolume1m,
+            open1m: entry.open1m,
+            volStart1m: entry.volStart1m
+          };
+        }
+      });
+
+      this.syncStates({ rsiStates });
+      console.log(`[PriceEngine] Recalibrated ${Object.keys(rsiStates).length} symbols.`);
+    } catch (e) {
+      console.warn('[PriceEngine] Recalibration failed', e);
+    }
+  }
+
   private async pollSymbolsViaRest(symbols: string[], exchange: string) {
     try {
       const count = Math.max(100, this.symbols.size);
@@ -276,6 +330,28 @@ class PriceTickEngine extends EventTarget {
       });
     } catch (e) {
       console.warn('[price-engine] REST poll failed', e);
+    }
+  }
+
+  // ── Session Heartbeat (Smart Tech: No Break Feed) ──
+  private startSessionHeartbeat() {
+    if (this.heartbeatInterval) return;
+    this.heartbeatInterval = setInterval(async () => {
+      try {
+        // Use authClient to ping status silently. This keeps the session cookie fresh.
+        const { authClient } = await import("@/lib/auth-client");
+        await authClient.getSession();
+        console.log('[PriceEngine] Session heartbeat successful');
+      } catch (e) {
+        console.warn('[PriceEngine] Session heartbeat failed');
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+  }
+
+  private stopSessionHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
   }
 
@@ -364,6 +440,7 @@ class PriceTickEngine extends EventTarget {
       } else if (this.port) {
         this.port.close();
       }
+      this.stopSessionHeartbeat();
       this.worker = null;
       this.port = null;
     }
@@ -377,7 +454,7 @@ if (typeof window !== 'undefined') {
   (window as any).__priceEngine = engine;
 }
 
-export function useLivePrices(symbols: Set<string>, throttleMs: number = 1000) {
+export function useLivePrices(symbols: Set<string>, throttleMs: number = 300) {
   const [isConnected, setIsConnected] = useState(false);
   const [livePrices, setLivePrices] = useState<Map<string, LiveTick>>(() => engine.getLatestBatch(symbols));
   const [exchange, setExchangeState] = useState<string>(() => {

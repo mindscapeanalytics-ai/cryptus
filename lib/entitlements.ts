@@ -158,10 +158,16 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
     isTrialing = now < user.createdAt.getTime() + trialMs;
   }
 
+  // Tier classification: Priority: Paid > Trial (Active) > Free/Expired
   const tier: EntitlementTier = hasPaidAccess ? "subscribed" : isTrialing ? "trial" : "free";
+  
+  // Enrollment Capping (Strict SaaS Rules)
+  // TRIAL: Max 100 symbols. AFTER 14 DAYS: restricted access to force upgrade.
   const maxRecords = hasPaidAccess
     ? Math.max(flags.maxSubscribedRecords, 500)
-    : Math.min(flags.maxTrialRecords, 100);
+    : isTrialing 
+      ? Math.min(flags.maxTrialRecords, 100)
+      : 0; // Hard cut-off for expired trials to guarantee upgrade conversion
 
   const trialFeaturesEnabled = isTrialing || tier === "free";
 

@@ -2008,7 +2008,7 @@ export default function ScreenerDashboard() {
     // Pre-flight sharding: warm up sockets with majors while waiting for API
     return new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT']);
   }, [data]);
-  const liveThrottleMs = pairCount <= 100 ? 120 : pairCount <= 300 ? 220 : 320;
+  const liveThrottleMs = pairCount <= 100 ? 80 : pairCount <= 300 ? 150 : 250;
   const {
     livePrices,
     isConnected,
