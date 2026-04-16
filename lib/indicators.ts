@@ -1,6 +1,6 @@
 /**
- * RSIQ Pro — Technical Indicators Library
- * Copyright © 2024–2026 Mindscape Analytics LLC. All rights reserved.
+ * RSIQ Pro - Technical Indicators Library
+ * Copyright © 2024-2026 Mindscape Analytics LLC. All rights reserved.
  * https://mindscapeanalytics.com/
  *
  * PROPRIETARY AND CONFIDENTIAL.
@@ -718,9 +718,9 @@ export function calculateATR(
 // ── ADX (Average Directional Index) ─────────────────────────────
 
 /**
- * ADX measures trend strength (0–100).
+ * ADX measures trend strength (0-100).
  * > 25 = trending market, < 20 = ranging/choppy market.
- * Does NOT indicate direction — only strength.
+ * Does NOT indicate direction - only strength.
  */
 export function calculateADX(
   highs: number[],

@@ -1,5 +1,5 @@
 /**
- * RSIQ Pro — Derivatives Intelligence Types
+ * RSIQ Pro - Derivatives Intelligence Types
  * Data structures for funding rates, liquidations, whale trades, and order flow.
  */
 

@@ -1,9 +1,9 @@
 /**
- * Mindscape Analytics — Signal Win Rate Tracker™
- * Copyright © 2024–2026 Mindscape Analytics LLC. All rights reserved.
+ * Mindscape Analytics - Signal Win Rate Tracker™
+ * Copyright © 2024-2026 Mindscape Analytics LLC. All rights reserved.
  *
  * Tracks signal outcomes over time to compute verifiable win rates.
- * This is a UNIQUE feature — no competitor shows signal accuracy metrics.
+ * This is a UNIQUE feature - no competitor shows signal accuracy metrics.
  *
  * How it works:
  *   1. When a signal fires (Strong Buy/Sell), we snapshot the price.
@@ -82,7 +82,7 @@ function saveSnapshots(snapshots: SignalSnapshot[]): void {
     const trimmed = snapshots.slice(-MAX_SNAPSHOTS);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
   } catch {
-    // Storage full — evict oldest 20%
+    // Storage full - evict oldest 20%
     try {
       const evicted = snapshots.slice(Math.floor(snapshots.length * 0.2));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(evicted));

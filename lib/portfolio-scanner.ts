@@ -1,19 +1,20 @@
 /**
- * RSIQ Pro — Portfolio Risk Scanner
- * Copyright © 2024–2026 Mindscape Analytics LLC. All rights reserved.
+ * RSIQ Pro - Portfolio Risk Scanner
+ * Copyright © 2024-2026 Mindscape Analytics LLC. All rights reserved.
  * https://mindscapeanalytics.com/
  *
  * Analyzes a user's portfolio positions and computes:
  *   1. Aggregate Portfolio RSI (weighted by position value)
- *   2. Portfolio Risk Score (0–100, incorporating volatility + correlation)
- *   3. Concentration Risk (HHI — Herfindahl-Hirschman Index)
+ *   2. Portfolio Risk Score (0-100, incorporating volatility + correlation)
+ *   3. Concentration Risk (HHI - Herfindahl-Hirschman Index)
  *   4. Hedge Suggestions (anti-correlated assets to reduce risk)
  *   5. Per-position P&L with real-time pricing
  *
- * This is a premium institutional feature — no free tool offers this.
+ * This is a premium institutional feature - no free tool offers this.
  */
 
 import type { ScreenerEntry } from './types';
+import type { LiveTick } from '@/hooks/use-live-prices';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -50,11 +51,11 @@ export interface PortfolioRiskReport {
   /** Weighted average RSI across all positions */
   portfolioRsi: number | null;
 
-  /** 0–100 risk score. Higher = more risk */
+  /** 0-100 risk score. Higher = more risk */
   riskScore: number;
   riskLabel: 'Very Low' | 'Low' | 'Moderate' | 'High' | 'Extreme';
 
-  /** Concentration risk via HHI (0–10000). >2500 = concentrated */
+  /** Concentration risk via HHI (0-10000). >2500 = concentrated */
   concentrationHhi: number;
   concentrationLabel: 'Diversified' | 'Moderate' | 'Concentrated' | 'Highly Concentrated';
 
@@ -122,8 +123,9 @@ export function clearPortfolio(): void {
  * @param liveData - Current screener data for price/RSI lookup
  */
 export function computePortfolioRisk(
-  positions: PortfolioPosition[],
+  positions: PortfolioPosition[], 
   liveData: ScreenerEntry[],
+  liveMap?: Map<string, LiveTick>
 ): PortfolioRiskReport {
   if (positions.length === 0) {
     return emptyReport();
@@ -145,8 +147,28 @@ export function computePortfolioRisk(
   let totalCost = 0;
 
   for (const pos of positions) {
-    const live = priceMap.get(pos.symbol);
-    const currentPrice = live?.price ?? pos.currentPrice ?? pos.entryPrice;
+    // Robust symbol matching (bridging shorthands like BTC -> BTCUSDT etc.)
+    const sym = pos.symbol.toUpperCase();
+    // Level 1: Check Live Map (WebSocket engine) - highest priority
+    const liveTick = liveMap?.get(sym) || 
+                     liveMap?.get(`${sym}USDT`) || 
+                     liveMap?.get(`${sym}USDT.P`) ||
+                     liveMap?.get(`${sym}=X`) ||
+                     liveMap?.get(`${sym}USD`);
+
+    // Level 2: Check priceMap (Screener API snapshot)
+    const liveSnapshot = priceMap.get(sym) || 
+                         priceMap.get(`${sym}USDT`) || 
+                         priceMap.get(`${sym}USDT.P`) || 
+                         priceMap.get(`${sym}=X`) ||
+                         priceMap.get(`${sym}USD`) ||
+                         [...priceMap.entries()].find(([k]) => {
+                           const cleanK = k.replace(/USDT\.P|USDT|=X|USD/, '');
+                           return cleanK === sym;
+                         })?.[1];
+
+
+    const currentPrice = liveTick?.price ?? liveSnapshot?.price ?? pos.currentPrice ?? pos.entryPrice;
     const marketValue = pos.quantity * currentPrice;
     const costBasis = pos.quantity * pos.entryPrice;
     const pnl = marketValue - costBasis;
@@ -164,7 +186,7 @@ export function computePortfolioRisk(
       pnl,
       pnlPercent,
       weight: 0, // Computed after totals
-      rsi: live?.rsi ?? pos.rsi ?? null,
+      rsi: liveTick?.rsi15m ?? liveSnapshot?.rsi ?? pos.rsi ?? null,
       riskContribution: 0, // Computed below
     });
   }
@@ -187,7 +209,7 @@ export function computePortfolioRisk(
   }
 
   // ── 4. Concentration Risk (HHI) ──
-  // HHI = Σ(weight²) where weights are in percent (0–100)
+  // HHI = Σ(weight²) where weights are in percent (0-100)
   // 10000 = single asset, < 1500 = well diversified
   const hhi = Math.round(analyses.reduce((s, a) => s + a.weight * a.weight, 0));
 
@@ -197,14 +219,14 @@ export function computePortfolioRisk(
   else if (hhi < 5000) concentrationLabel = 'Concentrated';
   else concentrationLabel = 'Highly Concentrated';
 
-  // ── 5. Risk Score (0–100) ──
+  // ── 5. Risk Score (0-100) ──
   // Factors: HHI, portfolio RSI extremes, P&L drawdown, position count
   let riskScore = 0;
 
-  // Concentration component (0–30)
+  // Concentration component (0-30)
   riskScore += Math.min(30, (hhi / 10000) * 30);
 
-  // RSI extreme component (0–25)
+  // RSI extreme component (0-25)
   if (portfolioRsi !== null) {
     if (portfolioRsi >= 75) riskScore += 25;
     else if (portfolioRsi >= 65) riskScore += 15;
@@ -212,13 +234,13 @@ export function computePortfolioRisk(
     else if (portfolioRsi <= 35) riskScore += 10;
   }
 
-  // Drawdown component (0–25)
+  // Drawdown component (0-25)
   const totalPnlPercent = totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0;
   if (totalPnlPercent < -20) riskScore += 25;
   else if (totalPnlPercent < -10) riskScore += 15;
   else if (totalPnlPercent < -5) riskScore += 8;
 
-  // Low diversification component (0–20)
+  // Low diversification component (0-20)
   if (positions.length <= 1) riskScore += 20;
   else if (positions.length <= 3) riskScore += 10;
   else if (positions.length <= 5) riskScore += 5;
@@ -244,7 +266,7 @@ export function computePortfolioRisk(
 
   if (portfolioRsi !== null && portfolioRsi >= 70) {
     hedgeSuggestions.push({
-      reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} — overbought territory. Consider taking profits on strongest performers.`,
+      reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} - overbought territory. Consider taking profits on strongest performers.`,
       action: 'reduce',
       urgency: portfolioRsi >= 80 ? 'high' : 'medium',
     });
@@ -252,7 +274,7 @@ export function computePortfolioRisk(
 
   if (portfolioRsi !== null && portfolioRsi <= 30) {
     hedgeSuggestions.push({
-      reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} — oversold territory. Potential accumulation opportunity if fundamentals are intact.`,
+      reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} - oversold territory. Potential accumulation opportunity if fundamentals are intact.`,
       action: 'rebalance',
       urgency: portfolioRsi <= 20 ? 'high' : 'medium',
     });
@@ -261,7 +283,7 @@ export function computePortfolioRisk(
   if (hhi >= 2500) {
     const largest = analyses.sort((a, b) => b.weight - a.weight)[0];
     hedgeSuggestions.push({
-      reason: `Portfolio is ${concentrationLabel.toLowerCase()} — ${largest.symbol} represents ${largest.weight.toFixed(1)}% of total value. Consider diversifying.`,
+      reason: `Portfolio is ${concentrationLabel.toLowerCase()} - ${largest.symbol} represents ${largest.weight.toFixed(1)}% of total value. Consider diversifying.`,
       action: 'rebalance',
       urgency: hhi >= 5000 ? 'high' : 'medium',
       symbol: largest.symbol,
@@ -272,7 +294,7 @@ export function computePortfolioRisk(
   for (const a of analyses) {
     if (a.rsi !== null && a.rsi >= 80 && a.weight > 10) {
       hedgeSuggestions.push({
-        reason: `${a.symbol} RSI at ${a.rsi.toFixed(1)} — deeply overbought while holding ${a.weight.toFixed(1)}% of portfolio.`,
+        reason: `${a.symbol} RSI at ${a.rsi.toFixed(1)} - deeply overbought while holding ${a.weight.toFixed(1)}% of portfolio.`,
         action: 'reduce',
         urgency: 'high',
         symbol: a.symbol,
@@ -280,7 +302,7 @@ export function computePortfolioRisk(
     }
     if (a.pnlPercent < -15 && a.weight > 5) {
       hedgeSuggestions.push({
-        reason: `${a.symbol} down ${Math.abs(a.pnlPercent).toFixed(1)}% from entry — consider stop-loss or averaging down.`,
+        reason: `${a.symbol} down ${Math.abs(a.pnlPercent).toFixed(1)}% from entry - consider stop-loss or averaging down.`,
         action: 'hedge',
         urgency: a.pnlPercent < -25 ? 'high' : 'medium',
         symbol: a.symbol,

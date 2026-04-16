@@ -1,5 +1,5 @@
 /**
- * RSIQ Pro — NOWPayments Crypto SDK
+ * RSIQ Pro - NOWPayments Crypto SDK
  * High-performance, lightweight fetch-based client for institutional crypto payments.
  */
 

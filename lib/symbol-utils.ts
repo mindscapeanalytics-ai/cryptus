@@ -1,5 +1,5 @@
 /**
- * Mindscape Analytics — Universal Symbol Alias Registry
+ * Mindscape Analytics - Universal Symbol Alias Registry
  *
  * Resolves raw API tickers (Binance, Bybit, Yahoo Finance) into
  * premium, human-readable display names across all asset classes.
@@ -40,7 +40,7 @@ const YAHOO_ALIASES: Record<string, string> = {
   'HG=F':  'Copper',
   'ALI=F': 'Aluminum',
 
-  // Stocks — Mega Cap Tech
+  // Stocks - Mega Cap Tech
   'AAPL':  'Apple',
   'MSFT':  'Microsoft',
   'GOOGL': 'Alphabet',
@@ -52,21 +52,21 @@ const YAHOO_ALIASES: Record<string, string> = {
   'ORCL':  'Oracle',
   'CRM':   'Salesforce',
 
-  // Stocks — Finance
+  // Stocks - Finance
   'JPM':   'JP Morgan',
   'V':     'Visa',
   'MA':    'Mastercard',
   'BAC':   'Bank of America',
   'GS':    'Goldman Sachs',
 
-  // Stocks — Healthcare
+  // Stocks - Healthcare
   'UNH':   'UnitedHealth',
   'JNJ':   'Johnson & J',
   'LLY':   'Eli Lilly',
   'PFE':   'Pfizer',
   'ABBV':  'AbbVie',
 
-  // Stocks — Consumer / Industrial
+  // Stocks - Consumer / Industrial
   'WMT':   'Walmart',
   'PG':    'P&G',
   'KO':    'Coca-Cola',
@@ -150,10 +150,10 @@ export function getSymbolTicker(symbol: string): string {
   };
   if (futuresMap[symbol]) return futuresMap[symbol];
 
-  // Stocks/Indices — just return the ticker
+  // Stocks/Indices - just return the ticker
   if (YAHOO_ALIASES[symbol]) return symbol;
 
-  // Crypto — show pair
+  // Crypto - show pair
   if (symbol.endsWith('USDT')) return `${symbol.slice(0, -4)}/USDT`;
 
   return symbol;

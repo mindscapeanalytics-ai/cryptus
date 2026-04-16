@@ -1,5 +1,5 @@
 /**
- * RSIQ Pro — Derivatives Intelligence Worker v1
+ * RSIQ Pro - Derivatives Intelligence Worker v1
  * 
  * Connects to FREE exchange WebSocket streams to provide institutional-grade
  * derivatives data that competitors charge $28+/mo for.
@@ -338,7 +338,7 @@ function connectWhaleStream() {
             whaleBuffer = whaleBuffer.slice(-MAX_WHALE_ALERTS);
           }
 
-          // Broadcast immediately — whale alerts are time-critical
+          // Broadcast immediately - whale alerts are time-critical
           broadcast({ type: 'WHALE_TRADE', payload: whaleEvent });
 
           const sizeLabel = valueUsd >= MEGA_WHALE_THRESHOLD_USD ? '🐋 MEGA WHALE' : '🐳 WHALE';
@@ -422,7 +422,7 @@ async function pollOpenInterest() {
       // Small stagger between requests to avoid rate limits
       await new Promise(r => setTimeout(r, 150));
     } catch (e) {
-      // Silent — REST polling is best-effort
+      // Silent - REST polling is best-effort
     }
   }
 }

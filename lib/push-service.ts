@@ -1,7 +1,7 @@
 import webpush from 'web-push';
 
 // ── VAPID Singleton (Task 7.1) ────────────────────────────────────────────────
-// Module-level initialization — called once, reused for every push request.
+// Module-level initialization - called once, reused for every push request.
 let vapidInitialized = false;
 
 function ensureVapidInitialized(): boolean {
@@ -107,7 +107,7 @@ export async function sendPushNotificationWithRetry(
       );
       return { success: true };
     } catch (error: any) {
-      // Expired / gone — don't retry
+      // Expired / gone - don't retry
       if (error.statusCode === 404 || error.statusCode === 410) {
         return { success: false, expired: true };
       }

@@ -131,7 +131,7 @@ function getMarketType(symbol: string): ScreenerEntry['market'] {
 
 // ── Ticker cache for price + change data ──
 const tickerCache = new Map<string, { data: Map<string, BinanceTicker>; ts: number }>();
-const TICKER_CACHE_TTL = 15_000; // 15 seconds — faster price overlay freshness
+const TICKER_CACHE_TTL = 15_000; // 15 seconds - faster price overlay freshness
 const TRAFFIC_WARM_COOLDOWN_MS = 45_000;
 
 // ── Result cache to avoid re-computing on rapid refreshes ──
@@ -186,14 +186,14 @@ function maybeTrafficWarm(symbolCount: number, smartMode: boolean, exchange: str
 }
 
 // ── Per-symbol indicator cache to avoid refetch/recompute on every refresh ──
-const INDICATOR_CACHE_TTL = 15_000; // 15s — standard symbols (guarantees fresh data)
-const INDICATOR_CACHE_TTL_ALERT = 10_000; // 10s — alert-active symbols (tighter accuracy)
+const INDICATOR_CACHE_TTL = 15_000; // 15s - standard symbols (guarantees fresh data)
+const INDICATOR_CACHE_TTL_ALERT = 10_000; // 10s - alert-active symbols (tighter accuracy)
 const INDICATOR_CACHE_MAX = 5000;
 const indicatorCache = new LRUCache<string, { entry: ScreenerEntry; ts: number }>(INDICATOR_CACHE_MAX);
 
 // ── Long-lived volatility baseline cache (average bar size/volume) ──
 const baselineCache = new Map<string, { avgBarSize1m: number; avgVolume1m: number; ts: number }>();
-const BASELINE_CACHE_TTL = 3600_000; // 1 hour — averages over 20 candles are stable enough for this TTL
+const BASELINE_CACHE_TTL = 3600_000; // 1 hour - averages over 20 candles are stable enough for this TTL
 
 function updateBaselineCache(symbol: string, avgBarSize1m: number | null, avgVolume1m: number | null) {
   if (avgBarSize1m != null && avgVolume1m != null) {
@@ -478,7 +478,7 @@ async function fetchBybitApiWithRetry<T>(
         cache: 'no-store' as RequestCache,
       });
       if (res.status === 403 || res.status === 451) {
-        // Permanent geo-block — retrying other endpoints won't help, fail fast
+        // Permanent geo-block - retrying other endpoints won't help, fail fast
         debugWarn(`[bybit] ${label} permanently geo-blocked (${res.status}). Failing fast.`);
         throw new Error(`${label}: geo-blocked (${res.status})`);
       }
@@ -715,7 +715,7 @@ async function fetchWithRetry(
       }
       if (res.status === 451) {
         // Geo-restriction is enforced at the symbol level across all Binance
-        // endpoints — trying the remaining endpoints won't help, fail fast.
+        // endpoints - trying the remaining endpoints won't help, fail fast.
         debugWarn(`[kline] ${label}: HTTP 451 geo-restricted from ${base}, failing fast`);
         throw new Error(`${label}: HTTP 451 from ${base}`);
       }
@@ -732,7 +732,7 @@ async function fetchWithRetry(
       return res.json();
     } catch (err) {
       lastError = err;
-      // 451 geo-restriction is permanent — don't retry across other endpoints
+      // 451 geo-restriction is permanent - don't retry across other endpoints
       if (err instanceof Error && err.message.includes('451')) throw err;
       if (attempt === retries) {
         debugWarn(`[kline] ${label}: all ${retries + 1} attempts failed:`, err instanceof Error ? err.message : String(err));
@@ -1075,7 +1075,7 @@ function buildEntry(
 
     const momentum = calculateROC(closes15m, 10);
 
-    // ATR & ADX (15m timeframe) — pro volatility + trend strength
+    // ATR & ADX (15m timeframe) - pro volatility + trend strength
     const atr = calculateATR(highs15m, lows15m, closes15m);
     const adx = calculateADX(highs15m, lows15m, closes15m);
 
@@ -1528,7 +1528,7 @@ export async function getScreenerData(symbolCount = 500, options: ScreenerOption
       const result = await runRefresh(symbolCount, smartMode, rsiPeriod, options.search, options.prioritySymbols, tryExchange);
 
       if (result.data.length > 0) {
-        // This exchange works — remember it for future requests
+        // This exchange works - remember it for future requests
         if (tryExchange !== requestedExchange) {
           console.log(`[screener] ✅ Failover success: ${requestedExchange} → ${tryExchange} (${result.data.length} symbols)`);
           preferredExchange = tryExchange;
@@ -1547,7 +1547,7 @@ export async function getScreenerData(symbolCount = 500, options: ScreenerOption
     }
   }
 
-  // All exchanges failed — clear the blocked set periodically (in case of transient issues)
+  // All exchanges failed - clear the blocked set periodically (in case of transient issues)
   // and return empty with diagnostic info
   setTimeout(() => {
     geoBlockedExchanges.clear();

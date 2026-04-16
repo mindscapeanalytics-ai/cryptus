@@ -311,7 +311,7 @@ async function refreshDataInBackground() {
   }
 }
 
-// Handle notification clicks — open /terminal directly for trade decisions
+// Handle notification clicks - open /terminal directly for trade decisions
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = event.notification.data?.url || '/terminal';

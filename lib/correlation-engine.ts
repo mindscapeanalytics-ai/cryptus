@@ -1,6 +1,6 @@
 /**
- * RSIQ Pro — Correlation Heatmap Engine
- * Copyright © 2024–2026 Mindscape Analytics LLC. All rights reserved.
+ * RSIQ Pro - Correlation Heatmap Engine
+ * Copyright © 2024-2026 Mindscape Analytics LLC. All rights reserved.
  * https://mindscapeanalytics.com/
  *
  * Computes real-time Pearson correlation coefficients between assets.

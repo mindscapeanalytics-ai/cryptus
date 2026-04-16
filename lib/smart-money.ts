@@ -1,5 +1,5 @@
 /**
- * RSIQ Pro — Smart Money Pressure Index
+ * RSIQ Pro - Smart Money Pressure Index
  * 
  * A UNIQUE composite indicator that NO competitor offers.
  * Combines 4 institutional-grade signals into a single -100 to +100 score:
@@ -28,10 +28,10 @@ import type {
 // ── Component Weights ────────────────────────────────────────────
 // Tuned for crypto markets where leverage/liquidation data is most predictive
 const WEIGHTS = {
-  funding: 0.20,        // 20% — sentiment but lagging
-  liquidation: 0.30,    // 30% — most predictive of short-term moves
-  whale: 0.25,          // 25% — smart money direction
-  orderFlow: 0.25,      // 25% — real-time pressure
+  funding: 0.20,        // 20% - sentiment but lagging
+  liquidation: 0.30,    // 30% - most predictive of short-term moves
+  whale: 0.25,          // 25% - smart money direction
+  orderFlow: 0.25,      // 25% - real-time pressure
 } as const;
 
 // ── Signal Computation Functions ─────────────────────────────────

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * RSIQ Pro — Derivatives Intelligence Hook
+ * RSIQ Pro - Derivatives Intelligence Hook
  * 
  * Connects the derivatives-worker to React components.
  * Provides real-time funding rates, liquidations, whale alerts,
@@ -10,7 +10,7 @@
  * Architecture:
  *  - Singleton worker pattern (same as PriceTickEngine)
  *  - Event-driven updates to prevent re-render storms
- *  - Lazy initialization — worker only starts when hook is first called
+ *  - Lazy initialization - worker only starts when hook is first called
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -63,7 +63,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     enabledRef.current = enabled;
   }, [enabled]);
 
-  // Smart Money Pressure — computed from all the raw signals
+  // Smart Money Pressure - computed from all the raw signals
   const smartMoney = useMemo(() => {
     if (!enabled || fundingRates.size === 0) return new Map<string, SmartMoneyPressure>();
 
@@ -124,7 +124,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
               : `$${Math.round(liq.valueUsd / 1000)}K`;
             const isLong = liq.side === 'Sell'; // Sell-side = long liquidated
             toast[isLong ? 'error' : 'success'](
-              `💀 ${isLong ? 'LONG' : 'SHORT'} Liquidated — ${getSymbolAlias(liq.symbol)}`,
+              `💀 ${isLong ? 'LONG' : 'SHORT'} Liquidated - ${getSymbolAlias(liq.symbol)}`,
               {
                 description: `${sizeStr} @ $${formatPrice(liq.price)} [${liq.exchange}]`,
                 duration: 4000,
@@ -148,7 +148,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
               : `$${Math.round(whale.valueUsd / 1000)}K`;
             const isBuy = whale.side === 'buy';
             toast[isBuy ? 'success' : 'error'](
-              `🐋 WHALE ${isBuy ? 'BUY' : 'SELL'} — ${getSymbolAlias(whale.symbol)}`,
+              `🐋 WHALE ${isBuy ? 'BUY' : 'SELL'} - ${getSymbolAlias(whale.symbol)}`,
               {
                 description: `${sizeStr} @ $${formatPrice(whale.price)} [${whale.exchange}]`,
                 duration: 5000,

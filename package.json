@@ -1,7 +1,7 @@
 {
   "name": "cryptorsi",
   "version": "1.0.0",
-  "description": "Crypto RSI Market Screener — real-time multi-pair RSI monitoring",
+  "description": "Crypto RSI Market Screener - real-time multi-pair RSI monitoring",
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/sync-assets.js",

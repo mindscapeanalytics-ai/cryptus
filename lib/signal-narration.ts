@@ -1,5 +1,5 @@
 /**
- * Mindscape Analytics — Signal Narration Engine™
+ * Mindscape Analytics - Signal Narration Engine™
  *
  * Generates institutional-grade, human-readable explanations for strategy signals.
  * This is a UNIQUE feature that no competitor offers. Each narration is designed
@@ -10,7 +10,7 @@
  *   Output: SignalNarration { headline, reasons[], conviction, emoji }
  *
  * The narration engine analyzes all available indicators and composes a coherent
- * market narrative — similar to what a senior analyst would write in a morning brief.
+ * market narrative - similar to what a senior analyst would write in a morning brief.
  */
 
 import type { ScreenerEntry } from './types';
@@ -22,7 +22,7 @@ export interface SignalNarration {
   headline: string;
   /** Ordered list of supporting reasons with emoji bullets */
   reasons: string[];
-  /** 0–100 conviction score (higher = more indicators agree) */
+  /** 0-100 conviction score (higher = more indicators agree) */
   conviction: number;
   /** Visual conviction label */
   convictionLabel: 'Weak' | 'Moderate' | 'Strong' | 'Very Strong' | 'Maximum';
@@ -42,11 +42,11 @@ function rsiZone(rsi: number | null): string | null {
   if (rsi >= 80) return 'deeply overbought';
   if (rsi >= 70) return 'overbought';
   if (rsi >= 60) return 'approaching overbought';
-  return null; // Neutral — not interesting enough to narrate
+  return null; // Neutral - not interesting enough to narrate
 }
 
 function formatNum(n: number | null, decimals = 1): string {
-  if (n === null || n === undefined) return '—';
+  if (n === null || n === undefined) return '-';
   return n.toFixed(decimals);
 }
 
@@ -88,11 +88,11 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
 
   // ── 2. EMA Cross ──
   if (entry.emaCross === 'bullish') {
-    reasons.push('🔀 EMA 9/21 bullish crossover — short-term momentum shifting up');
+    reasons.push('🔀 EMA 9/21 bullish crossover - short-term momentum shifting up');
     bullishPoints += 15;
     totalPoints += 15;
   } else if (entry.emaCross === 'bearish') {
-    reasons.push('🔀 EMA 9/21 bearish crossover — short-term momentum fading');
+    reasons.push('🔀 EMA 9/21 bearish crossover - short-term momentum fading');
     bearishPoints += 15;
     totalPoints += 15;
   }
@@ -101,10 +101,10 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   if (entry.macdHistogram !== null && entry.macdHistogram !== 0) {
     const macdStrength = Math.abs(entry.macdHistogram);
     if (entry.macdHistogram > 0) {
-      reasons.push(`📊 MACD histogram positive (${formatNum(entry.macdHistogram, 4)}) — bullish momentum${macdStrength > 0.1 ? ' accelerating' : ''}`);
+      reasons.push(`📊 MACD histogram positive (${formatNum(entry.macdHistogram, 4)}) - bullish momentum${macdStrength > 0.1 ? ' accelerating' : ''}`);
       bullishPoints += 10;
     } else {
-      reasons.push(`📊 MACD histogram negative (${formatNum(entry.macdHistogram, 4)}) — bearish momentum${macdStrength > 0.1 ? ' accelerating' : ''}`);
+      reasons.push(`📊 MACD histogram negative (${formatNum(entry.macdHistogram, 4)}) - bearish momentum${macdStrength > 0.1 ? ' accelerating' : ''}`);
       bearishPoints += 10;
     }
     totalPoints += 10;
@@ -113,11 +113,11 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   // ── 4. Bollinger Bands Position ──
   if (entry.bbPosition !== null) {
     if (entry.bbPosition <= 0.1) {
-      reasons.push('📏 Price at lower Bollinger Band — potential bounce zone');
+      reasons.push('📏 Price at lower Bollinger Band - potential bounce zone');
       bullishPoints += 8;
       totalPoints += 8;
     } else if (entry.bbPosition >= 0.9) {
-      reasons.push('📏 Price at upper Bollinger Band — potential resistance');
+      reasons.push('📏 Price at upper Bollinger Band - potential resistance');
       bearishPoints += 8;
       totalPoints += 8;
     }
@@ -138,18 +138,18 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
 
   // ── 6. RSI Divergence ──
   if (entry.rsiDivergence === 'bullish') {
-    reasons.push('🔄 Bullish RSI divergence detected — price making lower lows but RSI making higher lows');
+    reasons.push('🔄 Bullish RSI divergence detected - price making lower lows but RSI making higher lows');
     bullishPoints += 18;
     totalPoints += 18;
   } else if (entry.rsiDivergence === 'bearish') {
-    reasons.push('🔄 Bearish RSI divergence detected — price making higher highs but RSI making lower highs');
+    reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
     bearishPoints += 18;
     totalPoints += 18;
   }
 
   // ── 7. Volume Spike ──
   if (entry.volumeSpike) {
-    reasons.push('🔊 Abnormal volume spike detected — institutional activity likely');
+    reasons.push('🔊 Abnormal volume spike detected - institutional activity likely');
     totalPoints += 12;
     // Volume spike direction depends on price action
     if (entry.candleDirection === 'bullish') bullishPoints += 12;
@@ -159,10 +159,10 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   // ── 8. VWAP Deviation ──
   if (entry.vwapDiff !== null && Math.abs(entry.vwapDiff) > 1) {
     if (entry.vwapDiff < -1) {
-      reasons.push(`💰 Trading ${formatNum(Math.abs(entry.vwapDiff))}% below VWAP — potential value zone`);
+      reasons.push(`💰 Trading ${formatNum(Math.abs(entry.vwapDiff))}% below VWAP - potential value zone`);
       bullishPoints += 6;
     } else {
-      reasons.push(`💰 Trading ${formatNum(entry.vwapDiff)}% above VWAP — extended from fair value`);
+      reasons.push(`💰 Trading ${formatNum(entry.vwapDiff)}% above VWAP - extended from fair value`);
       bearishPoints += 6;
     }
     totalPoints += 6;
@@ -190,16 +190,16 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     headline = conviction >= 65 ? 'High-Conviction Bearish Setup' : 'Bearish Pressure Building';
     emoji = conviction >= 65 ? '🔴🔥' : '🔴';
   } else if (totalPoints > 20) {
-    headline = 'Mixed Signals — Consolidation Phase';
+    headline = 'Mixed Signals - Consolidation Phase';
     emoji = '🟡';
   } else {
-    headline = 'Neutral — Awaiting Catalyst';
+    headline = 'Neutral - Awaiting Catalyst';
     emoji = '⚪';
   }
 
   // If no reasons were generated, provide a neutral baseline
   if (reasons.length === 0) {
-    reasons.push('📊 All indicators within normal ranges — no actionable signals');
+    reasons.push('📊 All indicators within normal ranges - no actionable signals');
   }
 
   // ── Compose Share Line ──

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * RSIQ Pro — Derivatives Intelligence Panel
+ * RSIQ Pro - Derivatives Intelligence Panel
  * 
  * Premium institutional-grade panel showing:
  * 1. Live Liquidation Feed (scrolling real-time events)
@@ -31,7 +31,7 @@ import type {
 
 // ── Sub-Components ───────────────────────────────────────────────
 
-/** Smart Money Pressure Gauge — the unique RSIQ indicator */
+/** Smart Money Pressure Gauge - the unique RSIQ indicator */
 const SmartMoneyGauge = memo(function SmartMoneyGauge({
   data,
   compact = false,
@@ -71,36 +71,36 @@ const SmartMoneyGauge = memo(function SmartMoneyGauge({
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-0.5">
       <div className="flex items-center justify-between">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-          Smart Money
+        <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">
+          Institutional Gravity
         </span>
-        <span className="text-[10px] font-black" style={{ color }}>
+        <span className="text-[9px] font-black tracking-tight" style={{ color }}>
           {data.label}
         </span>
       </div>
-      <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden relative">
+      <div className="w-full h-1.5 rounded-full bg-slate-900 border border-white/[0.03] overflow-hidden relative">
         {/* Gradient background */}
         <div
-          className="absolute inset-0 rounded-full opacity-30"
+          className="absolute inset-0 rounded-full opacity-20"
           style={{
             background: 'linear-gradient(90deg, #FF4B5C 0%, #f97316 25%, #94a3b8 50%, #84cc16 75%, #39FF14 100%)',
           }}
         />
         {/* Score indicator */}
         <div
-          className="absolute top-0 bottom-0 w-1 rounded-full transition-all duration-500 shadow-lg"
+          className="absolute top-0 bottom-0 w-1 rounded-full transition-all duration-700 shadow-lg"
           style={{
             left: `${gaugePercent}%`,
             backgroundColor: color,
-            boxShadow: `0 0 8px ${color}80`,
+            boxShadow: `0 0 6px ${color}80`,
           }}
         />
       </div>
-      <div className="flex justify-between text-[7px] font-mono text-slate-600">
+      <div className="flex justify-between text-[6.5px] font-black text-slate-600 uppercase tracking-widest opacity-80">
         <span>Fear</span>
-        <span className="font-black tabular-nums" style={{ color }}>
+        <span className="tabular-nums" style={{ color }}>
           {data.score > 0 ? '+' : ''}{data.score}
         </span>
         <span>Greed</span>
@@ -120,28 +120,27 @@ const LiquidationItem = memo(function LiquidationItem({ liq }: { liq: Liquidatio
 
   return (
     <div className={cn(
-      "flex items-center justify-between px-2 py-1 rounded-lg text-[10px] font-mono",
-      "border border-white/5 transition-colors",
+      "flex items-center justify-between px-1.5 py-0.5 rounded border border-white/5 transition-colors",
       isLong
-        ? "bg-[#FF4B5C]/5 border-l-2 border-l-[#FF4B5C]/50"
-        : "bg-[#39FF14]/5 border-l-2 border-l-[#39FF14]/50"
+        ? "bg-[#FF4B5C]/5 border-l-[#FF4B5C]/40"
+        : "bg-[#39FF14]/5 border-l-[#39FF14]/40"
     )}>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[8px]">💀</span>
-        <span className="font-black text-white/90">{getSymbolAlias(liq.symbol)}</span>
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        <span className="text-[7px] shrink-0">💀</span>
+        <span className="font-black text-white/90 text-[10px] tracking-tighter shrink-0">{getSymbolAlias(liq.symbol)}</span>
         <span className={cn(
-          "text-[8px] font-black px-1 rounded",
-          isLong ? "bg-[#FF4B5C]/20 text-[#FF4B5C]" : "bg-[#39FF14]/20 text-[#39FF14]"
+          "text-[8px] font-black px-1 rounded shrink-0",
+          isLong ? "bg-[#FF4B5C]/15 text-[#FF4B5C]/90" : "bg-[#39FF14]/15 text-[#39FF14]/90"
         )}>
           {isLong ? 'LONG' : 'SHORT'}
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 tabular-nums">
         <span className={cn(
-          "font-black text-white/80",
-          liq.valueUsd >= 500000 && (isLong ? "text-[#FF4B5C]" : "text-[#39FF14]")
+          "font-black text-[10px]",
+          liq.valueUsd >= 500000 ? (isLong ? "text-[#FF4B5C]" : "text-[#39FF14]") : "text-white/80"
         )}>{sizeStr}</span>
-        <span className="text-slate-500">{timeStr}</span>
+        <span className="text-slate-600 text-[9px] font-mono">{timeStr}</span>
       </div>
     </div>
   );
@@ -159,26 +158,25 @@ const WhaleItem = memo(function WhaleItem({ whale }: { whale: WhaleTradeEvent })
 
   return (
     <div className={cn(
-      "flex items-center justify-between px-2 py-1 rounded-lg text-[10px] font-mono",
-      "border border-white/5 transition-colors",
+      "flex items-center justify-between px-1.5 py-0.5 rounded border border-white/5 transition-colors",
       isBuy
-        ? "bg-[#39FF14]/5 border-l-2 border-l-[#39FF14]/50"
-        : "bg-[#FF4B5C]/5 border-l-2 border-l-[#FF4B5C]/50"
+        ? "bg-[#39FF14]/5 border-l-[#39FF14]/40"
+        : "bg-[#FF4B5C]/5 border-l-[#FF4B5C]/40"
     )}>
-      <div className="flex items-center gap-1.5">
-        <span className="text-[8px]">{isMega ? '🐋' : '🐳'}</span>
-        <span className="font-black text-white/90">{getSymbolAlias(whale.symbol)}</span>
+      <div className="flex items-center gap-1.5 overflow-hidden">
+        <span className="text-[7px] shrink-0">{isMega ? '🐋' : '🐳'}</span>
+        <span className="font-black text-white/90 text-[10px] tracking-tighter shrink-0">{getSymbolAlias(whale.symbol)}</span>
         <span className={cn(
-          "text-[8px] font-black px-1 rounded",
-          isBuy ? "bg-[#39FF14]/20 text-[#39FF14]" : "bg-[#FF4B5C]/20 text-[#FF4B5C]"
+          "text-[8px] font-black px-1 rounded shrink-0",
+          isBuy ? "bg-[#39FF14]/15 text-[#39FF14]/90" : "bg-[#FF4B5C]/15 text-[#FF4B5C]/90"
         )}>
           {isBuy ? 'BUY' : 'SELL'}
         </span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="font-black text-white/80">{sizeStr}</span>
-        <span className="text-slate-500">@ ${formatPrice(whale.price)}</span>
-        <span className="text-slate-600">{timeStr}</span>
+      <div className="flex items-center gap-2 tabular-nums">
+        <span className="font-black text-[10px] text-white/90">{sizeStr}</span>
+        <span className="text-slate-600 text-[9px] font-mono shrink-0">@ ${formatPrice(whale.price)}</span>
+        <span className="text-slate-700 text-[8px] font-mono shrink-0">{timeStr}</span>
       </div>
     </div>
   );
@@ -193,22 +191,22 @@ const FundingCell = memo(function FundingCell({ data }: { data: FundingRateData 
 
   return (
     <div className={cn(
-      "flex flex-col items-center justify-center px-2 py-1.5 rounded-lg",
-      "border border-white/5 text-center min-w-[70px]",
+      "flex flex-col items-center justify-center px-1.5 py-1 rounded transition-all",
+      "border border-white/5 text-center min-w-[64px]",
       isExtreme
         ? isPositive ? "bg-[#39FF14]/10 border-[#39FF14]/20" : "bg-[#FF4B5C]/10 border-[#FF4B5C]/20"
-        : "bg-slate-800/40"
+        : "bg-slate-900 overflow-hidden"
     )}>
-      <span className="text-[8px] font-black text-slate-400 truncate max-w-[60px]">
+      <span className="text-[7.5px] font-black text-slate-500 truncate max-w-[55px] uppercase tracking-tighter">
         {getSymbolAlias(data.symbol)}
       </span>
       <span className={cn(
-        "text-[10px] font-black tabular-nums",
+        "text-[9px] font-black tabular-nums leading-none my-0.5",
         isPositive ? "text-[#39FF14]" : "text-[#FF4B5C]"
       )}>
         {isPositive ? '+' : ''}{ratePercent}%
       </span>
-      <span className="text-[7px] text-slate-500 tabular-nums">
+      <span className="text-[6.5px] text-slate-600 tabular-nums font-bold">
         {annualized}% APR
       </span>
     </div>
@@ -386,8 +384,12 @@ export const DerivativesPanel = memo(function DerivativesPanel({
             </span>
           </div>
           {isConnected && (
-            <span className="text-[8px] font-mono text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded-full">
-              {fundingRates.size} feeds • {liquidations.length} liqs • {whaleAlerts.length} whales
+            <span className="text-[8px] font-mono text-slate-500 bg-slate-800/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span>{fundingRates.size} feeds</span>
+              <span className="opacity-30">•</span>
+              <span>{liquidations.length} liqs</span>
+              <span className="opacity-30">•</span>
+              <span>{whaleAlerts.length} whales</span>
             </span>
           )}
         </div>
@@ -439,22 +441,22 @@ export const DerivativesPanel = memo(function DerivativesPanel({
             transition={{ duration: 0.2 }}
           >
             {/* Tabs */}
-            <div className="flex border-t border-white/5 bg-slate-900/40">
+            <div className="flex border-t border-white/5 bg-slate-900/60">
               {tabs.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 py-2 text-[9px] font-black uppercase tracking-wider transition-all",
+                    "flex-1 flex items-center justify-center gap-1 py-1.5 text-[8.5px] font-black uppercase tracking-wider transition-all",
                     activeTab === tab.id
-                      ? "text-[#39FF14] border-b-2 border-[#39FF14] bg-[#39FF14]/5"
-                      : "text-slate-500 hover:text-slate-300 border-b-2 border-transparent"
+                      ? "text-[#39FF14] border-b border-[#39FF14] bg-[#39FF14]/5"
+                      : "text-slate-500 hover:text-slate-300 border-b border-transparent"
                   )}
                 >
-                  <tab.icon size={10} />
+                  <tab.icon size={9} />
                   {tab.label}
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="text-[7px] bg-white/10 rounded-full px-1 tabular-nums">
+                    <span className="text-[6.5px] bg-white/10 rounded-full px-1 tabular-nums ml-0.5">
                       {tab.count}
                     </span>
                   )}
@@ -463,7 +465,7 @@ export const DerivativesPanel = memo(function DerivativesPanel({
             </div>
 
             {/* Tab Content */}
-            <div className="p-2 max-h-[240px] overflow-y-auto custom-scrollbar">
+            <div className="p-1.5 max-h-[220px] overflow-y-auto custom-scrollbar">
               {activeTab === 'liquidations' && (
                 <div className="flex flex-col gap-1">
                   {sortedLiquidations.length === 0 ? (
@@ -521,9 +523,9 @@ export const DerivativesPanel = memo(function DerivativesPanel({
                       .sort((a, b) => (b[1].buyVolume1m + b[1].sellVolume1m) - (a[1].buyVolume1m + a[1].sellVolume1m))
                       .slice(0, 15)
                       .map(([symbol, data]) => (
-                        <div key={symbol} className="flex flex-col gap-1.5 p-2 rounded-xl bg-white/[0.01] border border-white/[0.03]">
+                        <div key={symbol} className="flex flex-col gap-1 p-1.5 rounded border border-white/[0.04] bg-white/[0.01]">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black text-white">
+                            <span className="text-[9px] font-black text-white/90 tracking-tight">
                               {getSymbolAlias(symbol)}
                             </span>
                             <div className="flex items-center gap-3">

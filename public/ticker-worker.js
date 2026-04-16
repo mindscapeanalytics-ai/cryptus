@@ -1,5 +1,5 @@
 /**
- * RSIQ PRO Ticker Worker — v4 (Robust Multi-Exchange Architecture)
+ * RSIQ PRO Ticker Worker - v4 (Robust Multi-Exchange Architecture)
  * Offloads WebSocket parsing, buffering, and real-time alert evaluation.
  * Supports Binance and Bybit (Spot & Linear).
  *
@@ -344,7 +344,7 @@ class BybitAdapter extends ExchangeAdapter {
 // ── Controller Logic ──────────────────────────────────────────
 let activeAdapters = new Map();
 
-/** Exponential backoff with jitter — prevents thundering herd on reconnect */
+/** Exponential backoff with jitter - prevents thundering herd on reconnect */
 function getReconnectDelay(exchangeName) {
   const attempts = reconnectAttempts.get(exchangeName) || 0;
   reconnectAttempts.set(exchangeName, attempts + 1);
@@ -373,14 +373,14 @@ function ensureExchange(name) {
   console.log(`[worker] Concurrent adapter added: ${name}`);
 }
 
-/** Zombie connection watchdog — forces reconnect if no data received for ZOMBIE_THRESHOLD_MS */
+/** Zombie connection watchdog - forces reconnect if no data received for ZOMBIE_THRESHOLD_MS */
 function startZombieWatchdog() {
   stopZombieWatchdog();
   zombieWatchdog = setInterval(() => {
     if (activeAdapters.size === 0) return;
     const silenceMs = Date.now() - lastDataReceived;
     if (silenceMs > ZOMBIE_THRESHOLD_MS) {
-      console.warn(`[worker] ZOMBIE DETECTED: No data for ${Math.round(silenceMs / 1000)}s — forcing reconnect`);
+      console.warn(`[worker] ZOMBIE DETECTED: No data for ${Math.round(silenceMs / 1000)}s - forcing reconnect`);
       // Force reconnect all active adapters
       const names = Array.from(activeAdapters.keys());
       activeAdapters.forEach(adapter => adapter.disconnect());
@@ -446,7 +446,7 @@ function startBybitSpotRestPoll() {
           }, 'bybit');
         }
       } catch (e) {
-        // Silent fail — WS is primary, REST is fallback
+        // Silent fail - WS is primary, REST is fallback
       }
       // Small stagger between batches to avoid rate limits
       if (i + BATCH_SIZE < staleSymbols.length) {
@@ -474,7 +474,7 @@ function stopExchange(name) {
 function processNormalizedTicker(t, exchangeName = 'binance') {
   if (!currentSymbols.has(t.s)) return;
 
-  // Task 2.1: Explicit validation — skip update if symbol missing or price invalid
+  // Task 2.1: Explicit validation - skip update if symbol missing or price invalid
   if (!t.s || t.c == null || isNaN(t.c) || t.c === 0) return;
 
   const trackingKey = `${exchangeName}:${t.s}`;
@@ -850,7 +850,7 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
 
   // ── Update UI Buffer (Prioritize Active Exchange) ──
   if (exchangeName === currentExchangeName || !tickerBuffer.has(t.s)) {
-    // Task 2.1: Expose isStale flag — false on every live update (staleness check sets it later)
+    // Task 2.1: Expose isStale flag - false on every live update (staleness check sets it later)
     const tickerEntry = latestTickerState.get(trackingKey);
     const isStale = tickerEntry ? (Date.now() - tickerEntry.lastUpdate > 60000) : false;
     tickerBuffer.set(t.s, {
@@ -919,8 +919,8 @@ function handleMessage(e, port = null) {
         if (cfg.alertsEnabled !== undefined) globalAlertsEnabled = cfg.alertsEnabled;
         if (cfg.volatilityEnabled !== undefined) globalVolatilityEnabled = cfg.volatilityEnabled;
         console.log(`[worker] Rehydrated config: rsi=${globalRsiPeriod}, alerts=${globalAlertsEnabled}, vol=${globalVolatilityEnabled}`);
-        // Task 2.5: Confirm baseline sync is ready — open1m/volStart1m will arrive via SYNC_STATES
-        console.log('[worker] Cold-start baseline sync ready — awaiting SYNC_STATES with open1m/volStart1m');
+        // Task 2.5: Confirm baseline sync is ready - open1m/volStart1m will arrive via SYNC_STATES
+        console.log('[worker] Cold-start baseline sync ready - awaiting SYNC_STATES with open1m/volStart1m');
       });
       
       // Institutional Latency: Default to 100ms for "smooth" real-time experience
@@ -944,7 +944,7 @@ function handleMessage(e, port = null) {
         activeAdapters.forEach((adapter, name) => {
           // Force reconnect if socket is closed, closing, OR stuck in CONNECTING
           // (zombie CONNECTING state happens when OS kills the TCP connection
-          // without a proper close frame — common on mobile PWA sleep)
+          // without a proper close frame - common on mobile PWA sleep)
           if (!adapter.socket || 
               adapter.socket.readyState === WebSocket.CLOSED ||
               adapter.socket.readyState === WebSocket.CLOSING ||
@@ -1004,7 +1004,7 @@ function handleMessage(e, port = null) {
       if (setsEqual(currentSymbols, updateSyms)) break;
       
       currentSymbols = updateSyms;
-      // Memory Hygiene — Task 3.4: full cleanup of all per-symbol state maps
+      // Memory Hygiene - Task 3.4: full cleanup of all per-symbol state maps
       for (const [s] of rsiStates) { if (!currentSymbols.has(s)) rsiStates.delete(s); }
       for (const [s] of coinConfigs) { if (!currentSymbols.has(s)) coinConfigs.delete(s); }
       for (const [k] of zoneStates) {
@@ -1081,7 +1081,7 @@ function handleMessage(e, port = null) {
           
           // NEW: Patch liveCandleStates with true API open and volume baseline
           const trackingKey = `${currentExchangeName}:${s}`;
-          // Task 2.5 — Cold-start baseline mechanism:
+          // Task 2.5 - Cold-start baseline mechanism:
           // When the worker first starts it has no open price or accumulated volume for the
           // current 1-minute candle. The main thread sends `open1m` (the true API open from
           // the most recent kline) and `volStart1m` (volume already traded in this minute)

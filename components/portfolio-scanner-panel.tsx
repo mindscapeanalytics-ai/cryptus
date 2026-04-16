@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn, formatPrice } from '@/lib/utils';
 import { getSymbolAlias } from '@/lib/symbol-utils';
 import type { ScreenerEntry } from '@/lib/types';
+import { useLivePrices } from '@/hooks/use-live-prices';
 import {
   loadPositions,
   savePositions,
@@ -36,11 +37,15 @@ export function PortfolioScannerPanel({ open, onClose, data }: PortfolioScannerP
   const [newEntry, setNewEntry] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Compute risk report from positions + live screener data
+  // Subscribe to real-time prices for portfolio symbols
+  const portfolioSymbols = useMemo(() => new Set(positions.map(p => p.symbol.toUpperCase())), [positions]);
+  const { livePrices } = useLivePrices(portfolioSymbols, 100); // 100ms throttle for high-density flux
+
+  // Compute risk report from positions + live screener data + real-time ticks
   const report: PortfolioRiskReport = useMemo(() => {
-    if (!open) return computePortfolioRisk([], []);
-    return computePortfolioRisk(positions, data);
-  }, [open, positions, data]);
+    if (!open) return computePortfolioRisk([], [], livePrices);
+    return computePortfolioRisk(positions, data, livePrices);
+  }, [open, positions, data, livePrices]);
 
   // Symbol autocomplete suggestions
   const suggestions = useMemo(() => {

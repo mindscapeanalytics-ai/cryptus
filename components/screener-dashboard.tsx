@@ -54,22 +54,22 @@ function formatVolume(v: number): string {
 }
 
 function formatRsi(rsi: number | null): string {
-  if (rsi === null) return '—';
+  if (rsi === null) return '-';
   return rsi.toFixed(1);
 }
 
 function formatNum(n: number | null, decimals = 2): string {
-  if (n === null) return '—';
+  if (n === null) return '-';
   return n.toFixed(decimals);
 }
 
 function formatPct(n: number | null): string {
-  if (n === null) return '—';
+  if (n === null) return '-';
   return `${n > 0 ? '+' : ''}${n.toFixed(2)}%`;
 }
 
 function formatTimeAgo(ts: number): string {
-  if (!ts) return '—';
+  if (!ts) return '-';
   const diff = Math.floor((Date.now() - ts) / 1000);
   if (diff < 10) return 'Just now';
   if (diff < 60) return `${diff}s`;
@@ -131,7 +131,7 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
     'strong-sell': 'bg-[#722f37]/20 text-[#FF4B5C] border-[#722f37]/40',
   };
 
-  // Signal Narration Engine™ — generate rich explanations for non-neutral signals
+  // Signal Narration Engine™ - generate rich explanations for non-neutral signals
   const narration = useMemo(() => {
     if (!entry || signal === 'neutral') return null;
     return generateSignalNarration(entry);
@@ -141,10 +141,10 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
     ? `${narration.emoji} ${narration.headline} (${narration.conviction}% ${narration.convictionLabel})\n\n${narration.reasons.join('\n')}\n\n📋 Click to copy signal`
     : reasons?.length ? reasons.join(' \u00B7 ') : undefined;
 
-  // Signal Sharing — copy narration shareLine to clipboard for viral growth
+  // Signal Sharing - copy narration shareLine to clipboard for viral growth
   const handleCopySignal = useCallback(() => {
     if (!narration) return;
-    const text = `${narration.shareLine}\n\n🔗 Powered by RSIQ Pro — mindscapeanalytics.com`;
+    const text = `${narration.shareLine}\n\n- Powered by RSIQ Pro - mindscapeanalytics.com`;
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Signal copied to clipboard!', { duration: 2000 });
     }).catch(() => {
@@ -466,7 +466,7 @@ const ScreenerRow = memo(function ScreenerRow({
     <tr
       ref={rowRef}
       className={cn(
-        "group transition-colors duration-150 border-white/[0.02]",
+        "group transition-colors duration-150 border-white/[0.02] h-[68px]",
         idx % 2 === 0 ? "bg-white/[0.01]" : "bg-transparent",
         "hover:bg-white/[0.04] active:bg-white/[0.06]"
       )}
@@ -476,7 +476,7 @@ const ScreenerRow = memo(function ScreenerRow({
           ? (display.strategySignal.includes('buy') ? '#39FF14' : display.strategySignal.includes('sell') ? '#FF4B5C' : 'rgba(255,255,255,0.2)')
           : 'transparent',
         contentVisibility: 'auto',
-        containIntrinsicSize: '0 56px'
+        containIntrinsicSize: '0 68px'
       } as any}
     >
       {visibleCols.has('rank') && (
@@ -581,7 +581,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono",
           globalUseEma ? "text-slate-300" : "text-slate-700/40"
         )}>
-          {globalUseEma && display.ema9 ? `$${formatPrice(display.ema9)}` : '—'}
+          {globalUseEma && display.ema9 ? `$${formatPrice(display.ema9)}` : '-'}
         </td>
       )}
       {visibleCols.has('ema21') && (
@@ -589,7 +589,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono",
           globalUseEma ? "text-slate-400" : "text-slate-700/40"
         )}>
-          {globalUseEma && display.ema21 ? `$${formatPrice(display.ema21)}` : '—'}
+          {globalUseEma && display.ema21 ? `$${formatPrice(display.ema21)}` : '-'}
         </td>
       )}
 
@@ -622,37 +622,37 @@ const ScreenerRow = memo(function ScreenerRow({
               </span>
             )}
             <span className="drop-shadow-sm font-black">
-              {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(display.rsiCustom) : '—'}
+              {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(display.rsiCustom) : '-'}
             </span>
           </div>
         </td>
       )}
       {visibleCols.has('emaCross') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[10px] font-black uppercase transition-opacity duration-300",
-          !globalUseEma && "opacity-20 grayscale"
+          "px-3 py-4 text-right text-[10px] font-black uppercase transition-all duration-300 whitespace-nowrap",
+          !globalUseEma && "opacity-40"
         )}>
-          {display.emaCross !== 'none' && (
+          {display.emaCross !== 'none' && display.emaCross !== null && (
             <span className={cn(
-              "px-2 py-1 rounded border",
-              display.emaCross === 'bullish' ? "text-[#39FF14] border-[#39FF14]/20 bg-[#39FF14]/5" :
-                display.emaCross === 'bearish' ? "text-[#FF4B5C] border-[#722f37]/20 bg-[#722f37]/5" :
-                  "text-slate-700 border-transparent"
+              "px-2 py-1 rounded border shadow-sm",
+              display.emaCross === 'bullish' ? "text-[#39FF14] border-[#39FF14]/40 bg-[#39FF14]/10" :
+                display.emaCross === 'bearish' ? "text-[#FF4B5C] border-[#FF4B5C]/40 bg-[#FF4B5C]/10" :
+                  "text-slate-500 border-white/10 bg-white/5"
             )}>
-              {display.emaCross || '—'}
+              {display.emaCross}
             </span>
           )}
-          {display.emaCross === 'none' && <span className="text-slate-700 opacity-40">—</span>}
+          {(display.emaCross === 'none' || display.emaCross === null) && <span className="text-slate-700 opacity-30 px-2">-</span>}
         </td>
       )}
 
       {visibleCols.has('macdHistogram') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono transition-opacity duration-300",
-          !globalUseMacd && "opacity-20 grayscale",
-          display.macdHistogram === null ? "text-slate-700" : display.macdHistogram > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
+          "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono transition-all duration-300 whitespace-nowrap",
+          display.macdHistogram === null ? "text-slate-700" : display.macdHistogram > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]",
+          !globalUseMacd && "opacity-40"
         )}>
-          {formatNum(display.macdHistogram, 4)}
+          {display.macdHistogram !== null ? formatNum(display.macdHistogram, 4) : '-'}
         </td>
       )}
 
@@ -661,7 +661,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           globalUseBb ? "text-[#FF4B5C]/70" : "text-slate-700/40"
         )}>
-          {globalUseBb && display.bbUpper ? `$${formatPrice(display.bbUpper)}` : '—'}
+          {globalUseBb && display.bbUpper ? `$${formatPrice(display.bbUpper)}` : '-'}
         </td>
       )}
       {visibleCols.has('bbLower') && (
@@ -669,7 +669,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           globalUseBb ? "text-[#39FF14]/70" : "text-slate-700/40"
         )}>
-          {globalUseBb && display.bbLower ? `$${formatPrice(display.bbLower)}` : '—'}
+          {globalUseBb && display.bbLower ? `$${formatPrice(display.bbLower)}` : '-'}
         </td>
       )}
 
@@ -679,7 +679,7 @@ const ScreenerRow = memo(function ScreenerRow({
           !globalUseBb && "opacity-20 grayscale",
           display.bbPosition === null ? "text-slate-700" : display.bbPosition < 0.2 ? "text-[#39FF14]" : display.bbPosition > 0.8 ? "text-[#FF4B5C]" : "text-slate-400"
         )}>
-          {globalUseBb ? formatNum(display.bbPosition) : '—'}
+          {globalUseBb ? formatNum(display.bbPosition) : '-'}
         </td>
       )}
 
@@ -693,25 +693,26 @@ const ScreenerRow = memo(function ScreenerRow({
               <span className={getRsiColor(display.stochK)}>{formatRsi(display.stochK)}</span>
               {display.stochD !== null && <span className="text-slate-600 ml-1">/{display.stochD.toFixed(0)}</span>}
             </>
-          ) : <span className="text-slate-700">—</span>}
+          ) : <span className="text-slate-700">-</span>}
         </td>
       )}
 
       {visibleCols.has('confluence') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[10px] font-black uppercase tracking-tighter transition-all duration-300",
+          "px-3 py-4 text-right text-[10px] font-black uppercase tracking-tighter transition-all duration-300 whitespace-nowrap",
           display.confluence >= 15 ? "text-[#39FF14] drop-shadow-[0_0_8px_rgba(57,255,20,0.3)]" : 
           display.confluence <= -15 ? "text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.3)]" : 
           "text-slate-600"
         )}>
-          {display.confluenceLabel || '—'}
+          {display.confluenceLabel || '-'}
         </td>
       )}
 
       {visibleCols.has('divergence') && (
-        <td className="px-3 py-4 text-right text-[10px] font-black uppercase">
+        <td className="px-3 py-4 text-right text-[10px] font-black uppercase whitespace-nowrap">
           {display.rsiDivergence === 'bullish' ? <span className="text-[#39FF14] drop-shadow-[0_0_8px_rgba(57,255,20,0.3)] animate-pulse">Bull Div</span> :
-            display.rsiDivergence === 'bearish' ? <span className="text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.3)] animate-pulse">Bear Div</span> : '—'}
+            display.rsiDivergence === 'bearish' ? <span className="text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.3)] animate-pulse">Bear Div</span> : 
+            <span className="text-slate-800">-</span>}
         </td>
       )}
 
@@ -721,7 +722,7 @@ const ScreenerRow = memo(function ScreenerRow({
           !globalUseVwap && "opacity-20 grayscale",
           display.vwapDiff === null ? "text-slate-700" : display.vwapDiff > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
         )}>
-          {globalUseVwap ? formatPct(display.vwapDiff) : '—'}
+          {globalUseVwap ? formatPct(display.vwapDiff) : '-'}
         </td>
       )}
       {visibleCols.has('longCandle') && (
@@ -742,7 +743,7 @@ const ScreenerRow = memo(function ScreenerRow({
               )}
               <span>{Number.isFinite(display.curCandleSize / display.avgBarSize1m) ? `${(display.curCandleSize / display.avgBarSize1m).toFixed(1)}x` : '0.0x'}</span>
             </div>
-          ) : '—'}
+          ) : '-'}
         </td>
       )}
       {visibleCols.has('volumeSpike') && (
@@ -757,7 +758,7 @@ const ScreenerRow = memo(function ScreenerRow({
               )}
               <span>{Number.isFinite(display.curCandleVol / display.avgVolume1m) ? `${(display.curCandleVol / display.avgVolume1m).toFixed(1)}x` : '0.0x'}</span>
             </div>
-          ) : '—'}
+          ) : '-'}
         </td>
       )}
 
@@ -767,13 +768,13 @@ const ScreenerRow = memo(function ScreenerRow({
           !globalUseMomentum && "opacity-20 grayscale",
           display.momentum === null ? "text-slate-700" : display.momentum > 0 ? "text-emerald-300" : display.momentum < 0 ? "text-red-300" : "text-slate-500"
         )}>
-          {globalUseMomentum ? formatPct(display.momentum) : '—'}
+          {globalUseMomentum ? formatPct(display.momentum) : '-'}
         </td>
       )}
 
       {visibleCols.has('atr') && (
         <td className="px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono text-amber-300/80">
-          {display.atr !== null ? display.atr.toFixed(display.atr < 1 ? 6 : 2) : '—'}
+          {display.atr !== null ? display.atr.toFixed(display.atr < 1 ? 6 : 2) : '-'}
         </td>
       )}
       {visibleCols.has('adx') && (
@@ -781,7 +782,7 @@ const ScreenerRow = memo(function ScreenerRow({
           "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           display.adx === null ? "text-slate-700" : display.adx >= 25 ? "text-[#39FF14]" : "text-slate-500"
         )}>
-          {display.adx !== null ? display.adx.toFixed(1) : '—'}
+          {display.adx !== null ? display.adx.toFixed(1) : '-'}
         </td>
       )}
 
@@ -798,7 +799,7 @@ const ScreenerRow = memo(function ScreenerRow({
               </span>
               <span className="text-[7px] text-slate-500 font-black opacity-60 uppercase">{fundingRate.annualized.toFixed(0)}% APR</span>
             </div>
-          ) : <span className="text-slate-700">—</span>}
+          ) : <span className="text-slate-700">-</span>}
         </td>
       )}
       {visibleCols.has('orderFlow') && (
@@ -818,7 +819,7 @@ const ScreenerRow = memo(function ScreenerRow({
                 {(orderFlowData.ratio * 100).toFixed(0)}%
               </span>
             </div>
-          ) : <span className="text-slate-700 text-[10px]">—</span>}
+          ) : <span className="text-slate-700 text-[10px]">-</span>}
         </td>
       )}
       {visibleCols.has('smartMoney') && (
@@ -834,7 +835,7 @@ const ScreenerRow = memo(function ScreenerRow({
             )}>
               {smartMoneyScore.score > 0 ? '+' : ''}{smartMoneyScore.score}
             </span>
-          ) : <span className="text-slate-700 text-[10px]">—</span>}
+          ) : <span className="text-slate-700 text-[10px]">-</span>}
         </td>
       )}
 
@@ -844,7 +845,7 @@ const ScreenerRow = memo(function ScreenerRow({
       </td>
 
       {visibleCols.has('strategy') && (
-        <td className="px-3 py-3 text-right min-w-[120px]">
+        <td className="px-3 py-3 text-right min-w-[120px] whitespace-nowrap">
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
               <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums font-mono uppercase" title="Time since signal started">
@@ -968,7 +969,7 @@ function EditableRsiCell({
   if (disabled) {
     return (
       <td className="px-3 py-3 text-right text-sm tabular-nums font-bold font-mono text-slate-700/40">
-        —
+        -
       </td>
     );
   }
@@ -1499,17 +1500,17 @@ const ScreenerCard = memo(function ScreenerCard({
                 <span className="text-[6px] font-black text-slate-600 uppercase mb-0.5">{col.label.replace('RSI ', '')}</span>
                 {isRsi ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseRsi ? getRsiColor(val as number) : "text-slate-700/40")}>
-                    {globalUseRsi ? formatRsi(val as number) : '—'}
+                    {globalUseRsi ? formatRsi(val as number) : '-'}
                   </span>
                 ) : col.id === 'strategy' ? (
                   <StrategyBadge signal={display.strategySignal} label={display.strategyLabel} entry={entry} />
                 ) : col.id === 'divergence' ? (
                   <span className={cn("text-[8px] font-black uppercase", display.rsiDivergence === 'bullish' ? "text-[#39FF14]" : display.rsiDivergence === 'bearish' ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {display.rsiDivergence === 'bullish' ? 'DIV+' : display.rsiDivergence === 'bearish' ? 'DIV-' : '—'}
+                    {display.rsiDivergence === 'bullish' ? 'DIV+' : display.rsiDivergence === 'bearish' ? 'DIV-' : '-'}
                   </span>
                 ) : col.id === 'vwapDiff' ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseVwap && (val as number) > 0 ? "text-[#39FF14]" : globalUseVwap && (val as number) < 0 ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {globalUseVwap ? formatPct(val as number) : '—'}
+                    {globalUseVwap ? formatPct(val as number) : '-'}
                   </span>
                 ) : col.id === 'longCandle' ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 && (display.curCandleSize / display.avgBarSize1m) >= globalLongCandleThreshold) ? "text-amber-400" : "text-slate-700")}>
@@ -1523,7 +1524,7 @@ const ScreenerCard = memo(function ScreenerCard({
                         )}
                         {Number.isFinite(display.curCandleSize / display.avgBarSize1m) ? `${(display.curCandleSize / display.avgBarSize1m).toFixed(1)}x` : '0.0x'}
                       </div>
-                    ) : '—'}
+                    ) : '-'}
                   </span>
                 ) : col.id === 'volumeSpike' ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 && (display.curCandleVol / display.avgVolume1m) >= globalVolumeSpikeThreshold) ? "text-[#39FF14]" : "text-slate-700")}>
@@ -1534,49 +1535,49 @@ const ScreenerCard = memo(function ScreenerCard({
                         )}
                         {Number.isFinite(display.curCandleVol / display.avgVolume1m) ? `${(display.curCandleVol / display.avgVolume1m).toFixed(1)}x` : '0.0x'}
                       </div>
-                    ) : '—'}
+                    ) : '-'}
                   </span>
                 ) : col.id === 'momentum' ? (
                   <span className={cn("text-[9px] font-bold tabular-nums", globalUseMomentum && (val as number) > 0 ? "text-emerald-300" : globalUseMomentum && (val as number) < 0 ? "text-red-300" : "text-slate-500")}>
-                    {globalUseMomentum ? formatPct(val as number) : '—'}
+                    {globalUseMomentum ? formatPct(val as number) : '-'}
                   </span>
                 ) : col.id === 'ema9' || col.id === 'ema21' ? (
                   <span className="text-[9px] font-bold text-slate-300 tabular-nums">
-                    {globalUseEma && typeof val === 'number' ? `$${formatPrice(val)}` : '—'}
+                    {globalUseEma && typeof val === 'number' ? `$${formatPrice(val)}` : '-'}
                   </span>
                 ) : col.id === 'bbUpper' || col.id === 'bbLower' ? (
                   <span className="text-[9px] font-bold text-slate-300 tabular-nums">
-                    {globalUseBb && typeof val === 'number' ? `$${formatPrice(val)}` : '—'}
+                    {globalUseBb && typeof val === 'number' ? `$${formatPrice(val)}` : '-'}
                   </span>
                 ) : col.id === 'macdHistogram' ? (
                   <span className={cn("text-[9px] font-bold tabular-nums", (val as number) > 0 ? "text-[#39FF14]" : (val as number) < 0 ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {typeof val === 'number' ? val.toFixed(4) : '—'}
+                    {typeof val === 'number' ? val.toFixed(4) : '-'}
                   </span>
                 ) : col.id === 'confluence' ? (
                   <span className={cn("text-[9px] font-bold tabular-nums", display.confluence >= 15 ? "text-[#39FF14]" : display.confluence <= -15 ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {display.confluenceLabel || '—'}
+                    {display.confluenceLabel || '-'}
                   </span>
                 ) : col.id === 'emaCross' ? (
                   <span className={cn("text-[9px] font-bold uppercase", display.emaCross === 'bullish' ? "text-[#39FF14]" : display.emaCross === 'bearish' ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {display.emaCross !== 'none' ? (display.emaCross === 'bullish' ? 'BULL' : 'BEAR') : '—'}
+                    {display.emaCross !== 'none' ? (display.emaCross === 'bullish' ? 'BULL' : 'BEAR') : '-'}
                   </span>
                 ) : col.id === 'stochK' ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseStoch && (val as number) > 80 ? "text-[#FF4B5C]" : globalUseStoch && (val as number) < 20 ? "text-[#39FF14]" : "text-slate-300")}>
-                    {globalUseStoch && typeof val === 'number' ? val.toFixed(1) : '—'}
+                    {globalUseStoch && typeof val === 'number' ? val.toFixed(1) : '-'}
                   </span>
                 ) : col.id === 'bbPosition' ? (
                   <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseBb && (val as number) >= 0.9 ? "text-[#FF4B5C]" : globalUseBb && (val as number) <= 0.1 ? "text-[#39FF14]" : "text-slate-300")}>
-                    {globalUseBb && typeof val === 'number' ? val.toFixed(2) : '—'}
+                    {globalUseBb && typeof val === 'number' ? val.toFixed(2) : '-'}
                   </span>
                 ) : col.id === 'atr' || col.id === 'adx' ? (
                   <span className="text-[10px] font-black tabular-nums font-mono text-slate-300">
-                    {globalVolatilityEnabled && typeof val === 'number' ? val.toFixed(col.id === 'atr' ? 4 : 1) : '—'}
+                    {globalVolatilityEnabled && typeof val === 'number' ? val.toFixed(col.id === 'atr' ? 4 : 1) : '-'}
                   </span>
                 ) : col.id === 'fundingRate' ? (
                   <span className={cn("text-[9px] font-black tabular-nums",
                     fundingRate ? (fundingRate.rate > 0 ? "text-green-400" : fundingRate.rate < 0 ? "text-red-400" : "text-slate-500") : "text-slate-700"
                   )}>
-                    {fundingRate ? `${fundingRate.rate > 0 ? '+' : ''}${(fundingRate.rate * 100).toFixed(3)}%` : '—'}
+                    {fundingRate ? `${fundingRate.rate > 0 ? '+' : ''}${(fundingRate.rate * 100).toFixed(3)}%` : '-'}
                   </span>
                 ) : col.id === 'orderFlow' ? (
                   orderFlowData ? (
@@ -1586,7 +1587,7 @@ const ScreenerCard = memo(function ScreenerCard({
                         <div className="h-full bg-red-500/60" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
                       </div>
                     </div>
-                  ) : <span className="text-slate-700 text-[9px]">—</span>
+                  ) : <span className="text-slate-700 text-[9px]">-</span>
                 ) : col.id === 'smartMoney' ? (
                   <span className={cn("text-[8px] font-black",
                     smartMoneyScore ? (
@@ -1594,7 +1595,7 @@ const ScreenerCard = memo(function ScreenerCard({
                         smartMoneyScore.score <= -30 ? "text-red-400" : "text-slate-500"
                     ) : "text-slate-700"
                   )}>
-                    {smartMoneyScore ? `${smartMoneyScore.score > 0 ? '+' : ''}${smartMoneyScore.score}` : '—'}
+                    {smartMoneyScore ? `${smartMoneyScore.score > 0 ? '+' : ''}${smartMoneyScore.score}` : '-'}
                   </span>
                 ) : (
                   <span className={cn(
@@ -1605,7 +1606,7 @@ const ScreenerCard = memo(function ScreenerCard({
                       ? val.toFixed(2)
                       : typeof val === 'string'
                         ? val
-                        : '—'}
+                        : '-'}
                   </span>
                 )}
               </div>
@@ -2603,7 +2604,7 @@ export default function ScreenerDashboard() {
         setCoinConfigs(prev => ({ ...prev, [symbol]: updated }));
 
         // Gap 3: Immediately push new thresholds/periods to the worker without
-        // waiting for the 800ms debounced syncStates — ensures no stale-threshold alerts
+        // waiting for the 800ms debounced syncStates - ensures no stale-threshold alerts
         if (typeof window !== 'undefined') {
           const eng = (window as any).__priceEngine;
           if (eng?.postToWorker) {
@@ -2788,7 +2789,7 @@ export default function ScreenerDashboard() {
         return;
       }
 
-      // 503 with data means partial result — still usable
+      // 503 with data means partial result - still usable
       if (!res.ok && !(res.status === 503 && json.data?.length > 0)) {
         throw new Error(`API error ${res.status}`);
       }
@@ -2867,13 +2868,13 @@ export default function ScreenerDashboard() {
       });
       syncStates({ rsiStates, configs: coinConfigsRef.current });
     } catch (err) {
-      // If a newer fetch started, this one was intentionally cancelled — discard silently.
+      // If a newer fetch started, this one was intentionally cancelled - discard silently.
       if (fetchToken !== fetchTokenRef.current) return;
       if (controller.signal.aborted) {
         // Client-side timeout (not an intentional cancel, since token still matches).
         // Show an error so the user knows why the table is empty.
         if (dataLenRef.current === 0) {
-          setError('Connection timed out — server is slow or unreachable. Tap to retry.');
+          setError('Connection timed out - server is slow or unreachable. Tap to retry.');
         }
         return;
       }
@@ -3008,7 +3009,7 @@ export default function ScreenerDashboard() {
 
   useEffect(() => {
     // Stale-first hydration: load any cached data immediately so the table is
-    // visible while the live fetch runs. Exchange mismatch is fine here —
+    // visible while the live fetch runs. Exchange mismatch is fine here -
     // the live fetch will overwrite with correct exchange data within seconds.
     const saved = localStorage.getItem('crypto-rsi-last-data');
     if (saved) {
@@ -3110,7 +3111,7 @@ export default function ScreenerDashboard() {
     setLoading(true);
     fetchingRef.current = false;
     fetchDataRef.current();
-  }, [exchange, hasMounted]); // removed fetchData dep — use fetchDataRef instead
+  }, [exchange, hasMounted]); // removed fetchData dep - use fetchDataRef instead
 
   // ── Debounced Server-side Search ──
   useEffect(() => {
@@ -3798,7 +3799,7 @@ export default function ScreenerDashboard() {
       )}
 
       {/* ─── DERIVATIVES INTELLIGENCE PANEL (MINIMIZED) ─── */}
-      <div className="mb-6 opacity-80 hover:opacity-100 transition-opacity">
+      <div className="mb-6 opacity-90 hover:opacity-100 transition-opacity">
         <DerivativesPanel
           fundingRates={fundingRates}
           liquidations={liquidations}
