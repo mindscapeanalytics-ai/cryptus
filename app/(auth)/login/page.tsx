@@ -25,12 +25,15 @@ export default function LoginPage() {
   const router = useRouter();
   const { data: session, isPending: isSessionLoading } = useSession();
 
-  // ── Auto-Redirect ──
+  // ── Auto-Redirect & Prefetch ──
   // If the user already has a valid session, zip them to the terminal immediately.
   React.useEffect(() => {
+    // Prefetch the terminal route to warm up the cache
+    router.prefetch("/terminal");
+
     if (session) {
       setSuccess("Secure connection detected. Synchronizing...");
-      setTimeout(() => router.push("/terminal"), 600);
+      router.push("/terminal");
     }
   }, [session, router]);
 
@@ -59,8 +62,7 @@ export default function LoginPage() {
           },
           onSuccess: () => {
             setSuccess("Connection Established. Accessing Terminal...");
-            // Faster, dynamic transition
-            router.refresh();
+            // Instant transition for 2026 performance standards
             router.push("/terminal");
           }
         }

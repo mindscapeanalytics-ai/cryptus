@@ -89,7 +89,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/terminal", request.url));
   }
 
-  // Owner-only route guard for admin panel
+  // Owner-only route guard for admin panel (Keep strict in middleware for security)
   if (session && pathname.startsWith("/admin")) {
     const isOwner =
       session.user.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL ||
@@ -100,37 +100,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Subscription enforcement for product routes
-  const needsSubscription = pathname.startsWith("/terminal") || pathname.startsWith("/guide");
-  const ownerBypass =
-    session?.user?.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL ||
-    session?.user?.role === "owner";
-
-  if (session && needsSubscription && !ownerBypass) {
-    try {
-      const baseURL = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
-      const { data } = await betterFetch<{ hasActiveSubscription?: boolean }>(
-        "/api/subscription/status",
-        {
-          baseURL,
-          headers: {
-            cookie: request.headers.get("cookie") || "",
-          },
-        },
-      );
-
-      if (!data?.hasActiveSubscription) {
-        const url = new URL("/subscription", request.url);
-        url.searchParams.set("required", "1");
-        return NextResponse.redirect(url);
-      }
-    } catch (error) {
-      console.warn("[middleware] subscription check failed:", error);
-      const url = new URL("/subscription", request.url);
-      url.searchParams.set("required", "1");
-      return NextResponse.redirect(url);
-    }
-  }
+  // 📝 NOTE: Subscription enforcement is now handled by the <SubscriptionGate /> component.
+  // This removes the 200-500ms API latency from every dashboard page load.
 
   return NextResponse.next();
 }

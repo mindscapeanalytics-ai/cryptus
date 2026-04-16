@@ -22,7 +22,7 @@ const SESSION_RETRY_DELAY_MS = 250; // Ultra-fast hydration (250ms insted of 1.5
 export function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const session = authClient.useSession();
   const router = useRouter();
-  const { hasActiveSubscription, isLoading: subLoading, refresh, daysLeft, isTrialing } = useSubscription();
+  const { hasActiveSubscription, isLoading: subLoading, refresh, daysLeft, isTrialing, isProcessingPayment } = useSubscription();
   const [sessionRetries, setSessionRetries] = useState(0);
   const hasRedirected = useRef(false);
 
@@ -96,6 +96,35 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
   // ── Access Granted ──
   if (isOwner || hasActiveSubscription) {
     return <>{children}</>;
+  }
+
+  // ── Finalizing Payment (Processing) ──
+  if (isProcessingPayment) {
+    return (
+      <div className="min-h-screen bg-[#05080F] flex items-center justify-center p-6 text-center">
+        <div className="w-full max-w-lg rounded-3xl border border-[#39FF14]/20 bg-[#0a0f1a] p-8">
+          <div className="mx-auto mb-6 h-16 w-16 rounded-2xl bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center relative">
+            <Loader2 className="h-8 w-8 text-[#39FF14] animate-spin" />
+          </div>
+          <h2 className="text-2xl font-black text-white uppercase tracking-tight">Financial Handshake</h2>
+          <p className="mt-4 text-sm text-slate-400 leading-relaxed">
+            Your crypto transaction has been broadcasted. We are currently waiting for 
+            <span className="text-white font-bold"> Network Confirmations</span> to finalize your RSIQ Pro access.
+          </p>
+          
+          <div className="mt-10 p-4 rounded-xl bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-[0.2em] text-[#39FF14] animate-pulse">
+            Monitoring Blockchain Nodes...
+          </div>
+          
+          <button 
+            onClick={refresh}
+            className="mt-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-white transition underline underline-offset-4"
+          >
+            Force Re-verify Status
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // ── Subscription Required ──

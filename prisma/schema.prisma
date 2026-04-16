@@ -35,8 +35,11 @@ model Subscription {
   id                   String    @id
   userId               String
   referenceId          String
+  paymentProvider      String?   @default("stripe")
   stripeCustomerId     String?
   stripeSubscriptionId String?
+  nowpaymentsId        String?
+  nowpaymentsOrderId   String?
   status               String
   plan                 String
   billingInterval      String?

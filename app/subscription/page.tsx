@@ -6,12 +6,16 @@ import { ArrowLeft, CheckCircle2, Loader2, Shield, Crown } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useSubscription } from "@/hooks/use-subscription";
 import { AUTH_CONFIG } from "@/lib/config";
+import { PaymentSentinel } from "@/components/payment-sentinel";
 
 export default function SubscriptionPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [subscriptionRequired, setSubscriptionRequired] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const [loadingCrypto, setLoadingCrypto] = useState<string | null>(null);
+  const [sentinelOpen, setSentinelOpen] = useState(false);
+  const [sentinelPlan, setSentinelPlan] = useState<string>("");
   const session = authClient.useSession();
   const { subscription, isTrialing, hasActiveSubscription, daysLeft } = useSubscription();
 
@@ -82,6 +86,41 @@ export default function SubscriptionPage() {
       setCheckoutMessage("Checkout is temporarily unavailable. Please retry in a minute.");
     } finally {
       setLoadingPlan(null);
+    }
+  };
+
+  const handleCryptoSubscribe = async (plan: "monthly" | "yearly") => {
+    setCheckoutMessage(null);
+    if (!session.data?.user?.id) {
+      setCheckoutMessage("Please sign in first.");
+      return;
+    }
+
+    setSentinelPlan(plan);
+    setSentinelOpen(true);
+    setLoadingCrypto(plan);
+    try {
+      const res = await fetch("/api/subscription/nowpayments/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Crypto checkout failed");
+
+      if (data.url) {
+        // Wait a small bit for the user to see the "Ready" state of the sentinel
+        setTimeout(() => {
+          window.location.href = data.url;
+        }, 1800);
+      }
+    } catch (error: any) {
+      setSentinelOpen(false);
+      console.error("Crypto checkout error:", error);
+      setCheckoutMessage(error.message || "Crypto payment is temporarily unavailable.");
+    } finally {
+      setLoadingCrypto(null);
     }
   };
 
@@ -197,7 +236,9 @@ export default function SubscriptionPage() {
             ]}
             loading={loadingPlan === "monthly"}
             onClick={() => handleSubscribe("monthly")}
-            disabled={isTrialing || !!loadingPlan || (subscription?.plan === "monthly" && subscription?.status === "active")}
+            onCryptoClick={() => handleCryptoSubscribe("monthly")}
+            disabled={isTrialing || !!loadingPlan || !!loadingCrypto || (subscription?.plan === "monthly" && subscription?.status === "active")}
+            loadingCrypto={loadingCrypto === "monthly"}
             buttonText={getButtonText("monthly")}
           />
 
@@ -215,15 +256,23 @@ export default function SubscriptionPage() {
             highlight
             loading={loadingPlan === "yearly"}
             onClick={() => handleSubscribe("yearly")}
-            disabled={isTrialing || !!loadingPlan || (subscription?.plan === "yearly" && subscription?.status === "active")}
+            onCryptoClick={() => handleCryptoSubscribe("yearly")}
+            disabled={isTrialing || !!loadingPlan || !!loadingCrypto || (subscription?.plan === "yearly" && subscription?.status === "active")}
+            loadingCrypto={loadingCrypto === "yearly"}
             buttonText={getButtonText("yearly")}
           />
         </div>
 
         <div className="mt-12 text-xs text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-          <Shield className="h-4 w-4" /> Secure payments via Stripe
+          <Shield className="h-4 w-4" /> Secure payments via Stripe & NOWPayments
         </div>
       </div>
+
+      <PaymentSentinel 
+        isOpen={sentinelOpen} 
+        onClose={() => setSentinelOpen(false)} 
+        plan={sentinelPlan}
+      />
     </div>
   );
 }
@@ -238,7 +287,9 @@ function PlanCard(props: {
   loading: boolean;
   disabled: boolean;
   buttonText: string;
+  loadingCrypto?: boolean;
   onClick: () => void;
+  onCryptoClick: () => void;
 }) {
   return (
     <div className={`rounded-3xl border p-8 ${props.highlight ? "border-[#39FF14]/40 bg-[#0d1410]" : "border-white/10 bg-[#0a0f1a]"}`}>
@@ -269,6 +320,30 @@ function PlanCard(props: {
         {props.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {props.buttonText}
       </button>
+
+      <button
+        onClick={props.onCryptoClick}
+        disabled={props.disabled}
+        className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-white/10 transition disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {props.loadingCrypto ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Pay with Crypto (USDT, SOL, USDC)
+      </button>
+      
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
+        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+          <img src="https://nowpayments.io/images/coins/usdt_bsc.svg" className="h-3 w-3" alt="USDT" />
+          <span className="text-[8px] font-black tracking-widest uppercase">USDT (BSC)</span>
+        </div>
+        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+          <img src="https://nowpayments.io/images/coins/sol.svg" className="h-3 w-3" alt="SOL" />
+          <span className="text-[8px] font-black tracking-widest uppercase">SOL (SOL)</span>
+        </div>
+        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+          <img src="https://nowpayments.io/images/coins/usdc.svg" className="h-3 w-3" alt="USDC" />
+          <span className="text-[8px] font-black tracking-widest uppercase">USDC (SOLANA)</span>
+        </div>
+      </div>
     </div>
   );
 }

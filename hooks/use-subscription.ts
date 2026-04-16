@@ -34,6 +34,7 @@ export function useSubscription() {
   const [isTrialing, setIsTrialing] = useState(false);
   const [daysLeft, setDaysLeft] = useState<number | null>(null);
   const [serverHasActive, setServerHasActive] = useState<boolean | null>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isSuperAdmin = session.data?.user?.email === SUPER_ADMIN_EMAIL;
@@ -75,6 +76,7 @@ export function useSubscription() {
         }
 
         setServerHasActive(!!data.hasActiveSubscription);
+        setIsProcessingPayment(!!data.isProcessingPayment);
 
         if (data.subscription) {
           const sub = data.subscription as Subscription;
@@ -127,6 +129,7 @@ export function useSubscription() {
     isTrialing: isSuperAdmin ? false : isTrialing,
     daysLeft: isSuperAdmin ? null : daysLeft,
     hasActiveSubscription,
+    isProcessingPayment,
     refresh,
   };
 }

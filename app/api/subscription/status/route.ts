@@ -109,13 +109,20 @@ export async function GET() {
     const hasActiveSubscription =
       (isActive && !activeAndExpired) || trialActive || withinPastDueGrace;
 
+    // Check if there is a pending NOWPayments transaction
+    const isProcessingPayment = subscriptions.some((s: any) => s.status === "waiting" && s.paymentProvider === "nowpayments");
+
     return NextResponse.json({
       hasActiveSubscription,
       subscription,
       isTrialing: trialActive,
+      isProcessingPayment,
       daysLeft,
     }, { headers: NO_STORE_HEADERS });
   }
+
+  // Check for processing even if no sub exists yet (e.g. first time buy)
+  const isProcessingPayment = subscriptions.some((s: any) => s.status === "waiting" && s.paymentProvider === "nowpayments");
 
   const trialMs = AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
   const createdAt = new Date(user.createdAt).getTime();
