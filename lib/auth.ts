@@ -35,10 +35,13 @@ function normalizeOrigin(value: string | undefined): string | null {
 const trustedOrigins = Array.from(
   new Set(
     [
+      AUTH_CONFIG.CANONICAL_URL,
       normalizeOrigin(resolvedAppUrl),
       normalizeOrigin(process.env.BETTER_AUTH_URL),
       normalizeOrigin(process.env.NEXT_PUBLIC_APP_URL),
       normalizeOrigin(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined),
+      "https://rsiq.mindscapeanalytics.com",
+      "https://www.rsiq.mindscapeanalytics.com",
       "http://localhost:3000",
       "http://127.0.0.1:3000",
       ...(process.env.AUTH_TRUSTED_ORIGINS

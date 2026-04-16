@@ -31,11 +31,8 @@ export default function LoginPage() {
     router.prefetch("/terminal");
 
     if (session) {
-      const timer = setTimeout(() => {
-        setSuccess("Secure connection detected. Synchronizing...");
-        router.replace("/terminal");
-      }, 300);
-      return () => clearTimeout(timer);
+      setSuccess("Secure connection detected. Synchronizing...");
+      router.replace("/terminal");
     }
   }, [session, isSessionLoading, router]);
 

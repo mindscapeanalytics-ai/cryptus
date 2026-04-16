@@ -90,8 +90,8 @@ export async function middleware(request: NextRequest) {
         }
         
         session = sessionResult.data;
-        // Cache session for 2 seconds to absorb burst requests
-        sessionCache.set(sessionToken, { data: session, expires: now + 2000 });
+        // Cache session for 5 seconds to reduce latency and redundant fetches
+        sessionCache.set(sessionToken, { data: session, expires: now + 5000 });
       } catch (e) {
         console.error(
           "[middleware] Critical session validation failure:",

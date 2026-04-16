@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
   Search, Bell, BellOff, Settings, Filter, Star, Info, Download,
   RefreshCcw, Zap, BarChart3, TrendingUp, TrendingDown,
@@ -10,7 +10,7 @@ import {
   Flame, ShieldCheck, Activity, BrainCircuit, Gauge,
   LogOut, User as UserIcon, Minus, Plus, AlertTriangle,
   ArrowDownCircle, MinusCircle, ArrowUpCircle,
-  Link as LinkIcon, Shield
+  Link as LinkIcon, Shield, Menu, X, SortAsc
 } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { AUTH_CONFIG } from '@/lib/config';
@@ -1643,8 +1643,37 @@ const ScreenerCard = memo(function ScreenerCard({
               ${formatPrice(display.price)}
             </span>
           </div>
-          <div className={cn("text-[9px] font-black font-mono tabular-nums flex items-center gap-0.5", display.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+          <div className={cn("text-[8px] font-black font-mono tabular-nums flex items-center gap-0.5", display.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
             {display.change24h > 0 ? '+' : ''}{display.change24h.toFixed(2)}%
+          </div>
+          
+          {/* Quick Indicator Sub-Bar (Mobile High Density) */}
+          <div className="flex items-center gap-2 mt-1.5 opacity-80 scale-90 origin-right">
+            {fundingRate && (
+              <div className="flex flex-col items-end">
+                <span className="text-[5px] font-black text-slate-600 uppercase leading-none mb-0.5">FUND</span>
+                <span className={cn("text-[7px] font-black tabular-nums leading-none", fundingRate.rate > 0 ? "text-green-400" : "text-red-400")}>
+                  {fundingRate.rate > 0 ? '+' : ''}{(fundingRate.rate * 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
+            {orderFlowData && (
+              <div className="flex flex-col items-end">
+                <span className="text-[5px] font-black text-slate-600 uppercase leading-none mb-0.5">FLOW</span>
+                <div className="w-10 h-0.5 rounded-full bg-slate-800 overflow-hidden flex">
+                  <div className="h-full bg-green-500/60" style={{ width: `${orderFlowData.ratio * 100}%` }} />
+                  <div className="h-full bg-red-500/60" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
+                </div>
+              </div>
+            )}
+            {smartMoneyScore && (
+              <div className="flex flex-col items-end">
+                <span className="text-[5px] font-black text-slate-600 uppercase leading-none mb-0.5">SMART$</span>
+                <span className={cn("text-[7px] font-black tabular-nums leading-none", smartMoneyScore.score >= 0 ? "text-green-400" : "text-red-400")}>
+                  {smartMoneyScore.score > 0 ? '+' : ''}{smartMoneyScore.score}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2018,10 +2047,10 @@ export default function ScreenerDashboard() {
   const [visibleCols, setVisibleCols] = useState<Set<ColumnId>>(
     new Set(OPTIONAL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.id))
   );
-  const [showColPicker, setShowColPicker] = useState(false);
   const [showCorrelation, setShowCorrelation] = useState(false);
   const [showPortfolio, setShowPortfolio] = useState(false);
-  const colPickerRef = useRef<HTMLDivElement>(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
 
   // Watchlist (hydrate from localStorage after mount to avoid SSR/CSR mismatch)
   const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
@@ -2622,17 +2651,7 @@ export default function ScreenerDashboard() {
     }
   };
 
-  // Close column picker on click outside
-  useEffect(() => {
-    if (!showColPicker) return;
-    function handleClick(e: MouseEvent) {
-      if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) {
-        setShowColPicker(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showColPicker]);
+
 
   // Hydrate watchlist after mount (prevents hydration mismatch from localStorage values)
   useEffect(() => {
@@ -3303,7 +3322,6 @@ export default function ScreenerDashboard() {
         setSelectedCoinForConfig(null);
         setShowAlertPanel(false);
         setShowGlobalSettings(false);
-        setShowColPicker(false);
       } else if (e.key === '/') {
         e.preventDefault();
         const searchInput = document.querySelector('input[placeholder="Search symbols..."]') as HTMLInputElement;
@@ -3624,7 +3642,7 @@ export default function ScreenerDashboard() {
                   ))}
                 </div>
                 <div className="h-4 w-px bg-white/10 mx-1" />
-                <button onClick={() => setShowColPicker(!showColPicker)} className="px-2 py-0.5 h-full text-[8px] font-black uppercase text-slate-500 hover:text-[#39FF14] flex items-center gap-1.5 transition-all">
+                <button onClick={() => setShowGlobalSettings(true)} className="px-2.5 py-1 sm:px-2 sm:py-0.5 h-full text-[8px] font-black uppercase text-slate-500 hover:text-[#39FF14] flex items-center gap-1.5 transition-all" title="Configure visible columns and system parameters">
                   <LayoutGrid size={11} />
                   Cols
                 </button>
@@ -3638,10 +3656,9 @@ export default function ScreenerDashboard() {
             </div>
 
             {/* ─── MOBILE COMMAND CENTER (Enterprise Architecture) ─── */}
-            <div className="lg:hidden flex flex-col gap-3 relative z-10 w-full animate-in fade-in slide-in-from-top-4 duration-500">
-              
-              {/* MOBILE ROW 1: IDENTITY & SYSTEM CORE */}
-              <div className="flex items-center justify-between gap-3 h-9">
+            <div className="lg:hidden flex flex-col gap-2 relative z-10 w-full">
+              {/* COMPACT COMMAND BAR (Mobile Row 1) */}
+              <div className="flex items-center justify-between gap-3 h-10 items-center">
                 <Link href="/" className="flex items-center gap-2 active:scale-95 transition-all">
                   <div className="relative w-24 h-5">
                     <Image src="/logo/rsiq-mindscapeanalytics.png" alt="RSIQ Pro" fill className="object-contain" />
@@ -3655,144 +3672,137 @@ export default function ScreenerDashboard() {
                       transition={{ duration: 2, repeat: Infinity }} 
                       className={cn("w-1 h-1 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")} 
                     />
-                    <span className="text-[7.5px] font-black tabular-nums text-slate-500 uppercase tracking-widest ml-2">Live</span>
+                    <span className="text-[7.5px] font-black tabular-nums text-slate-500 uppercase tracking-widest ml-1.5">Live</span>
                   </div>
                   
-                  <button onClick={() => fetchData(true)} className="w-9 h-full flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-slate-500 active:text-[#39FF14] active:bg-[#39FF14]/10 transition-all">
-                    <RefreshCcw size={12} className={cn(refreshing && "animate-spin")} />
+                  <button 
+                    onClick={() => setShowMobileMenu(true)} 
+                    className="w-10 h-full flex items-center justify-center rounded-xl bg-[#39FF14]/10 border border-[#39FF14]/20 text-[#39FF14] active:scale-90 transition-all shadow-[0_0_15px_rgba(57,255,20,0.1)]"
+                  >
+                    <Menu size={16} />
                   </button>
-
-                  <div className="relative h-full" ref={profileRef}>
-                    <button 
-                      onClick={() => setIsProfileOpen(!isProfileOpen)} 
-                      className="h-full w-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center active:border-[#39FF14]/30 transition-all text-slate-500"
-                    >
-                      <UserIcon size={14} />
-                    </button>
-                    <AnimatePresence>
-                      {isProfileOpen && session && (
-                        <UserProfileDropdown 
-                          session={session} 
-                          isOwner={isOwner} 
-                          onLogout={handleSignOut} 
-                          isLoggingOut={isLoggingOut} 
-                          onClose={() => setIsProfileOpen(false)} 
-                          onShowGlobalSettings={() => setShowGlobalSettings(true)} 
-                        />
-                      )}
-                    </AnimatePresence>
-                  </div>
                 </div>
               </div>
 
-              {/* MOBILE ROW 2: STRATEGIC PULSE RIBBON (Institutional Intelligence) */}
-              <div className="flex items-center justify-between bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 shadow-inner backdrop-blur-md">
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest leading-none mb-0.5">Bias</span>
-                    <span className={cn("text-[9px] font-black tabular-nums font-mono leading-none", stats.bias >= 0 ? "text-[#39FF14]" : "text-rose-500")}>
-                      {stats.bias > 0 ? '+' : ''}{stats.bias}%
-                    </span>
-                  </div>
-                  <div className="h-4 w-px bg-white/5" />
-                  <div className="flex flex-col">
-                    <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest leading-none mb-0.5">Sentiment</span>
-                    <div className="flex items-center gap-1 leading-none">
-                      <Gauge size={9} className={fearGreedColor} />
-                      <span className={cn("text-[9px] font-black tabular-nums", fearGreedColor)}>{fearGreedScore}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-end">
-                    <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest leading-none mb-0.5">Volatility</span>
-                    <span className="text-[8px] font-black tabular-nums text-amber-500 animate-pulse">MEDIUM</span>
-                  </div>
-                  <div className="h-4 w-px bg-white/5" />
-                  <div className="flex flex-col items-end" title="5min Liquidation Flux">
-                    <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest leading-none mb-0.5">Liq Flux</span>
-                    <div className="flex items-center gap-1.5 text-[8px] font-mono font-black">
-                      <span className="text-red-400">-${Math.round((liquidations.filter((l: LiquidationEvent) => (Date.now() - l.timestamp) < 300000).reduce((acc: number, l: LiquidationEvent) => acc + (l.side === 'Sell' ? l.valueUsd : 0), 0)) / 1000)}K</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* MOBILE ROW 3: INTELLIGENCE DOCK (Horizontal Scrolling) */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5 scroll-smooth snap-x">
-                  {/* Asset Selectors */}
-                  <div className="flex items-center bg-white/5 border border-white/5 rounded-lg p-0.5 shrink-0 snap-start">
-                    {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
-                      <button
-                        key={ac}
-                        onClick={() => setActiveAssetClass(ac as any)}
-                        className={cn(
-                          "px-2 py-1 rounded flex items-center justify-center transition-all",
-                          activeAssetClass === ac ? "bg-[#39FF14] text-black shadow-lg" : "text-slate-500"
-                        )}
-                      >
-                        <span className="text-[10px]">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="w-px h-4 bg-white/10 shrink-0" />
-
-                  {/* Signal Filters */}
-                  <div className="flex items-center gap-1 shrink-0 snap-start">
-                    {[
-                      { label: "ALL", id: 'all' },
-                      { label: "OS", id: 'oversold' },
-                      { label: "SB", id: 'strong-buy' },
-                      { label: "B", id: 'buy' },
-                      { label: "N", id: 'neutral' },
-                      { label: "S", id: 'sell' },
-                      { label: "SS", id: 'strong-sell' },
-                      { label: "OB", id: 'overbought' },
-                    ].map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => setSignalFilter(s.id as any)}
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-lg text-[8px] font-black transition-all border shrink-0",
-                          signalFilter === s.id 
-                            ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14] shadow-[0_0_10px_rgba(57,255,20,0.1)]" 
-                            : "bg-white/5 border-white/5 text-slate-500"
-                        )}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* MOBILE ROW 4: COMMAND SEARCH & QUICK ACTIONS */}
-              <div className="flex items-center gap-2 h-10 mb-1">
-                <div className="relative flex-1 h-full">
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="SEARCH INSTRUMENTS..."
-                    className="w-full h-full pl-10 pr-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] bg-black/60 border border-white/10 rounded-xl text-white placeholder:text-slate-800 transition-all focus:border-[#39FF14]/30"
-                  />
-                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-700" />
-                </div>
-                
-                <button
-                  onClick={() => setAlertsEnabled(!alertsEnabled)}
-                  className={cn(
-                    "w-10 h-full rounded-xl border transition-all flex items-center justify-center",
-                    alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/10 text-slate-500"
-                  )}
-                >
-                  {alertsEnabled ? <Bell size={14} /> : <BellOff size={14} />}
-                </button>
+              {/* SLIM SEARCH (Visible by Default, High Priority) */}
+              <div className="relative h-9">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="SEARCH INSTRUMENTS..."
+                  className="w-full h-full pl-9 pr-4 text-[10px] font-black uppercase tracking-[0.1em] bg-black/60 border border-white/10 rounded-xl text-white placeholder:text-slate-800 transition-all focus:border-[#39FF14]/30"
+                />
+                <Search size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-700" />
               </div>
             </div>
+
+            {/* MOBILE COMMAND CENTER DRAWER */}
+            <AnimatePresence>
+              {showMobileMenu && (
+                <div className="fixed inset-0 z-[600] lg:hidden">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowMobileMenu(false)}
+                    className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                  />
+                  <motion.div 
+                    initial={{ y: '100%' }}
+                    animate={{ y: 0 }}
+                    exit={{ y: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="absolute bottom-0 left-0 right-0 bg-[#080F1B] border-t border-white/10 rounded-t-[2.5rem] p-6 pb-12 flex flex-col gap-6"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                          <BrainCircuit size={16} className="text-[#39FF14]" />
+                          Command Center
+                        </h3>
+                        <p className="text-[8px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Configure Tactical Matrix</p>
+                      </div>
+                      <button onClick={() => setShowMobileMenu(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 active:scale-90">
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
+                      {/* Section: Asset Universe */}
+                      <div className="space-y-3">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Asset Universe</span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
+                            <button
+                              key={ac}
+                              onClick={() => { setActiveAssetClass(ac as any); setShowMobileMenu(false); }}
+                              className={cn(
+                                "py-2.5 rounded-xl flex flex-col items-center justify-center transition-all border",
+                                activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500"
+                              )}
+                            >
+                              <span className="text-lg mb-1">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
+                              <span className="text-[7px] font-black uppercase tracking-widest">{ac}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section: Matrix Signal Filter */}
+                      <div className="space-y-3">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Matrix Signal Filter</span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { label: "ALL", id: 'all' },
+                            { label: "OS", id: 'oversold' },
+                            { label: "SB", id: 'strong-buy' },
+                            { label: "B", id: 'buy' },
+                            { label: "N", id: 'neutral' },
+                            { label: "S", id: 'sell' },
+                            { label: "SS", id: 'strong-sell' },
+                            { label: "OB", id: 'overbought' },
+                          ].map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => { setSignalFilter(s.id as any); setShowMobileMenu(false); }}
+                              className={cn(
+                                "py-3 rounded-xl text-[9px] font-black transition-all border",
+                                signalFilter === s.id 
+                                  ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" 
+                                  : "bg-white/5 border-white/5 text-slate-500"
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section: Operations */}
+                      <div className="space-y-3">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Operations</span>
+                        <div className="grid grid-cols-3 gap-2">
+                           <button onClick={() => { setShowGlobalSettings(true); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
+                            <LayoutGrid size={16} className="mb-2 text-[#39FF14]" />
+                            <span className="text-[8px] font-black uppercase tracking-tighter">Columns</span>
+                          </button>
+                          <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
+                            {alertsEnabled ? <Bell size={16} className="mb-2 text-amber-500" /> : <BellOff size={16} className="mb-2 text-slate-600" />}
+                            <span className="text-[8px] font-black uppercase tracking-tighter">Alerts</span>
+                          </button>
+                          <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
+                            <RefreshCcw size={16} className={cn("mb-2 text-blue-400", refreshing && "animate-spin")} />
+                            <span className="text-[8px] font-black uppercase tracking-tighter">Refresh</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
           </div>
         </header>
@@ -3923,6 +3933,28 @@ export default function ScreenerDashboard() {
             </div>
           ) : (
             <>
+              {/* COMPACTED COLUMN HEADER (Mobile Only) */}
+              <div className="sticky top-0 z-30 flex items-center justify-between px-2 py-2 bg-[#0A0F1B]/95 backdrop-blur-md border-b border-white/10 shadow-lg">
+                <div className="w-[110px] shrink-0 text-[8px] font-black uppercase tracking-widest text-slate-500">
+                  <span className="flex items-center gap-2">
+                    {visibleCols.has('rank') && <span className="w-4">#</span>}
+                    <span>Instrument</span>
+                  </span>
+                </div>
+                
+                <div className="flex-1 flex items-center gap-4 px-3 mx-2 overflow-hidden">
+                  {OPTIONAL_COLUMNS.filter(c => visibleCols?.has(c.id)).map(col => (
+                    <div key={col.id} className="shrink-0 min-w-[32px] text-center">
+                      <span className="text-[6px] font-black text-slate-600 uppercase tracking-tighter leading-none block">{col.label.replace('RSI ', '')}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="w-[65px] shrink-0 text-right text-[8px] font-black uppercase tracking-widest text-slate-500 pr-2">
+                  Market
+                </div>
+              </div>
+
               {filtered.map((entry, idx) => (
                 <ScreenerCard
                   key={entry.symbol}
