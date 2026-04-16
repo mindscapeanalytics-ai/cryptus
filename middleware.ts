@@ -4,6 +4,8 @@ import type { auth } from "@/lib/auth";
 import { AUTH_CONFIG } from "@/lib/config";
 
 type Session = typeof auth.$Infer.Session;
+const sessionCache = new Map<string, { data: Session | null; expires: number }>();
+
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -30,6 +32,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     publicPrefixes.some((prefix) => pathname.startsWith(prefix));
 
+  // ─── Phase 1: Cookie & Cache Check ───
   // Check for session cookies with support for all common variations
   const hasSessionCookie =
     request.cookies.has("better-auth.session_token") ||
@@ -43,39 +46,58 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Validate the session if a cookie exists
+  // ─── Phase 2: Burst Cache & Validation ───
+  // Memory-resident burst cache to deduplicate session calls within high-concurrency windows.
+  // Next.js middleware is technically edge, but local var stays alive between requests in the same worker instance.
   let session: Session | null = null;
+  const sessionToken = request.cookies.get("better-auth.session_token")?.value || 
+                       request.cookies.get("__Secure-better-auth.session_token")?.value ||
+                       "anon";
+
   if (hasSessionCookie) {
-    try {
-      // Better detection of the base URL: Use the request's protocol and host.
-      const baseURL = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
-
-      const { data, error: fetchError } = await betterFetch<Session>(
-        "/api/auth/get-session",
-        {
-          baseURL,
-          headers: {
-            cookie: request.headers.get("cookie") || "",
-            "cache-control": "no-store",
+    const cached = sessionCache.get(sessionToken);
+    const now = Date.now();
+    if (cached && now < cached.expires) {
+      session = cached.data;
+    } else {
+      try {
+        const baseURL = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+        
+        const sessionResult = await betterFetch<Session>(
+          "/api/auth/get-session",
+          {
+            baseURL,
+            headers: {
+              cookie: request.headers.get("cookie") || "",
+              "cache-control": "no-store",
+            },
+            timeout: 4000, 
           },
-          // 2026 Resilience: Fast timeout for middleware to prevent site-wide hangs
-          timeout: 4000, 
-        },
-      );
+        );
 
-      if (fetchError) {
-        console.warn(
-          "[middleware] Session fetch rejected:",
-          fetchError.statusText || "Unauthorized/Network Error"
+        // ─── 429 RESILIENCE (Critical for SaaS) ───
+        // [...] Skip error check for 429 logic handled by sessionResult check below
+        if (sessionResult.error?.status === 429) {
+          console.warn("[middleware] 429 detected on auth fetch. Allowing request to pass.");
+          return NextResponse.next();
+        }
+
+        if (sessionResult.error) {
+          console.warn(
+            "[middleware] Session fetch rejected:",
+            sessionResult.error.statusText || "Unauthorized/Network Error"
+          );
+        }
+        
+        session = sessionResult.data;
+        // Cache session for 2 seconds to absorb burst requests
+        sessionCache.set(sessionToken, { data: session, expires: now + 2000 });
+      } catch (e) {
+        console.error(
+          "[middleware] Critical session validation failure:",
+          e instanceof Error ? e.message : String(e),
         );
       }
-      
-      session = data;
-    } catch (e) {
-      console.error(
-        "[middleware] Critical session validation failure:",
-        e instanceof Error ? e.message : String(e),
-      );
     }
   }
 
@@ -103,22 +125,32 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 📝 NOTE: Subscription enforcement is now handled by the <SubscriptionGate /> component.
-  // This removes the 200-500ms API latency from every dashboard page load.
+  // ─── Phase 3: Identity Injection (Zero-Lag Data Flow) ───
+  // If we have a validated session, we inject trusted markers for downstream APIs.
+  // This allows the Screener API to skip DB-based auth and provide "instant" data.
+  const response = NextResponse.next();
+  if (session) {
+    response.headers.set("x-rsiq-user-id", session.user.id);
+    response.headers.set("x-rsiq-user-role", session.user.role || "user");
+    response.headers.set("x-rsiq-auth-trusted", "1");
+  }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
   matcher: [
     /*
      * Match all request paths except:
-     * - api (API routes — must be excluded so auth endpoints work)
+     * - api/auth (Auth routes — must be excluded for better-auth)
      * - _next/static (static files)
      * - _next/image (image optimization)
      * - metadata and PWA assets (manifest, sw, robots, favicon)
      * - any file with an extension (public assets: images, icons, js, css, etc.)
+     * NOTE: We specifically REMOVED the exclusion for /api/screener
+     * and /api/subscription to allow middleware to handle "Fast-Auth" 
+     * for the data feed and entitlement checks.
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.json|sw.js|.*\\..*).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|manifest.json|sw.js|.*\\..*).*)",
   ],
 };

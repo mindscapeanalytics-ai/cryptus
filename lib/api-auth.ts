@@ -13,8 +13,26 @@ type SubscriptionStatusRef = {
 
 export async function getSessionUser() {
   const activeHeaders = await headers();
-  const session = await auth.api.getSession({ headers: activeHeaders });
+  
+  // ─── Phase 3: Fast-Path Identity Retrieval (Zero-Lag) ───
+  // If the request passed through middleware protection, we consume the 
+  // trusted headers to skip redundant DB/Session fetches.
+  const trustedId = activeHeaders.get("x-rsiq-user-id");
+  const trustedRole = activeHeaders.get("x-rsiq-user-role");
+  
+  if (trustedId) {
+    // Return a synthetic session/user object from trusted headers.
+    // NOTE: This assumes the middleware has already done the heavy validation.
+    return {
+      session: { user: { id: trustedId, email: "trusted@rsiq.pro" } } as any,
+      user: { id: trustedId, role: trustedRole || "user", email: "trusted@rsiq.pro" } as any,
+      error: null,
+      isFastPath: true
+    };
+  }
 
+  // Fallback to full DB validation for any routes that bypass middleware (e.g. CLI/External)
+  const session = await auth.api.getSession({ headers: activeHeaders });
   if (!session) {
     return { session: null, user: null, error: unauthorized() };
   }

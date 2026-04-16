@@ -84,8 +84,6 @@ export async function GET(request: Request) {
     const { user, entitlements } = authInfo;
 
     // ── Business Rule Hardening ──
-    // If the trial is expired or login is missing, we still don't 502. 
-    // We return a clean 401 or 403 as before.
     if (!user && !entitlements) {
       return NextResponse.json({ error: 'System busy. Please retry.' }, { status: 503 });
     }
@@ -125,9 +123,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Upstream timeout', data: [], meta: result.meta }, { status: 503 });
     }
 
-    // Bandwidth optimization: Strip historicalCloses from response unless
-    // explicitly requested via ?includeCloses=1 (used by Correlation Heatmap).
-    // This saves ~250KB per response for 500-symbol fetches.
+    // ── Bandwidth & Heatmap Optimization ──
     const includeCloses = searchParams.get('includeCloses') === '1';
     if (!includeCloses) {
       for (const entry of result.data) {
@@ -137,8 +133,11 @@ export async function GET(request: Request) {
 
     return NextResponse.json(result, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
         'X-Accelerated-Flow': '1',
+        'X-Auth-Mode': (authInfo as any).isFastPath ? 'fast-path' : 'secure-fallback',
       },
     });
   } catch (err) {

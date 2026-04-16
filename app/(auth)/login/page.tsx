@@ -26,17 +26,18 @@ export default function LoginPage() {
   const { data: session, isPending: isSessionLoading } = useSession();
 
   // ── Auto-Redirect & Prefetch ──
-  // If the user already has a valid session, zip them to the terminal immediately.
   React.useEffect(() => {
-    // Prefetch the terminal route to warm up the cache
+    if (isSessionLoading) return;
     router.prefetch("/terminal");
 
     if (session) {
-      setSuccess("Secure connection detected. Synchronizing...");
-      // Hard redirect to ensure fresh cookies and clean router state
-      window.location.assign("/terminal");
+      const timer = setTimeout(() => {
+        setSuccess("Secure connection detected. Synchronizing...");
+        router.replace("/terminal");
+      }, 300);
+      return () => clearTimeout(timer);
     }
-  }, [session, router]);
+  }, [session, isSessionLoading, router]);
 
   const {
     register,
