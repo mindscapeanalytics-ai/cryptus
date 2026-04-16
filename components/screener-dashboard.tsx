@@ -3094,14 +3094,51 @@ export default function ScreenerDashboard() {
       items = items.filter((e) => e.strategySignal === signalFilter);
     }
 
-    // Search filter
+    // Search filter & Auto-Switch (2026 UX Improvement)
     if (search) {
       const q = search.toUpperCase();
+      
+      // Intelligent Auto-Switch: If searching for a symbol in another asset class, 
+      // check if it exists there and switch the tab if no results in current tab
+      const itemsInCurrentTab = items.filter((e) => {
+        const alias = getSymbolAlias(e.symbol).toUpperCase();
+        return e.symbol.includes(q) || alias.includes(q);
+      });
+
+      if (itemsInCurrentTab.length === 0) {
+        // Look for the symbol in other asset classes
+        const matchesOverall = processedData.filter((e) => {
+          const alias = getSymbolAlias(e.symbol).toUpperCase();
+          return e.symbol.includes(q) || alias.includes(q);
+        });
+        
+        if (matchesOverall.length > 0) {
+          const targetMarket = matchesOverall[0].market;
+          const targetClass = targetMarket === 'Crypto' ? 'crypto' 
+                            : targetMarket === 'Forex' ? 'forex' 
+                            : targetMarket === 'Metal' ? 'metals' 
+                            : targetMarket === 'Index' ? 'stocks' : 'crypto';
+          if (targetClass !== activeAssetClass) {
+            setActiveAssetClass(targetClass);
+          }
+        }
+      }
+
       items = items.filter((e) => {
         const alias = getSymbolAlias(e.symbol).toUpperCase();
         return e.symbol.includes(q) || alias.includes(q);
       });
     }
+
+    // ── Asset Class Filter (The Fix for empty tabs) ──
+    const marketMap: Record<string, string[]> = {
+      crypto: ['Crypto'],
+      forex: ['Forex'],
+      metals: ['Metal'],
+      stocks: ['Index']
+    };
+    const targetMarkets = marketMap[activeAssetClass] || ['Crypto'];
+    items = items.filter(e => targetMarkets.includes(e.market));
 
     // Sort
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -3137,7 +3174,19 @@ export default function ScreenerDashboard() {
     });
 
     return items;
-  }, [processedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist]);
+  }, [processedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist, activeAssetClass]);
+
+  // ── 2026 UX Improvement: Live Tab Item Counts ──
+  const assetClassCounts = useMemo(() => {
+    const counts = { crypto: 0, forex: 0, metals: 0, stocks: 0 };
+    processedData.forEach(e => {
+      if (e.market === 'Crypto') counts.crypto++;
+      else if (e.market === 'Forex') counts.forex++;
+      else if (e.market === 'Metal') counts.metals++;
+      else if (e.market === 'Index') counts.stocks++;
+    });
+    return counts;
+  }, [processedData]);
 
   // ── Presets ──
   const showMostOversold = () => {
@@ -3410,23 +3459,33 @@ export default function ScreenerDashboard() {
                   {/* Asset Class Tabs */}
                   <div className="flex items-center bg-slate-900/60 border border-white/5 rounded-2xl p-0.5 gap-0.5">
                     {[
-                      { id: 'crypto' as const, label: 'Crypto', icon: '₿' },
-                      { id: 'forex' as const, label: 'Forex', icon: '💱' },
-                      { id: 'metals' as const, label: 'Metals', icon: '🥇' },
-                      { id: 'stocks' as const, label: 'Stocks', icon: '📈' },
+                      { id: 'crypto' as const, label: 'Crypto', icon: '₿', count: assetClassCounts.crypto },
+                      { id: 'forex' as const, label: 'Forex', icon: '💱', count: assetClassCounts.forex },
+                      { id: 'metals' as const, label: 'Metals', icon: '🥇', count: assetClassCounts.metals },
+                      { id: 'stocks' as const, label: 'Stocks', icon: '📈', count: assetClassCounts.stocks },
                     ].map((ac) => (
                       <button
                         key={ac.id}
                         onClick={() => setActiveAssetClass(ac.id)}
                         className={cn(
-                          "flex items-center gap-1 px-2.5 py-1.5 text-[8px] font-black uppercase tracking-widest transition-all rounded-xl",
+                          "flex items-center gap-2 px-3 py-1.5 text-[8px] font-black uppercase tracking-widest transition-all rounded-xl relative",
                           activeAssetClass === ac.id
                             ? "bg-[#39FF14]/15 text-[#39FF14] shadow-[0_0_12px_rgba(57,255,20,0.08)]"
-                            : "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                            : ac.count > 0 
+                              ? "text-slate-500 hover:text-slate-300 hover:bg-white/5"
+                              : "text-slate-700 pointer-events-none opacity-40" // Dim empty tabs
                         )}
                       >
                         <span className="text-[10px]">{ac.icon}</span>
-                        {ac.label}
+                        <span>{ac.label}</span>
+                        {ac.count > 0 && (
+                          <span className={cn(
+                            "ml-1 px-1.5 py-0.5 rounded-md text-[7px] font-bold tabular-nums",
+                            activeAssetClass === ac.id ? "bg-[#39FF14]/20 text-[#39FF14]" : "bg-slate-800 text-slate-500"
+                          )}>
+                            {ac.count}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

@@ -99,7 +99,12 @@ const FALLBACK_SYMBOLS = [
 ];
 
 // ── Multi-Market definitions ──
-const BINANCE_NATIVE_SPECIAL = ['PAXGUSDT', 'EURUSDT', 'GBPUSDT', 'AUDUSDT'];
+// BINANCE_NATIVE_SPECIAL: Symbols supported by Binance that are NOT primarily Crypto.
+const BINANCE_NATIVE_SPECIAL = [
+  'PAXGUSDT', 'XAUTUSDT',                    // Metals (Gold)
+  'EURUSDT', 'GBPUSDT', 'AUDUSDT', 'JPYUSDT',  // Forex Majors
+];
+
 const YAHOO_MARKET_MAP: Record<string, string> = {
   'SPX': '^GSPC',    // S&P 500
   'NDAQ': '^IXIC',   // NASDAQ
@@ -112,9 +117,14 @@ const YAHOO_MARKET_MAP: Record<string, string> = {
 const YAHOO_SYMBOLS = Object.keys(YAHOO_MARKET_MAP);
 
 function getMarketType(symbol: string): ScreenerEntry['market'] {
-  if (symbol === 'PAXGUSDT' || symbol === 'SILVER') return 'Metal';
-  if (['SPX', 'NDAQ', 'DOW', 'FTSE', 'DAX', 'NKY'].includes(symbol)) return 'Index';
-  if (['EURUSDT', 'GBPUSDT', 'AUDUSDT'].includes(symbol)) return 'Forex';
+  const s = symbol.toUpperCase();
+  // Metals
+  if (['PAXGUSDT', 'XAUTUSDT', 'GOLD', 'SILVER', 'XAUUSD', 'XAGUSD'].includes(s)) return 'Metal';
+  // Indices (Stocks tab)
+  if (['SPX', 'NDAQ', 'DOW', 'FTSE', 'DAX', 'NKY', 'TSLA', 'AAPL', 'NVDA', 'MSFT', 'GOOG'].includes(s)) return 'Index';
+  // Forex
+  if (['EURUSDT', 'GBPUSDT', 'AUDUSDT', 'JPYUSDT', 'EURUSD', 'GBPUSD', 'AUDUSD', 'USDJPY'].includes(s)) return 'Forex';
+  // Default to Crypto
   return 'Crypto';
 }
 
