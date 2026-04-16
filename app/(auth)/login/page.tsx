@@ -33,7 +33,8 @@ export default function LoginPage() {
 
     if (session) {
       setSuccess("Secure connection detected. Synchronizing...");
-      router.push("/terminal");
+      // Hard redirect to ensure fresh cookies and clean router state
+      window.location.assign("/terminal");
     }
   }, [session, router]);
 
@@ -62,8 +63,8 @@ export default function LoginPage() {
           },
           onSuccess: () => {
             setSuccess("Connection Established. Accessing Terminal...");
-            // Instant transition for 2026 performance standards
-            router.push("/terminal");
+            // Hard redirect is required for production subdomain consistency
+            window.location.assign("/terminal");
           }
         }
       );

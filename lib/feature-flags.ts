@@ -96,9 +96,10 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
         "maxSubscribedRecords",
         "allowTrialAlerts",
         "allowTrialAdvancedIndicators",
-        "allowTrialCustomSettings"
+        "allowTrialCustomSettings",
+        "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT ("id") DO UPDATE SET
         "updatedAt" = NOW()
       RETURNING *;
@@ -126,9 +127,10 @@ export async function updateFeatureFlags(partial: Partial<FeatureFlags>): Promis
         "maxSubscribedRecords",
         "allowTrialAlerts",
         "allowTrialAdvancedIndicators",
-        "allowTrialCustomSettings"
+        "allowTrialCustomSettings",
+        "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
       ON CONFLICT ("id") DO UPDATE SET
         "maxTrialRecords" = EXCLUDED."maxTrialRecords",
         "maxSubscribedRecords" = EXCLUDED."maxSubscribedRecords",

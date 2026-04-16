@@ -64,7 +64,20 @@ function deriveOptions(maxRecords: number): number[] {
 }
 
 export async function resolveEntitlementsForUser(user: EntitlementUser | null): Promise<ResolvedEntitlements> {
-  const flags = await getFeatureFlags();
+  let flags: FeatureFlags;
+  try {
+    flags = await getFeatureFlags();
+  } catch (error) {
+    console.error("[entitlements] Failed to fetch feature flags, falling back to defaults:", error);
+    // Explicit fallback to ensure system health during DB transitions
+    flags = {
+      maxTrialRecords: 100,
+      maxSubscribedRecords: 500,
+      allowTrialAlerts: false,
+      allowTrialAdvancedIndicators: false,
+      allowTrialCustomSettings: false,
+    };
+  }
 
   if (!user) {
     const maxRecords = Math.min(flags.maxTrialRecords, 100);

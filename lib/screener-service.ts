@@ -99,7 +99,7 @@ const FALLBACK_SYMBOLS = [
 ];
 
 // ── Multi-Market definitions ──
-const BINANCE_NATIVE_SPECIAL = ['PAXGUSDT', 'EURUSDT', 'GBPUSDT', 'AUDUSDT', 'JPYUSDT'];
+const BINANCE_NATIVE_SPECIAL = ['PAXGUSDT', 'EURUSDT', 'GBPUSDT', 'AUDUSDT'];
 const YAHOO_MARKET_MAP: Record<string, string> = {
   'SPX': '^GSPC',    // S&P 500
   'NDAQ': '^IXIC',   // NASDAQ
@@ -114,7 +114,7 @@ const YAHOO_SYMBOLS = Object.keys(YAHOO_MARKET_MAP);
 function getMarketType(symbol: string): ScreenerEntry['market'] {
   if (symbol === 'PAXGUSDT' || symbol === 'SILVER') return 'Metal';
   if (['SPX', 'NDAQ', 'DOW', 'FTSE', 'DAX', 'NKY'].includes(symbol)) return 'Index';
-  if (['EURUSDT', 'GBPUSDT', 'AUDUSDT', 'JPYUSDT'].includes(symbol)) return 'Forex';
+  if (['EURUSDT', 'GBPUSDT', 'AUDUSDT'].includes(symbol)) return 'Forex';
   return 'Crypto';
 }
 

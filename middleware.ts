@@ -56,7 +56,10 @@ export async function middleware(request: NextRequest) {
           baseURL,
           headers: {
             cookie: request.headers.get("cookie") || "",
+            "cache-control": "no-store",
           },
+          // 2026 Resilience: Fast timeout for middleware to prevent site-wide hangs
+          timeout: 4000, 
         },
       );
 

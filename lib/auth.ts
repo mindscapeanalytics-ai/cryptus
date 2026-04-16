@@ -14,7 +14,7 @@ const resolvedAppUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.VERCEL_PROJECT_PRODUCTION_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-  (process.env.NODE_ENV === "development" ? "http://localhost:3000" : null) ||
+  (typeof window !== "undefined" ? window.location.origin : null) ||
   "http://localhost:3000";
 
 if (process.env.NODE_ENV !== "test") {
