@@ -9,7 +9,8 @@ import {
   LayoutGrid, LayoutList, ChevronUp, ChevronDown, Clock,
   Flame, ShieldCheck, Activity, BrainCircuit, Gauge,
   LogOut, User as UserIcon, Minus, Plus, AlertTriangle,
-  ArrowDownCircle, MinusCircle, ArrowUpCircle
+  ArrowDownCircle, MinusCircle, ArrowUpCircle,
+  Link as LinkIcon, Shield
 } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { AUTH_CONFIG } from '@/lib/config';
@@ -103,18 +104,18 @@ function getScoreBarColor(score: number): string {
   return 'bg-slate-700';
 }
 
+
+
 // ─── Signal Badge ──────────────────────────────────────────────
 
 function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
   const styles: Record<string, string> = {
-    oversold: 'bg-[#39FF14]/10 text-[#39FF14] border-[#39FF14]/20',
-    overbought: 'bg-[#722f37]/20 text-[#FF4B5C] border-[#722f37]/30',
+    oversold: 'bg-[#39FF14]/10 text-[#39FF14] border-[#39FF14]/30',
+    overbought: 'bg-[#722f37]/20 text-[#FF4B5C] border-[#722f37]/40',
     neutral: 'bg-slate-800/50 text-slate-400 border-slate-700/50',
   };
   return (
     <span className={cn("inline-flex items-center px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full border shadow-sm transition-all duration-300", styles[signal])}>
-      {signal === 'oversold' && <div className="w-1.5 h-1.5 rounded-full bg-current mr-2 animate-pulse" />}
-      {signal === 'overbought' && <div className="w-1.5 h-1.5 rounded-full bg-current mr-2 animate-pulse" />}
       {signal}
     </span>
   );
@@ -141,9 +142,6 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
 
   return (
     <span className={cn("inline-flex items-center gap-1 px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded border shadow-[0_0_10px_rgba(0,0,0,0.2)] transition-all cursor-help", styles[signal])} title={title}>
-      {narration && narration.conviction >= 65 && (
-        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-      )}
       {label}
     </span>
   );
@@ -451,19 +449,21 @@ const ScreenerRow = memo(function ScreenerRow({
     <tr
       ref={rowRef}
       className={cn(
-        "group transition-colors duration-300 hover:bg-white/[0.04]",
-        !isFlash && getRsiBg(display.rsiCustom ?? display.rsi15m)
+        "group transition-colors duration-150 border-white/[0.02]",
+        idx % 2 === 0 ? "bg-white/[0.01]" : "bg-transparent",
+        "hover:bg-white/[0.04] active:bg-white/[0.06]"
       )}
       style={{
-        backgroundColor: isFlash
-          ? (display.strategySignal.includes('buy') ? 'rgba(57, 255, 20, 0.1)' : display.strategySignal.includes('sell') ? 'rgba(114, 47, 55, 0.2)' : 'rgba(255, 255, 255, 0.05)')
+        borderLeftWidth: isFlash ? '4px' : '0px',
+        borderLeftColor: isFlash
+          ? (display.strategySignal.includes('buy') ? '#39FF14' : display.strategySignal.includes('sell') ? '#FF4B5C' : 'rgba(255,255,255,0.2)')
           : 'transparent',
         contentVisibility: 'auto',
-        containIntrinsicSize: '0 64px'
+        containIntrinsicSize: '0 56px'
       } as any}
     >
       {visibleCols.has('rank') && (
-        <td className="px-4 py-4 text-[10px] text-slate-700 font-black tabular-nums">{idx + 1}</td>
+        <td className="px-3 py-3 text-[10px] text-slate-600 font-bold tabular-nums font-mono">{idx + 1}</td>
       )}
       <td className="px-2 py-4 text-center">
         <button
@@ -479,7 +479,12 @@ const ScreenerRow = memo(function ScreenerRow({
       <td className="px-3 py-4">
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-1.5">
-            <span className="font-black text-white text-[13px] tracking-tight hover:text-[#39FF14] transition-colors cursor-pointer" onClick={() => onOpenSettings(entry.symbol)}>{getSymbolAlias(entry.symbol)}</span>
+            <div className="relative group shrink-0">
+              <span className="font-black text-white text-[13px] tracking-tight hover:text-[#39FF14] transition-colors cursor-pointer" onClick={() => onOpenSettings(entry.symbol)}>{getSymbolAlias(entry.symbol)}</span>
+              {display.isLiveRsi && (
+                <div className="absolute -left-2.5 top-1.5 w-1 h-1 rounded-full bg-[#39FF14] shadow-[0_0_5px_#39FF14] animate-pulse" title="Institutional Heartbeat: Data Live" />
+              )}
+            </div>
             <MarketBadge market={entry.market} />
             {entry.market !== 'Crypto' && entry.marketState !== 'REGULAR' && (
               <span className="text-[7px] px-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-sm font-black uppercase tracking-tighter shadow-[0_0_8px_rgba(255,75,92,0.1)]">
@@ -501,7 +506,7 @@ const ScreenerRow = memo(function ScreenerRow({
         </span>
       </td>
       <td className={cn(
-        "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
+        "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono",
         display.change24h > 0 ? "text-[#39FF14]" : display.change24h < 0 ? "text-[#FF4B5C]" : "text-slate-600"
       )}>
         <div className="flex items-center justify-end gap-1.5">
@@ -509,7 +514,7 @@ const ScreenerRow = memo(function ScreenerRow({
           {display.change24h > 0 ? '+' : ''}{display.change24h.toFixed(2)}%
         </div>
       </td>
-      <td className="px-3 py-4 text-right text-[10px] text-slate-600 tabular-nums font-bold">
+      <td className="px-3 py-3 text-right text-[10px] text-slate-500 tabular-nums font-mono font-bold">
         {formatVolume(display.volume24h)}
       </td>
 
@@ -556,7 +561,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('ema9') && (
         <td className={cn(
-          "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono",
           globalUseEma ? "text-slate-300" : "text-slate-700/40"
         )}>
           {globalUseEma && display.ema9 ? `$${formatPrice(display.ema9)}` : '—'}
@@ -564,7 +569,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
       {visibleCols.has('ema21') && (
         <td className={cn(
-          "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono",
           globalUseEma ? "text-slate-400" : "text-slate-700/40"
         )}>
           {globalUseEma && display.ema21 ? `$${formatPrice(display.ema21)}` : '—'}
@@ -573,14 +578,11 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('rsiCustom') && (
         <td className={cn(
-          "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono relative transition-all duration-300",
+          "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono relative transition-all duration-300",
           entry.rsiPeriodAtCreation !== rsiPeriod ? "bg-slate-800/10 opacity-30" : "bg-[#39FF14]/5",
           getRsiColor(display.rsiCustom)
         )}>
           <div className="flex items-center justify-end gap-1.5 flex-wrap max-w-[120px] ml-auto">
-            {display.isLiveRsi && entry.rsiPeriodAtCreation === rsiPeriod && (
-              <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse border border-[#39FF14]/50" title="Real-Time Analysis" />
-            )}
 
             {/* Intelligence: Early Signal Badge - Only show if periods match to ensure formula accuracy */}
             {globalUseRsi && entry.rsiPeriodAtCreation === rsiPeriod && display.rsiCustom !== null && display.rsi15m !== null && (
@@ -639,7 +641,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('bbUpper') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           globalUseBb ? "text-[#FF4B5C]/70" : "text-slate-700/40"
         )}>
           {globalUseBb && display.bbUpper ? `$${formatPrice(display.bbUpper)}` : '—'}
@@ -647,7 +649,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
       {visibleCols.has('bbLower') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           globalUseBb ? "text-[#39FF14]/70" : "text-slate-700/40"
         )}>
           {globalUseBb && display.bbLower ? `$${formatPrice(display.bbLower)}` : '—'}
@@ -696,7 +698,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('vwapDiff') && (
         <td className={cn(
-          "px-3 py-4 text-right text-xs tabular-nums font-bold font-mono transition-opacity duration-300",
+          "px-3 py-3 text-right text-xs tabular-nums font-bold font-mono transition-opacity duration-300",
           !globalUseVwap && "opacity-20 grayscale",
           display.vwapDiff === null ? "text-slate-700" : display.vwapDiff > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
         )}>
@@ -705,7 +707,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
       {visibleCols.has('longCandle') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-[11px] tabular-nums font-bold font-mono",
           !globalVolatilityEnabled || display.curCandleSize == null || display.avgBarSize1m == null || display.avgBarSize1m <= 0 || (display.curCandleSize / display.avgBarSize1m) < globalLongCandleThreshold ? "text-slate-600" : "text-amber-400"
         )}>
 
@@ -726,7 +728,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
       {visibleCols.has('volumeSpike') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[11px] tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-[11px] tabular-nums font-bold font-mono",
           !globalVolatilityEnabled || display.curCandleVol == null || display.avgVolume1m == null || display.avgVolume1m <= 0 || (display.curCandleVol / display.avgVolume1m) < globalVolumeSpikeThreshold ? "text-slate-600" : "text-[#39FF14]"
         )}>
           {globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 ? (
@@ -742,7 +744,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('momentum') && (
         <td className={cn(
-          "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono transition-opacity duration-300",
+          "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono transition-opacity duration-300",
           !globalUseMomentum && "opacity-20 grayscale",
           display.momentum === null ? "text-slate-700" : display.momentum > 0 ? "text-emerald-300" : display.momentum < 0 ? "text-red-300" : "text-slate-500"
         )}>
@@ -757,7 +759,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
       {visibleCols.has('adx') && (
         <td className={cn(
-          "px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono",
+          "px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono",
           display.adx === null ? "text-slate-700" : display.adx >= 25 ? "text-[#39FF14]" : "text-slate-500"
         )}>
           {display.adx !== null ? display.adx.toFixed(1) : '—'}
@@ -766,7 +768,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {/* ─── Derivatives Intelligence Cells ─── */}
       {visibleCols.has('fundingRate') && (
-        <td className="px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono">
+        <td className="px-3 py-3 text-right text-[10px] tabular-nums font-bold font-mono">
           {fundingRate ? (
             <div className="flex flex-col items-end">
               <span className={fundingRate.rate > 0 ? "text-green-400" : fundingRate.rate < 0 ? "text-red-400" : "text-slate-500"}>
@@ -778,7 +780,7 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
       {visibleCols.has('orderFlow') && (
-        <td className="px-3 py-4 text-right">
+        <td className="px-3 py-3 text-right">
           {orderFlowData ? (
             <div className="flex items-center justify-end gap-1">
               <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
@@ -787,9 +789,9 @@ const ScreenerRow = memo(function ScreenerRow({
               </div>
               <span className={cn("text-[8px] font-black",
                 orderFlowData.pressure === 'strong-buy' ? "text-green-400" :
-                orderFlowData.pressure === 'buy' ? "text-green-400/70" :
-                orderFlowData.pressure === 'strong-sell' ? "text-red-400" :
-                orderFlowData.pressure === 'sell' ? "text-red-400/70" : "text-slate-500"
+                  orderFlowData.pressure === 'buy' ? "text-green-400/70" :
+                    orderFlowData.pressure === 'strong-sell' ? "text-red-400" :
+                      orderFlowData.pressure === 'sell' ? "text-red-400/70" : "text-slate-500"
               )}>
                 {(orderFlowData.ratio * 100).toFixed(0)}%
               </span>
@@ -798,15 +800,15 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
       {visibleCols.has('smartMoney') && (
-        <td className="px-3 py-4 text-right">
+        <td className="px-3 py-3 text-right">
           {smartMoneyScore ? (
             <span className={cn(
               "text-[9px] font-black px-1.5 py-0.5 rounded-md",
               smartMoneyScore.score >= 60 ? "bg-green-500/15 text-green-400" :
-              smartMoneyScore.score >= 30 ? "bg-green-500/10 text-green-400/70" :
-              smartMoneyScore.score <= -60 ? "bg-red-500/15 text-red-400" :
-              smartMoneyScore.score <= -30 ? "bg-red-500/10 text-red-400/70" :
-              "bg-slate-800 text-slate-500"
+                smartMoneyScore.score >= 30 ? "bg-green-500/10 text-green-400/70" :
+                  smartMoneyScore.score <= -60 ? "bg-red-500/15 text-red-400" :
+                    smartMoneyScore.score <= -30 ? "bg-red-500/10 text-red-400/70" :
+                      "bg-slate-800 text-slate-500"
             )}>
               {smartMoneyScore.score > 0 ? '+' : ''}{smartMoneyScore.score}
             </span>
@@ -814,16 +816,16 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
-      <td className="px-3 py-4 text-right">
+      <td className="px-3 py-3 text-right">
         {display.signal !== 'neutral' && <SignalBadge signal={display.signal.toLowerCase() as any} />}
 
       </td>
 
       {visibleCols.has('strategy') && (
-        <td className="px-3 py-4 text-right min-w-[120px]">
+        <td className="px-3 py-3 text-right min-w-[120px]">
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
-              <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums uppercase" title="Time since signal started">
+              <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums font-mono uppercase" title="Time since signal started">
                 {formatTimeAgo(entry.signalStartedAt)}
               </span>
               <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
@@ -834,7 +836,7 @@ const ScreenerRow = memo(function ScreenerRow({
                   style={{ marginLeft: display.strategyScore < 0 ? 'auto' : 0 }}
                 />
               </div>
-              <span className="text-[10px] font-black tabular-nums text-slate-500">{display.strategyScore}</span>
+              <span className="text-[10px] font-black tabular-nums font-mono text-slate-500">{display.strategyScore}</span>
             </div>
             <StrategyBadge signal={display.strategySignal} label={display.strategyLabel} reasons={display.strategyReasons} entry={entry} />
           </div>
@@ -943,7 +945,7 @@ function EditableRsiCell({
 
   if (disabled) {
     return (
-      <td className="px-3 py-4 text-right text-sm tabular-nums font-bold font-mono text-slate-700/40">
+      <td className="px-3 py-3 text-right text-sm tabular-nums font-bold font-mono text-slate-700/40">
         —
       </td>
     );
@@ -951,7 +953,7 @@ function EditableRsiCell({
 
   if (editing) {
     return (
-      <td className="px-1 py-4 text-right">
+      <td className="px-1 py-3 text-right">
         <input
           ref={inputRef}
           type="number"
@@ -969,7 +971,7 @@ function EditableRsiCell({
     <td
       onClick={() => setEditing(true)}
       className={cn(
-        "px-3 py-4 text-right text-sm tabular-nums font-bold font-mono cursor-pointer group/cell relative transition-all",
+        "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono cursor-pointer group/cell relative transition-all",
         currentPeriod !== 14 ? "bg-[#39FF14]/[0.03]" : "hover:bg-white/[0.03]",
         getRsiColor(rsi)
       )}
@@ -1431,8 +1433,13 @@ const ScreenerCard = memo(function ScreenerCard({
           <Star size={12} fill={isStarred ? "currentColor" : "none"} />
         </button>
         <div className="flex flex-col">
-          <div className="flex items-center gap-1">
-            <span className="font-black text-white text-sm tracking-tight">{getSymbolAlias(entry.symbol)}</span>
+          <div className="flex items-center gap-1.5">
+            <div className="relative group shrink-0">
+              <span className="font-black text-white text-sm tracking-tight">{getSymbolAlias(entry.symbol)}</span>
+              {display.isLiveRsi && (
+                <div className="absolute -left-2 top-1 w-0.5 h-0.5 rounded-full bg-[#39FF14] shadow-[0_0_3px_#39FF14] animate-pulse" title="Institutional Heartbeat" />
+              )}
+            </div>
             <MarketBadge market={entry.market} />
             {entry.market !== 'Crypto' && entry.marketState !== 'REGULAR' && (
               <span className="text-[6px] px-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-sm font-black uppercase tracking-tighter">
@@ -1562,7 +1569,7 @@ const ScreenerCard = memo(function ScreenerCard({
                   <span className={cn("text-[8px] font-black",
                     smartMoneyScore ? (
                       smartMoneyScore.score >= 30 ? "text-green-400" :
-                      smartMoneyScore.score <= -30 ? "text-red-400" : "text-slate-500"
+                        smartMoneyScore.score <= -30 ? "text-red-400" : "text-slate-500"
                     ) : "text-slate-700"
                   )}>
                     {smartMoneyScore ? `${smartMoneyScore.score > 0 ? '+' : ''}${smartMoneyScore.score}` : '—'}
@@ -1605,7 +1612,7 @@ const ScreenerCard = memo(function ScreenerCard({
             )}
             <span
               className={cn(
-                "text-sm font-black font-mono tracking-tighter inline-block transition-opacity duration-500",
+                "text-sm font-black font-mono tabular-nums tracking-tighter inline-block transition-opacity duration-500",
                 tick && tick.updatedAt && (Date.now() - tick.updatedAt) > 30000 ? "opacity-40" : "opacity-100"
               )}
               style={{ color: display.lastPriceChange && display.lastPriceChange > 0 ? '#39FF14' : display.lastPriceChange && display.lastPriceChange < 0 ? '#FF4B5C' : '#ffffff' }}
@@ -1613,7 +1620,7 @@ const ScreenerCard = memo(function ScreenerCard({
               ${formatPrice(display.price)}
             </span>
           </div>
-          <div className={cn("text-[9px] font-black font-mono flex items-center gap-0.5", display.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+          <div className={cn("text-[9px] font-black font-mono tabular-nums flex items-center gap-0.5", display.change24h >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
             {display.change24h > 0 ? '+' : ''}{display.change24h.toFixed(2)}%
           </div>
         </div>
@@ -1785,7 +1792,7 @@ export default function ScreenerDashboard() {
 
   // Use a refined mount-aware hydration strategy for client-only defaults
   const [hasMounted, setHasMounted] = useState(false);
-  
+
   const handleSignOut = async () => {
     setIsLoggingOut(true);
     try {
@@ -1809,7 +1816,7 @@ export default function ScreenerDashboard() {
 
   useEffect(() => {
     setHasMounted(true);
-    
+
     // User Profile Click-Outside Orchestration
     const handleClickOutside = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
@@ -2004,10 +2011,27 @@ export default function ScreenerDashboard() {
 
   // Live WebSocket prices
   const symbolSet = useMemo(() => {
-    if (data.length > 0) return new Set(data.map((e) => e.symbol));
-    // Pre-flight sharding: warm up sockets with majors while waiting for API
-    return new Set(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT']);
-  }, [data]);
+    const baseSet = data.length > 0 ? new Set(data.map((e) => e.symbol)) : new Set<string>();
+
+    // 🔥 Institutional Priority: Always include Watchlist symbols in the live set
+    watchlist.forEach(s => baseSet.add(s));
+
+    // Intelligent Search Candidate: If search looks like a ticker, warm it up instantly
+    if (search && search.length >= 2 && search.length <= 10 && !search.includes(' ')) {
+      const upper = search.toUpperCase();
+      const symbol = upper.endsWith('USDT') ? upper : `${upper}USDT`;
+      baseSet.add(symbol);
+    }
+
+    if (baseSet.size > 0) return baseSet;
+
+    // Fallback: Warm up sockets with the Top 20 Majors instantly while waiting for API
+    return new Set([
+      'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'AVAXUSDT',
+      'SHIBUSDT', 'DOTUSDT', 'LINKUSDT', 'MATICUSDT', 'PEPEUSDT', 'NEARUSDT', 'LTCUSDT',
+      'TRXUSDT', 'UNIUSDT', 'SUIUSDT', 'APTUSDT', 'OPUSDT'
+    ]);
+  }, [data, watchlist, search]);
   const liveThrottleMs = pairCount <= 100 ? 80 : pairCount <= 300 ? 150 : 250;
   const {
     livePrices,
@@ -2693,7 +2717,15 @@ export default function ScreenerDashboard() {
       const timeoutMs = pairCount >= 800 ? 60_000 : pairCount >= 500 ? 55_000 : pairCount >= 300 ? 40_000 : 25_000;
       timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
-      const prioritySymbols = Array.from(visibleSymbolsRef.current).join(',');
+      const searchCandidate = (search && search.length >= 2 && search.length <= 10 && !search.includes(' '))
+        ? (search.toUpperCase().endsWith('USDT') ? search.toUpperCase() : `${search.toUpperCase()}USDT`)
+        : '';
+      const prioritySymbols = [...new Set([
+        ...Array.from(visibleSymbolsRef.current),
+        ...Array.from(watchlist),
+        searchCandidate
+      ])].filter(Boolean).join(',');
+
       const url = `/api/screener?count=${pairCount}&smart=${smartMode ? '1' : '0'}&rsiPeriod=${rsiPeriod}&search=${encodeURIComponent(search)}&prioritySymbols=${encodeURIComponent(prioritySymbols)}&exchange=${exchange}&ts=${Date.now()}`;
 
       const res = await fetch(url, {
@@ -3097,7 +3129,7 @@ export default function ScreenerDashboard() {
     // Search filter & Auto-Switch (2026 UX Improvement)
     if (search) {
       const q = search.toUpperCase();
-      
+
       // Intelligent Auto-Switch: If searching for a symbol in another asset class, 
       // check if it exists there and switch the tab if no results in current tab
       const itemsInCurrentTab = items.filter((e) => {
@@ -3111,13 +3143,13 @@ export default function ScreenerDashboard() {
           const alias = getSymbolAlias(e.symbol).toUpperCase();
           return e.symbol.includes(q) || alias.includes(q);
         });
-        
+
         if (matchesOverall.length > 0) {
           const targetMarket = matchesOverall[0].market;
-          const targetClass = targetMarket === 'Crypto' ? 'crypto' 
-                            : targetMarket === 'Forex' ? 'forex' 
-                            : targetMarket === 'Metal' ? 'metals' 
-                            : targetMarket === 'Index' ? 'stocks' : 'crypto';
+          const targetClass = targetMarket === 'Crypto' ? 'crypto'
+            : targetMarket === 'Forex' ? 'forex'
+              : targetMarket === 'Metal' ? 'metals'
+                : targetMarket === 'Index' ? 'stocks' : 'crypto';
           if (targetClass !== activeAssetClass) {
             setActiveAssetClass(targetClass);
           }
@@ -3316,537 +3348,351 @@ export default function ScreenerDashboard() {
   const colCount = 7 + OPTIONAL_COLUMNS.filter((c) => visibleCols.has(c.id)).length;
 
   return (
-    <div className="max-w-[1800px] mx-auto px-4 pt-4 pb-32 lg:py-8">
-      {/* ── Header ── */}
+    <div className="w-full px-4 lg:px-8 pt-4 pb-32 lg:py-6">
+      {/* ── Sticky Institutional Command Center (4-Row Architecture) ── */}
       {showHeader && (
-        <header className="mb-5 rounded-3xl border border-white/5 bg-[#080F1B] p-5 sm:p-6 shadow-lg relative group z-[100]">
-          {/* Background Glow - Wrapped to allow dropdowns to overflow while keeping glow contained */}
-          <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-[#39FF14]/[0.02] rounded-full -mr-20 -mt-20 group-hover:bg-[#39FF14]/[0.04] transition-colors duration-1000" />
+        <header className="sticky top-0 z-[1000] mb-6 rounded-b-3xl border-b border-x border-white/10 bg-[#080F1B]/90 backdrop-blur-3xl px-4 py-3 sm:px-6 shadow-[0_30px_60px_rgba(0,0,0,0.6)] transition-all duration-300">
+          {/* Subtle Dynamic Hub Glow */}
+          <div className="absolute inset-0 overflow-hidden rounded-b-3xl pointer-events-none">
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#39FF14]/[0.03] rounded-full -mr-32 -mt-32 blur-[100px]" />
           </div>
 
-          {/* Desktop Header Layout */}
-          <div className="hidden lg:flex flex-col gap-6 relative z-10 w-full">
-            {/* ─── NEW INSTITUTIONAL HEADER ─── */}
-            <div className="flex items-center justify-between gap-6 w-full">
-              {/* Left Side: Brand & Market Bias */}
-              <div className="flex items-center gap-8">
-                <Link href="/" className="flex items-center gap-4 group">
-                  <div className="relative w-36 h-10 transition-transform group-hover:scale-105">
-                    <Image
-                      src="/logo/rsiq-mindscapeanalytics.png"
-                      alt="RSIQ Pro"
-                      fill
-                      priority
-                      className="object-contain"
-                    />
+          <div className="flex flex-col gap-3.5 relative z-10 w-full">
+
+            {/* ROW 1: CORE NAVIGATION & MASTER STATUS */}
+            <div className="hidden lg:flex items-center justify-between gap-4 h-11">
+              {/* Left Side: Brand, Trial & Asset Dock */}
+              <div className="flex items-center gap-4 bg-black/40 border border-white/5 rounded-2xl p-1 pl-4 pr-1 shadow-inner h-full">
+                <Link href="/" className="flex items-center gap-4 group shrink-0">
+                  <div className="relative w-32 h-7 transition-all group-hover:scale-105 active:scale-95">
+                    <Image src="/logo/rsiq-mindscapeanalytics.png" alt="RSIQ Pro" fill priority className="object-contain" />
                   </div>
                 </Link>
-                <TrialIndicator />
-
-                <div className="flex flex-col gap-1 min-w-[140px]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Market Bias</span>
-                    <span className={cn("text-[10px] font-black tabular-nums", stats.bias >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
-                      {stats.bias > 0 ? `+${stats.bias}%` : `${stats.bias}%`}
-                    </span>
-                  </div>
-                  <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden border border-white/5 p-[1px]">
-                    <div
-                      className={cn("h-full rounded-full shadow-[0_0_8px_rgba(57,255,20,0.3)] transition-all duration-700", stats.bias >= 0 ? "bg-gradient-to-r from-emerald-500 to-[#39FF14]" : "bg-gradient-to-r from-rose-500 to-[#FF4B5C]")}
-                      style={{ width: `${Math.abs(stats.bias)}%`, marginLeft: stats.bias >= 0 ? '50%' : `${50 - Math.abs(stats.bias)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Win Rate Badge — Signal Accuracy Tracker™ */}
-                {(() => {
-                  const wr = getGlobalWinRate();
-                  if (wr.total === 0) return null;
-                  const rate = Math.round(wr.winRate1h);
-                  const color = rate >= 60 ? 'text-[#39FF14]' : rate >= 40 ? 'text-amber-400' : 'text-[#FF4B5C]';
-                  return (
-                    <div className="flex flex-col gap-0.5 min-w-[70px]">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Win Rate</span>
-                      <div className="flex items-center gap-1">
-                        <span className={cn("text-[11px] font-black tabular-nums", color)}>{rate}%</span>
-                        <span className="text-[7px] text-slate-600 font-bold">({wr.total} signals)</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Center Group: Combined Operations & Sentiment */}
-              <div className="flex items-center bg-slate-900/40 border border-white/10 rounded-2xl p-1 gap-1 shadow-[0_4px_20px_rgba(0,0,0,0.2)] backdrop-blur-md">
-                {/* System Controls */}
-                <div className="flex items-center gap-1 px-1">
-                  <motion.button
-                    onClick={async () => {
-                      const next = !alertsEnabled;
-                      setAlertsEnabled(next);
-                      if (next && typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
-                        try { await Notification.requestPermission(); } catch (e) { }
-                      }
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", alertsEnabled ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-600 hover:text-slate-400")}
-                    title="Alerts Toggle"
-                  >
-                    <Bell size={14} fill={alertsEnabled ? "currentColor" : "none"} />
-                  </motion.button>
-                  <motion.button
-                    onClick={() => {
-                      const next = !soundEnabled;
-                      setSoundEnabled(next);
-                      if (next) resumeAudioContext();
-                    }}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", soundEnabled ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-600 hover:text-slate-400")}
-                    title="Sound Toggle"
-                  >
-                    <Zap size={14} fill={soundEnabled ? "currentColor" : "none"} />
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setShowAlertPanel(!showAlertPanel)}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", showAlertPanel ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-600 hover:text-slate-400")}
-                    title="History"
-                  >
-                    <Clock size={14} />
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setShowGlobalSettings(true)}
-                    whileTap={{ scale: 0.95 }}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-600 hover:text-[#39FF14] transition-all"
-                    title="Settings"
-                  >
-                    <Settings size={14} />
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setShowCorrelation(true)}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", showCorrelation ? "bg-violet-500/10 text-violet-400" : "text-slate-600 hover:text-violet-400")}
-                    title="Correlation Heatmap"
-                  >
-                    <span className="text-[13px]">🔗</span>
-                  </motion.button>
-                  <motion.button
-                    onClick={() => setShowPortfolio(true)}
-                    whileTap={{ scale: 0.95 }}
-                    className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", showPortfolio ? "bg-cyan-500/10 text-cyan-400" : "text-slate-600 hover:text-cyan-400")}
-                    title="Portfolio Risk Scanner"
-                  >
-                    <span className="text-[13px]">🛡️</span>
-                  </motion.button>
-                </div>
-
                 <div className="h-4 w-px bg-white/10" />
-
-                {/* Sentiment */}
-                <div className="flex flex-col items-center justify-center px-4 min-w-[100px]">
-                  <span className="text-[7px] font-black uppercase tracking-widest text-slate-600 mb-0.5">Sentiment</span>
-                  <div className="flex items-center gap-1.5">
-                    <Gauge size={10} className={fearGreedColor} />
-                    <span className={cn("text-[9px] font-black uppercase tracking-tighter", fearGreedColor)}>{fearGreedLabel}</span>
-                  </div>
-                </div>
-
-                <div className="h-4 w-px bg-white/10" />
-
-                {/* Asset Class Selector (Primary) + Exchange Sub-selector */}
                 <div className="flex items-center gap-1">
-                  {/* Asset Class Tabs */}
-                  <div className="flex items-center bg-slate-900/60 border border-white/5 rounded-2xl p-0.5 gap-0.5">
-                    {[
-                      { id: 'crypto' as const, label: 'Crypto', icon: '₿', count: assetClassCounts.crypto },
-                      { id: 'forex' as const, label: 'Forex', icon: '💱', count: assetClassCounts.forex },
-                      { id: 'metals' as const, label: 'Metals', icon: '🥇', count: assetClassCounts.metals },
-                      { id: 'stocks' as const, label: 'Stocks', icon: '📈', count: assetClassCounts.stocks },
-                    ].map((ac) => (
-                      <button
-                        key={ac.id}
-                        onClick={() => setActiveAssetClass(ac.id)}
-                        className={cn(
-                          "flex items-center gap-2 px-3 py-1.5 text-[8px] font-black uppercase tracking-widest transition-all rounded-xl relative",
-                          activeAssetClass === ac.id
-                            ? "bg-[#39FF14]/15 text-[#39FF14] shadow-[0_0_12px_rgba(57,255,20,0.08)]"
-                            : ac.count > 0 
-                              ? "text-slate-500 hover:text-slate-300 hover:bg-white/5"
-                              : "text-slate-700 pointer-events-none opacity-40" // Dim empty tabs
-                        )}
-                      >
-                        <span className="text-[10px]">{ac.icon}</span>
-                        <span>{ac.label}</span>
-                        {ac.count > 0 && (
-                          <span className={cn(
-                            "ml-1 px-1.5 py-0.5 rounded-md text-[7px] font-bold tabular-nums",
-                            activeAssetClass === ac.id ? "bg-[#39FF14]/20 text-[#39FF14]" : "bg-slate-800 text-slate-500"
-                          )}>
-                            {ac.count}
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Exchange Sub-selector (only for Crypto) */}
-                  {activeAssetClass === 'crypto' && (
-                    <div className="flex items-center bg-slate-900/40 border border-white/5 rounded-xl p-0.5 gap-0.5 ml-1">
+                  {[
+                    { id: 'crypto' as const, icon: '₿', count: assetClassCounts.crypto },
+                    { id: 'forex' as const, icon: '💱', count: assetClassCounts.forex },
+                    { id: 'metals' as const, icon: '🥇', count: assetClassCounts.metals },
+                    { id: 'stocks' as const, icon: '📈', count: assetClassCounts.stocks },
+                  ].map((ac) => (
+                    <button
+                      key={ac.id}
+                      onClick={() => setActiveAssetClass(ac.id)}
+                      className={cn(
+                        "relative px-3 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center gap-2",
+                        activeAssetClass === ac.id
+                          ? "bg-[#39FF14]/20 text-[#39FF14] shadow-[0_0_15px_rgba(57,255,20,0.15)] border border-[#39FF14]/30"
+                          : ac.count > 0 ? "text-slate-500 hover:text-white hover:bg-white/5" : "text-slate-700 pointer-events-none opacity-20"
+                      )}
+                    >
+                      <span className="text-xs">{ac.icon}</span>
+                      <span className="tabular-nums">{ac.count}</span>
+                    </button>
+                  ))}
+                </div>
+                {activeAssetClass === 'crypto' && (
+                  <>
+                    <div className="h-4 w-px bg-white/10 mx-1" />
+                    <div className="flex bg-slate-900/60 rounded-xl p-0.5 border border-white/5">
                       {[
                         { id: 'binance', label: 'BIN' },
-                        { id: 'bybit', label: 'SPOT' },
-                        { id: 'bybit-linear', label: 'PERP' }
+                        { id: 'bybit', label: 'BYB' },
+                        { id: 'bybit-linear', label: 'PRP' }
                       ].map((ex) => (
                         <button
                           key={ex.id}
                           onClick={() => setExchange(ex.id)}
                           className={cn(
-                            "px-2 py-1 text-[7px] font-black uppercase tracking-widest transition-all rounded-lg",
-                            exchange === ex.id ? "bg-white/10 text-white" : "text-slate-600 hover:text-slate-400"
+                            "px-3 py-1 text-[7px] font-black uppercase rounded-lg transition-all",
+                            exchange === ex.id ? "bg-white/10 text-white shadow-sm" : "text-slate-600 hover:text-slate-400"
                           )}
                         >
                           {ex.label}
                         </button>
                       ))}
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Side: Health & Maintenance Cluster */}
-              <div className="flex items-center gap-4">
-                {/* System Health */}
-                <div className="flex items-center bg-slate-900/40 border border-white/10 rounded-2xl p-1 shadow-sm backdrop-blur-md">
-                  <div className={cn(
-                    "flex items-center gap-2 px-3 py-1.5 transition-all text-sm",
-                    isConnected
-                      ? feedHealth.status === 'healthy' ? 'text-[#39FF14]'
-                        : feedHealth.status === 'degraded' ? 'text-amber-400'
-                        : 'text-red-400'
-                      : 'text-slate-600'
-                  )}>
-                    <motion.div
-                      animate={{ opacity: isConnected ? [0.4, 1, 0.4] : 1 }}
-                      transition={{ duration: feedHealth.status === 'critical' ? 0.5 : 2, repeat: Infinity }}
-                      className={cn(
-                        "h-1.5 w-1.5 rounded-full",
-                        isConnected
-                          ? feedHealth.status === 'healthy' ? 'bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.6)]'
-                            : feedHealth.status === 'degraded' ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                            : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]'
-                          : 'bg-slate-600'
-                      )}
-                    />
-                    <span className="font-black tracking-[0.2em] uppercase text-[8px]">
-                      {isConnected ? (feedHealth.status === 'healthy' ? 'Live' : feedHealth.status === 'degraded' ? 'Lagging' : 'Stale') : 'Offline'}
-                    </span>
-                    {isConnected && feedHealth.totalFeeds > 0 && (
-                      <span className="text-[7px] font-mono text-slate-500 tabular-nums">
-                        {feedHealth.activeFeeds}/{feedHealth.totalFeeds}
-                      </span>
-                    )}
-                  </div>
-                  {isMaster && (
-                    <div className="flex items-center gap-2 border-l border-white/10 px-3 py-1.5 bg-gradient-to-r from-[#39FF14]/10 to-transparent">
-                      <ShieldCheck size={12} className="text-[#39FF14]" />
-                      <span className="font-black tracking-[0.2em] uppercase text-[8px] text-white">Master</span>
-                    </div>
-                  )}
-                  {feedHealth.staleFeeds > 0 && (
-                    <div className="flex items-center gap-1.5 border-l border-white/10 px-3 py-1.5 text-red-400/80">
-                      <AlertTriangle size={10} />
-                      <span className="font-black text-[8px] tabular-nums">{feedHealth.staleFeeds} stale</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 border-l border-white/10 px-3 py-1.5 text-slate-500">
-                    <LayoutGrid size={11} />
-                    <span className="font-black text-[9px] tabular-nums">{data.length}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => fetchData()}
-                    className="group relative flex items-center justify-center w-10 h-10 rounded-2xl border border-white/10 bg-white/5 text-slate-400 hover:text-[#39FF14] hover:bg-white/10 transition-all active:scale-95 shadow-lg"
-                    title="Manual Refresh"
-                  >
-                    <RefreshCcw size={14} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[7px] font-black text-slate-600 bg-black/40 px-1 rounded">
-                      {countdown}S
-                    </div>
-                  </button>
-                  <button
-                    onClick={handleExportCsv}
-                    className="w-10 h-10 rounded-2xl border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 shadow-lg flex items-center justify-center"
-                    title="Export CSV"
-                  >
-                    <Download size={14} />
-                  </button>
-                  
-                  <div className="relative" ref={profileRef}>
-                    <button
-                      onClick={() => setIsProfileOpen(!isProfileOpen)}
-                      className={cn(
-                        "w-10 h-10 rounded-2xl border flex items-center justify-center transition-all bg-slate-900 shadow-xl",
-                        isProfileOpen ? "border-[#39FF14] text-[#39FF14]" : "border-white/10 text-slate-400 hover:text-white hover:border-white/20"
-                      )}
-                    >
-                      <UserIcon size={18} />
-                    </button>
-                    <AnimatePresence>
-                      {isProfileOpen && (
-                        <UserProfileDropdown
-                          session={session}
-                          isOwner={isOwner}
-                          onLogout={handleSignOut}
-                          isLoggingOut={isLoggingOut}
-                          onClose={() => setIsProfileOpen(false)}
-                          onShowGlobalSettings={() => setShowGlobalSettings(true)}
-                        />
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* ─── 7-STATE SIGNAL ANALYTICS BAR ─── */}
-            <div className="flex items-center justify-between bg-slate-900/60 border border-white/5 rounded-2xl p-1 shadow-inner backdrop-blur-xl">
-              <div className="flex items-center gap-1 w-full overflow-x-auto no-scrollbar">
-                {[
-                  { label: "Oversold", value: stats.oversold, color: "text-emerald-400", bg: "bg-emerald-500/5", border: "border-emerald-500/10", icon: ArrowDownCircle, onClick: showMostOversold },
-                  { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", bg: "bg-blue-500/5", border: "border-blue-500/10", icon: Zap, onClick: showStrongBuys },
-                  { label: "Buy", value: stats.buy, color: "text-emerald-400/80", bg: "bg-emerald-500/5", border: "border-emerald-500/10", icon: TrendingUp, onClick: showBuys },
-                  { label: "Neutral", value: stats.neutral, color: "text-slate-400", bg: "bg-slate-500/5", border: "border-slate-500/10", icon: MinusCircle, onClick: showNeutrals },
-                  { label: "Sell", value: stats.sell, color: "text-rose-400/80", bg: "bg-rose-500/5", border: "border-rose-500/10", icon: TrendingDown, onClick: showSells },
-                  { label: "Strong Sell", value: stats.strongSell, color: "text-red-400", bg: "bg-red-500/5", border: "border-red-500/10", icon: Zap, onClick: showStrongSells },
-                  { label: "Overbought", value: stats.overbought, color: "text-rose-400", bg: "bg-rose-500/5", border: "border-rose-500/10", icon: ArrowUpCircle, onClick: showMostOverbought },
-                ].map((s) => {
-                  const Icon = s.icon;
-                  return (
-                    <button
-                      key={s.label}
-                      onClick={s.onClick}
-                      className={cn(
-                        "flex-1 min-w-[100px] flex items-center justify-between px-4 py-2 rounded-xl border transition-all hover:scale-[1.02] active:scale-95 group/stat",
-                        s.bg, s.border, "hover:bg-white/5 hover:border-white/10"
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon size={12} className={cn("transition-transform group-hover/stat:rotate-12", s.color)} />
-                        <span className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-500 group-hover/stat:text-slate-300">{s.label}</span>
-                      </div>
-                      <span className={cn("text-sm font-black tabular-nums tracking-tighter", s.color)}>
-                        <Counter value={s.value} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile App Bar */}
-          <div className="lg:hidden flex flex-col gap-4 relative z-10">
-            {/* Top Row: Logo & Profile */}
-            <div className="flex items-center justify-between">
-              <Link href="/" className="flex items-center gap-3 active:scale-95 transition-transform">
-                <div className="relative w-24 h-6">
-                  <Image
-                    src="/logo/rsiq-mindscapeanalytics.png"
-                    alt="RSIQ Pro"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center bg-slate-900/40 border border-white/10 rounded-xl px-2 py-1 gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <motion.div
-                        animate={{ opacity: isConnected ? [0.4, 1, 0.4] : 1 }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")}
-                      />
-                      <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{isConnected ? "Live" : "Off"}</span>
-                    </div>
-                    <div className="h-3 w-px bg-white/10" />
-                    <span className="text-[7px] font-black text-[#39FF14] tabular-nums whitespace-nowrap">{data.length} QTPS</span>
-                  </div>
-                </div>
-              </Link>
-              <div className="flex items-center gap-2 relative" ref={profileRef}>
-                {session && (
-                  <>
-                    <button
-                      onClick={() => setIsProfileOpen(!isProfileOpen)}
-                      className="w-10 h-10 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg active:scale-90 transition-all text-slate-400"
-                    >
-                      <UserIcon size={18} />
-                    </button>
-                    
-                    <AnimatePresence>
-                      {isProfileOpen && (
-                        <UserProfileDropdown 
-                          session={session} 
-                          isOwner={isOwner} 
-                          onLogout={handleSignOut} 
-                          isLoggingOut={isLoggingOut}
-                          onClose={() => setIsProfileOpen(false)}
-                          onShowGlobalSettings={() => setShowGlobalSettings(true)}
-                          isMobile
-                        />
-                      )}
-                    </AnimatePresence>
                   </>
                 )}
               </div>
-            </div>
 
-            {/* Controls Row: Alerts, Toggles, Actions */}
-            <div className="flex items-center justify-between bg-slate-900/40 border border-white/10 rounded-2xl p-1 shadow-inner backdrop-blur-md">
-              <div className="flex items-center gap-1 bg-white/[0.04] rounded-xl p-0.5">
-                {/* Asset Class Tabs (Mobile) */}
-                {[
-                  { id: 'crypto' as const, icon: '₿' },
-                  { id: 'forex' as const, icon: '💱' },
-                  { id: 'metals' as const, icon: '🥇' },
-                  { id: 'stocks' as const, icon: '📈' },
-                ].map((ac) => (
-                  <button
-                    key={ac.id}
-                    onClick={() => setActiveAssetClass(ac.id)}
-                    className={cn(
-                      "px-2 py-1.5 text-[9px] rounded-lg transition-all",
-                      activeAssetClass === ac.id ? "bg-[#39FF14]/20 text-[#39FF14] shadow-sm" : "text-slate-600"
-                    )}
-                  >
-                    {ac.icon}
-                  </button>
-                ))}
-                {activeAssetClass === 'crypto' && (
-                  <>
-                    <div className="w-px h-3 bg-white/10" />
-                    {[
-                      { id: 'binance', label: 'BIN' },
-                      { id: 'bybit', label: 'BYB' },
-                      { id: 'bybit-linear', label: 'PERP' }
-                    ].map((ex) => (
-                      <button
-                        key={ex.id}
-                        onClick={() => setExchange(ex.id)}
-                        className={cn(
-                          "px-2 py-1.5 text-[7px] font-black uppercase rounded-lg transition-all",
-                          exchange === ex.id ? "bg-white/10 text-white" : "text-slate-600"
-                        )}
-                      >
-                        {ex.label}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 pr-1">
-                <button
-                  onClick={() => fetchData()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#39FF14]/20 bg-[#39FF14]/5 text-[#39FF14] text-[8px] font-black tracking-widest active:scale-95 transition-all"
-                >
-                  <RefreshCcw size={10} className={refreshing ? "animate-spin" : ""} />
-                  {countdown}S
-                </button>
-                <div className="h-4 w-px bg-white/10 mx-1" />
-                <button
-                  onClick={async () => {
-                    const next = !alertsEnabled;
-                    setAlertsEnabled(next);
-                    if (next && typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
-                      try { await Notification.requestPermission(); } catch (e) { }
-                    }
-                  }}
-                  className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", alertsEnabled ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-600")}
-                >
-                  <Bell size={14} fill={alertsEnabled ? "currentColor" : "none"} />
-                </button>
-                <button
-                  onClick={() => setShowAlertPanel(!showAlertPanel)}
-                  className={cn("w-8 h-8 rounded-xl flex items-center justify-center transition-all", showAlertPanel ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-600")}
-                >
-                  <Clock size={14} />
-                </button>
-                <button
-                  onClick={handleExportCsv}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center transition-all bg-white/[0.04] text-slate-600 active:bg-white/10"
-                >
-                  <Download size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Signal Stats (Mobile Scrollable) */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {[
-                { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
-                { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys },
-                { label: "Buy", value: stats.buy, color: "text-emerald-400/80", onClick: showBuys },
-                { label: "Neutral", value: stats.neutral, color: "text-slate-400", onClick: showNeutrals },
-                { label: "Sell", value: stats.sell, color: "text-rose-400/80", onClick: showSells },
-                { label: "Strong Sell", value: stats.strongSell, color: "text-red-400", onClick: showStrongSells },
-                { label: "Overbought", value: stats.overbought, color: "text-rose-400", onClick: showMostOverbought },
-              ].map((s) => (
-                <button
-                  key={s.label}
-                  onClick={s.onClick}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900/60 border border-white/5 rounded-xl shrink-0 active:scale-95 transition-all hover:bg-white/5"
-                >
-                  <span className="text-[7px] font-black uppercase tracking-widest text-slate-500">{s.label}</span>
-                  <span className={cn("text-xs font-black tabular-nums", s.color)}>{s.value}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Micro-Stats Grid */}
-            <div className="grid grid-cols-5 gap-3">
-              <div className="col-span-3 bg-white/[0.03] border border-white/5 rounded-2xl p-3 flex flex-col gap-2.5 shadow-inner">
-                <span className="text-[8px] font-black text-slate-600 uppercase tracking-[0.2em]">Market Bias</span>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
-                    <div className="h-full bg-[#39FF14]" style={{ width: `${Math.max(0, 50 + stats.bias / 2)}%` }} />
-                    <div className="h-full bg-red-500" style={{ width: `${Math.max(0, 50 - stats.bias / 2)}%` }} />
+              {/* Right Side: Maintenance & Profile Cluster */}
+              <div className="flex items-center gap-3 h-full">
+                <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-1 h-full shadow-inner">
+                  <div className="flex items-center gap-2 px-4 h-full border-r border-white/5">
+                    <motion.div animate={{ opacity: isConnected ? [1, 0.4, 1] : 1 }} transition={{ duration: 2, repeat: Infinity }} className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_#39FF14]" : "bg-slate-700")} />
+                    <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-500">{isConnected ? "Live" : "Offline"}</span>
                   </div>
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono leading-none", stats.bias >= 0 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
+                  <button onClick={() => fetchData()} className="w-10 h-full flex flex-col items-center justify-center rounded-xl hover:bg-white/5 text-slate-500 hover:text-[#39FF14] transition-all group">
+                    <RefreshCcw size={13} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
+                    <span className="text-[6px] font-black mt-0.5 tabular-nums text-slate-600 font-mono tracking-tighter">{countdown}S</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => setAlertsEnabled(!alertsEnabled)}
+                  className={cn(
+                    "h-full px-3 rounded-2xl border transition-all",
+                    alertsEnabled ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14] shadow-[0_0_10px_rgba(57,255,20,0.1)]" : "bg-white/5 border-white/10 text-slate-500 hover:text-white"
+                  )}
+                  title={alertsEnabled ? "Global Alerts Enabled" : "Global Alerts Muted"}
+                >
+                  {alertsEnabled ? <Bell size={14} /> : <BellOff size={14} />}
+                </button>
+                <button onClick={handleExportCsv} className="h-full px-3 rounded-2xl border border-white/10 bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 active:scale-95 transition-all" title="Export Market Data (CSV)"><Download size={14} /></button>
+                <button onClick={() => setShowGlobalSettings(true)} className="h-full px-3 rounded-2xl border border-white/10 bg-white/5 text-slate-500 hover:text-[#39FF14] transition-all" title="Institutional Interface Settings"><Settings size={14} /></button>
+                <div className="relative h-full" ref={profileRef}>
+                  <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="h-full w-11 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center hover:border-[#39FF14]/30 transition-all text-slate-500 hover:text-white group">
+                    <UserIcon size={16} className="group-hover:scale-110 transition-transform" />
+                  </button>
+                  <AnimatePresence>
+                    {isProfileOpen && session && (
+                      <UserProfileDropdown session={session} isOwner={isOwner} onLogout={handleSignOut} isLoggingOut={isLoggingOut} onClose={() => setIsProfileOpen(false)} onShowGlobalSettings={() => setShowGlobalSettings(true)} />
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+
+
+            {/* ROW 2: INTELLIGENCE HUB & DERIVATIVES PULSE */}
+            <div className="hidden lg:flex items-center gap-4 h-11 mb-2">
+              <div className="relative flex-1 max-w-[320px] h-full">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="COMMAND SEARCH (SYM, ASSET, CLASS)..."
+                  className="w-full h-full pl-10 pr-4 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] bg-black/40 border border-white/10 rounded-2xl text-[#39FF14] placeholder:text-slate-700 focus:outline-none focus:border-[#39FF14]/30 transition-all shadow-inner"
+                />
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              </div>
+
+              {/* Real-time Intel promotion (Derivatives) */}
+              <div className="flex-1 flex items-center bg-black/40 border border-white/5 rounded-2xl px-4 gap-6 h-full shadow-inner backdrop-blur-md">
+                <div className="flex items-center gap-3 group cursor-help" title="5-Minute Aggregated Liquidation Data">
+                  <Flame size={14} className="text-orange-500 animate-pulse" />
+                  <div className="flex flex-col">
+                    <span className="text-[7px] font-black text-slate-600 uppercase leading-none tracking-widest mb-1">Liq Flux (5M)</span>
+                    <div className="flex items-center gap-3 text-[10px] font-mono font-black tabular-nums">
+                      <span className="text-red-500/90">-${Math.round((liquidations.filter(l => (Date.now() - l.timestamp) < 300000).reduce((acc, l) => acc + (l.side === 'Sell' ? l.valueUsd : 0), 0)) / 1000)}K</span>
+                      <span className="text-emerald-500/90">+${Math.round((liquidations.filter(l => (Date.now() - l.timestamp) < 300000).reduce((acc, l) => acc + (l.side === 'Buy' ? l.valueUsd : 0), 0)) / 1000)}K</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-5 w-px bg-white/10" />
+
+                <div className="flex flex-col gap-1.5 flex-1 max-w-[140px]" title="Smart Money Orderflow vs Retail Dispersion">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest leading-none">Pressure</span>
+                    <span className="text-[9px] font-black tabular-nums text-slate-400">84%</span>
+                  </div>
+                  <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden flex shadow-inner">
+                    <div className="h-full bg-red-500/70" style={{ width: '22%' }} />
+                    <div className="h-full bg-slate-800" style={{ width: '40%' }} />
+                    <div className="h-full bg-[#39FF14]/70" style={{ width: '38%' }} />
+                  </div>
+                </div>
+
+                <div className="h-5 w-px bg-white/10" />
+
+                <div className="flex flex-col gap-1 items-center min-w-[70px]">
+                  <span className="text-[7px] font-black text-slate-600 uppercase tracking-widest leading-none">Bias</span>
+                  <span className={cn("text-[10px] font-black tabular-nums font-mono", stats.bias >= 0 ? "text-[#39FF14]" : "text-rose-500")}>
                     {stats.bias > 0 ? '+' : ''}{stats.bias}%
                   </span>
                 </div>
               </div>
 
-              <div className="col-span-2 bg-white/[0.03] border border-white/5 rounded-2xl p-3 flex flex-col items-center justify-center shadow-inner">
-                <span className="text-[8px] font-black uppercase tracking-widest text-slate-600 mb-1 leading-none">Sentiment</span>
-                <div className="flex items-center gap-1.5">
-                  <Gauge size={12} className={fearGreedColor} />
-                  <span className={cn("text-[10px] font-black tabular-nums leading-none", fearGreedColor)}>{fearGreedScore}</span>
+              {/* Modular Action Cluster */}
+              <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-1 h-full shadow-inner">
+                <button onClick={() => setShowWatchlistOnly(!showWatchlistOnly)} className={cn("h-full px-4 rounded-xl flex items-center gap-2 transition-all group", showWatchlistOnly ? "bg-yellow-500/10 text-yellow-400" : "text-slate-500 hover:text-slate-300")}>
+                  <Star size={13} fill={showWatchlistOnly ? "currentColor" : "none"} className="group-hover:rotate-12 transition-transform" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Watchlist</span>
+                </button>
+                <div className="h-4 w-px bg-white/10" />
+                <button onClick={() => setShowCorrelation(!showCorrelation)} className={cn("h-full px-4 rounded-xl flex items-center gap-2 transition-all", showCorrelation ? "bg-violet-500/10 text-violet-400" : "text-slate-500 hover:text-slate-300")}>
+                  <LinkIcon size={13} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Correlation</span>
+                </button>
+                <div className="h-4 w-px bg-white/10" />
+                <button onClick={() => setShowPortfolio(true)} className={cn("h-full px-4 rounded-xl flex items-center gap-2 transition-all", showPortfolio ? "bg-cyan-500/10 text-cyan-400" : "text-slate-500 hover:text-slate-300")}>
+                  <Shield size={13} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Risk Scanner</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ROW 3: SIGNAL PULSE RIBBON (7-STATE ANALYTICS) */}
+            <div className="hidden lg:flex items-center gap-4 bg-black/20 border border-white/5 rounded-2xl p-1 shadow-inner backdrop-blur-xl h-11 mb-2">
+              <div className="flex-1 grid grid-cols-7 gap-1 h-full">
+                {[
+                  { label: "Oversold", value: stats.oversold, color: "text-emerald-400", bg: "bg-emerald-500/5", icon: ArrowDownCircle, onClick: showMostOversold, id: 'oversold' },
+                  { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", bg: "bg-blue-500/5", icon: Zap, onClick: showStrongBuys, id: 'strong-buy' },
+                  { label: "Buy", value: stats.buy, color: "text-emerald-400/80", bg: "bg-emerald-500/5", icon: TrendingUp, onClick: showBuys, id: 'buy' },
+                  { label: "Neutral", value: stats.neutral, color: "text-slate-500", bg: "bg-slate-500/5", icon: MinusCircle, onClick: showNeutrals, id: 'neutral' },
+                  { label: "Sell", value: stats.sell, color: "text-rose-400/80", bg: "bg-rose-500/5", icon: TrendingDown, onClick: showSells, id: 'sell' },
+                  { label: "Strong Sell", value: stats.strongSell, color: "text-red-400", bg: "bg-red-500/5", icon: Zap, onClick: showStrongSells, id: 'strong-sell' },
+                  { label: "Overbought", value: stats.overbought, color: "text-rose-400", bg: "bg-rose-500/5", icon: ArrowUpCircle, onClick: showMostOverbought, id: 'overbought' },
+                ].map((s) => {
+                  const Icon = s.icon;
+                  const isActive = signalFilter === s.id;
+                  return (
+                    <button
+                      key={s.label} onClick={s.onClick}
+                      className={cn(
+                        "flex items-center justify-between px-4 py-1.5 rounded-xl transition-all border group/stat h-full",
+                        s.bg, isActive ? "border-[#39FF14]/40 bg-[#39FF14]/10 shadow-[0_0_15px_rgba(57,255,20,0.15)]" : "border-transparent hover:bg-white/5 hover:border-white/5"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Icon size={13} className={cn("transition-transform group-hover/stat:scale-110", s.color)} />
+                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-500 group-hover/stat:text-slate-300">{s.label}</span>
+                      </div>
+                      <span className={cn("text-xs font-black tabular-nums transition-all group-hover/stat:scale-110", s.color)}><Counter value={s.value} /></span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="h-6 w-px bg-white/10 mx-1" />
+
+              {/* Sentiment Micro-Gauge */}
+              <div className="flex items-center gap-4 px-4 h-full bg-black/40 border border-white/5 rounded-xl shadow-inner">
+                <div className="flex flex-col items-center">
+                  <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest mb-0.5">Sentiment</span>
+                  <div className="flex items-center gap-2">
+                    <Gauge size={11} className={fearGreedColor} />
+                    <span className={cn("text-[10px] font-black tabular-nums tracking-tighter", fearGreedColor)}>{fearGreedScore}</span>
+                  </div>
+                </div>
+                <div className="h-5 w-px bg-white/10" />
+                <div className="flex flex-col items-center min-w-[30px]">
+                  <span className="text-[6px] font-black text-slate-600 uppercase tracking-widest mb-0.5">Vol</span>
+                  <span className="text-[9px] font-black tabular-nums text-slate-300">HIGH</span>
                 </div>
               </div>
             </div>
 
-            {/* Quick Filters */}
-            <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-2xl px-5 py-3">
-              {[
-                { label: "Oversold", value: stats.oversold, color: "text-emerald-400", onClick: showMostOversold },
-                { label: "Overbought", value: stats.overbought, color: "text-red-400", onClick: showMostOverbought },
-                { label: "Strong Buy", value: stats.strongBuy, color: "text-blue-400", onClick: showStrongBuys }
-              ].map((s) => (
-                <button key={s.label} onClick={s.onClick} className="flex flex-col items-center group/stat">
-                  <span className="text-[8px] font-black uppercase tracking-[0.1em] text-slate-500 mb-1 leading-none">{s.label}</span>
-                  <span className={cn("text-[13px] font-black tabular-nums tracking-tight leading-none", s.color)}><Counter value={s.value} /></span>
+            <div className="hidden lg:flex items-center gap-4 h-9 mb-2">
+              <div className="flex items-center gap-2 px-4 h-full bg-[#39FF14]/10 border border-[#39FF14]/20 rounded-xl shrink-0 shadow-[0_0_15px_rgba(57,255,20,0.1)] group cursor-help" title="Real-time Market Pulse & Volatility Indicators">
+                <TrendingUp size={12} className="text-[#39FF14]" />
+                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-[#39FF14]">Dynamics</span>
+              </div>
+
+              <div className="flex-1 overflow-hidden h-full bg-black/30 border border-white/5 rounded-xl flex items-center px-6 relative">
+                <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#080F1B] to-transparent z-10" />
+                <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#080F1B] to-transparent z-10" />
+                <div className="animate-marquee flex gap-16 items-center">
+                  {[...topMovers.gainers, ...topMovers.losers, ...topMovers.gainers, ...topMovers.losers].map((mover, i) => (
+                    <div key={i} className="flex items-center gap-3 whitespace-nowrap group/mover cursor-pointer hover:bg-white/5 px-3 py-1 rounded-xl transition-all border border-transparent hover:border-white/5">
+                      <span className="text-[10px] font-black text-slate-400 font-mono tracking-tighter group-hover/mover:text-white">{getSymbolAlias(mover.symbol)}</span>
+                      <div className="flex items-center gap-1.5">
+                        {mover.change24h >= 0 ? <TrendingUp size={10} className="text-[#39FF14]" /> : <TrendingDown size={10} className="text-rose-500" />}
+                        <span className={cn("text-[11px] font-black tabular-nums", mover.change24h >= 0 ? "text-[#39FF14]" : "text-rose-500")}>
+                          {mover.change24h > 0 ? '+' : ''}{mover.change24h.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Compact Local Row & Col Controls */}
+              <div className="flex items-center gap-1.5 bg-black/20 border border-white/5 rounded-xl p-0.5 h-full px-2">
+                <div className="flex items-center gap-1">
+                  {[100, 300, 500].map(cnt => (
+                    <button key={cnt} onClick={() => handlePairCountChange(cnt)} className={cn("px-2.5 py-0.5 h-full text-[8px] font-black uppercase rounded-lg transition-all", pairCount === cnt ? "bg-white text-black" : "text-slate-600 hover:text-slate-400")}>
+                      {cnt}
+                    </button>
+                  ))}
+                </div>
+                <div className="h-4 w-px bg-white/10 mx-1" />
+                <button onClick={() => setShowColPicker(!showColPicker)} className="px-3 py-0.5 h-full text-[8px] font-black uppercase text-slate-500 hover:text-[#39FF14] flex items-center gap-2 transition-all">
+                  <LayoutGrid size={11} />
+                  Cols
                 </button>
-              ))}
+                <div className="h-4 w-px bg-white/10 mx-1" />
+                <div className="flex items-center gap-2 px-2 h-full text-[8px] font-black uppercase text-slate-500">
+                  <span>RSI</span>
+                  <input type="range" min="2" max="50" value={rsiPeriod} onChange={(e) => setRsiPeriod(Number(e.target.value))} className="w-16 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#39FF14]" />
+                  <span className="text-[#39FF14] tabular-nums">{rsiPeriod}</span>
+                </div>
+              </div>
             </div>
+
+            {/* ─── MOBILE COMMAND CENTER ─── */}
+            <div className="lg:hidden flex flex-col gap-4 relative z-10 w-full">
+              <div className="flex items-center justify-between">
+                <Link href="/" className="flex items-center gap-3">
+                  <div className="relative w-28 h-6">
+                    <Image src="/logo/rsiq-mindscapeanalytics.png" alt="RSIQ Pro" fill className="object-contain" />
+                  </div>
+                </Link>
+                <div className="flex items-center gap-2 bg-slate-900/60 border border-white/10 rounded-xl px-2.5 py-1.5 shadow-lg shadow-black/40">
+                  <motion.div animate={{ opacity: isConnected ? [0.4, 1, 0.4] : 1 }} transition={{ duration: 2, repeat: Infinity }} className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")} />
+                  <span className="text-[8px] font-black text-[#39FF14] tabular-nums tracking-widest uppercase">{data.length} INSIGHTS</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-1 gap-1 h-10 shadow-inner">
+                  {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
+                    <button
+                      key={ac}
+                      onClick={() => setActiveAssetClass(ac as any)}
+                      className={cn(
+                        "flex-1 h-full rounded-xl flex items-center justify-center transition-all",
+                        activeAssetClass === ac ? "bg-[#39FF14]/15 text-[#39FF14]" : "text-slate-600"
+                      )}
+                    >
+                      <span className="text-xs">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-1 gap-1 h-10 shadow-inner overflow-x-auto no-scrollbar">
+                  {[
+                    { label: "OS", id: 'oversold' },
+                    { label: "SB", id: 'strong-buy' },
+                    { label: "B", id: 'buy' },
+                    { label: "N", id: 'neutral' },
+                    { label: "S", id: 'sell' },
+                    { label: "SS", id: 'strong-sell' },
+                    { label: "OB", id: 'overbought' },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSignalFilter(s.id as any)}
+                      className={cn(
+                        "flex-1 min-w-[32px] h-full rounded-xl flex items-center justify-center text-[9px] font-black transition-all",
+                        signalFilter === s.id ? "bg-white/10 text-white" : "text-slate-600"
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative h-11 w-full">
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="SEARCH INSTRUMENTS..."
+                  className="w-full h-full pl-11 pr-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] bg-black/60 border border-white/5 rounded-2xl text-white placeholder:text-slate-700"
+                />
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
+              </div>
+            </div>
+
           </div>
         </header>
       )}
 
-      {/* ─── DERIVATIVES INTELLIGENCE PANEL ─── */}
-      <div className="mb-4">
+      {/* ─── DERIVATIVES INTELLIGENCE PANEL (MINIMIZED) ─── */}
+      <div className="mb-6 opacity-80 hover:opacity-100 transition-opacity">
         <DerivativesPanel
           fundingRates={fundingRates}
           liquidations={liquidations}
@@ -3858,211 +3704,9 @@ export default function ScreenerDashboard() {
         />
       </div>
 
-      {/* ─── CORRELATION HEATMAP MODAL ─── */}
-      <CorrelationHeatmap
-        open={showCorrelation}
-        onClose={() => setShowCorrelation(false)}
-        data={processedData}
-      />
+      <CorrelationHeatmap open={showCorrelation} onClose={() => setShowCorrelation(false)} data={processedData} />
+      <PortfolioScannerPanel open={showPortfolio} onClose={() => setShowPortfolio(false)} data={processedData} />
 
-      {/* ─── PORTFOLIO RISK SCANNER MODAL ─── */}
-      <PortfolioScannerPanel
-        open={showPortfolio}
-        onClose={() => setShowPortfolio(false)}
-        data={processedData}
-      />
-
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-6">
-        <div className="relative flex-1 rounded-2xl border border-white/5 bg-slate-900/40 focus-within:border-[#39FF14]/20 transition-all lg:max-w-xs shrink-0">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search symbols..."
-            className="w-full pl-10 pr-4 py-2 text-xs bg-transparent text-white placeholder:text-slate-600 focus:outline-none font-medium rounded-2xl"
-          />
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600" />
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 w-full lg:w-auto">
-          <div className="flex shrink-0 bg-slate-900/40 rounded-2xl border border-white/5 p-1">
-            {['all', 'strong-buy', 'buy', 'neutral', 'sell', 'strong-sell'].map((v) => (
-              <button
-                key={v}
-                onClick={() => setSignalFilter(v as SignalFilter)}
-                className={cn(
-                  "px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest transition-all rounded-xl whitespace-nowrap",
-                  signalFilter === v ? "bg-white/10 text-white shadow-lg" : "text-slate-500 hover:text-slate-300"
-                )}
-              >
-                {v === 'all' ? 'All' : v.replace('strong-', 'S-')}
-              </button>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setShowWatchlistOnly((v) => !v)}
-            className={cn(
-              "shrink-0 px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
-              showWatchlistOnly
-                ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
-                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-            )}
-          >
-            <Star size={12} className={cn("inline mr-1.5 mb-0.5", showWatchlistOnly && "fill-current")} />
-            Watchlist
-          </button>
-
-          <button
-            onClick={() => setShowHeader((v) => !v)}
-            className={cn(
-              "shrink-0 px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border transition-all whitespace-nowrap",
-              showHeader
-                ? "bg-[#39FF14]/5 text-[#39FF14] border-[#39FF14]/20"
-                : "bg-slate-900/40 text-slate-500 border-white/5 hover:bg-slate-800/60"
-            )}
-          >
-            <LayoutList size={12} className="inline mr-1.5 mb-0.5" />
-            Header
-          </button>
-
-          <div className="flex items-center gap-1.5 rounded-2xl border border-white/5 bg-slate-900/40 p-1 shrink-0">
-            <span className="px-2 text-[8px] font-black uppercase tracking-widest text-slate-600">Rows</span>
-            {PAIR_COUNTS.map((cnt) => {
-              const locked = cnt > entitlements.maxRecords;
-              return (
-                <button
-                  key={cnt}
-                  onClick={() => {
-                    if (locked) {
-                      handleUpgradeRequired(cnt);
-                      return;
-                    }
-                    handlePairCountChange(cnt);
-                  }}
-                  className={cn(
-                    "px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border transition-all whitespace-nowrap",
-                    pairCount === cnt
-                      ? "bg-white text-black border-white"
-                      : "bg-white/[0.02] text-slate-500 border-white/10 hover:text-slate-300",
-                    locked && "opacity-50 text-rose-300 border-rose-500/30"
-                  )}
-                  title={locked ? `Upgrade required for ${cnt} rows` : `Show ${cnt} rows`}
-                >
-                  {cnt}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative group shrink-0" ref={colPickerRef}>
-            <button
-              onClick={() => setShowColPicker(!showColPicker)}
-              className="px-3 py-2 text-[9px] font-bold uppercase tracking-widest rounded-2xl border border-white/5 bg-slate-900/40 text-slate-500 hover:bg-slate-800/60 transition-all whitespace-nowrap"
-            >
-              <LayoutGrid size={12} className="inline mr-1.5 mb-0.5" />
-              Cols
-            </button>
-            <AnimatePresence>
-              {showColPicker && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-4 z-[100] bg-[#0A0F1B]/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-5 min-w-[300px] sm:min-w-[480px] overflow-hidden"
-                >
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                      <span className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Screener Columns</span>
-                      <div className="flex gap-2.5">
-                        <button
-                          onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.map(c => c.id)))}
-                          className="px-2 py-1 text-[9px] font-black text-[#39FF14] hover:bg-[#39FF14]/10 rounded-md transition-all uppercase"
-                        >
-                          All
-                        </button>
-                        <button
-                          onClick={() => setVisibleCols(new Set())}
-                          className="px-2 py-1 text-[9px] font-black text-[#FF4B5C] hover:bg-[#FF4B5C]/10 rounded-md transition-all uppercase"
-                        >
-                          None
-                        </button>
-                        <button
-                          onClick={() => setVisibleCols(new Set(OPTIONAL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)))}
-                          className="px-2 py-1 text-[9px] font-black text-slate-400 hover:bg-white/5 rounded-md transition-all uppercase"
-                        >
-                          Reset
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="max-h-[450px] overflow-y-auto no-scrollbar pr-1 flex flex-col gap-5">
-                      {Array.from(new Set(OPTIONAL_COLUMNS.map(c => c.group))).map(group => (
-                        <div key={group} className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2 px-1">
-                            <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{group}</span>
-                            <div className="h-[1px] flex-1 bg-white/5" />
-                            <button
-                              onClick={() => {
-                                const groupIds = OPTIONAL_COLUMNS.filter(c => c.group === group).map(c => c.id);
-                                setVisibleCols(prev => {
-                                  const next = new Set(prev);
-                                  const allInGroupSelected = groupIds.every(id => next.has(id));
-                                  if (allInGroupSelected) groupIds.forEach(id => next.delete(id));
-                                  else groupIds.forEach(id => next.add(id));
-                                  return next;
-                                });
-                              }}
-                              className="text-[8px] font-bold text-slate-600 hover:text-slate-400 uppercase transition-colors"
-                            >
-                              {OPTIONAL_COLUMNS.filter(c => c.group === group).every(c => visibleCols.has(c.id)) ? 'Deselect' : 'Select'}
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {OPTIONAL_COLUMNS.filter(c => c.group === group).map((col) => (
-                              <button
-                                key={col.id}
-                                onClick={() => toggleCol(col.id)}
-                                className={cn(
-                                  "flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all text-left",
-                                  visibleCols.has(col.id)
-                                    ? "bg-[#39FF14]/[0.08] text-[#39FF14] border-[#39FF14]/20 shadow-[0_0_15px_-5px_#39FF1433]"
-                                    : "text-slate-500 border-white/5 hover:bg-white/5 hover:border-white/10"
-                                )}
-                              >
-                                <div className={cn(
-                                  "w-3.5 h-3.5 rounded-md border flex items-center justify-center transition-all shrink-0",
-                                  visibleCols.has(col.id) ? "bg-[#39FF14] border-[#39FF14]" : "border-slate-700"
-                                )}>
-                                  {visibleCols.has(col.id) && <ShieldCheck size={10} className="text-[#0A0F1B]" strokeWidth={3} />}
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-tight truncate leading-none">{col.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-3 bg-slate-900/40 border border-white/5 rounded-2xl px-5 py-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 whitespace-nowrap">RSI Period</span>
-            <input
-              type="range"
-              min="2"
-              max="50"
-              value={rsiPeriod}
-              onChange={(e) => setRsiPeriod(Number(e.target.value))}
-              className="w-24 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#39FF14]"
-            />
-            <span className="text-xs font-black tabular-nums text-[#39FF14] w-6 text-center">{rsiPeriod}</span>
-          </div>
-        </div>
-      </div>
 
       {(error || staleSince || (backoffUntil && backoffUntil > Date.now())) && (
         <div className={cn(
@@ -4113,47 +3757,7 @@ export default function ScreenerDashboard() {
         </div>
       )}
 
-      {/* ── Top Movers ── */}
-      {!loading && topMovers.gainers.length > 0 && (
-        <div className="mb-6 grid grid-cols-2 lg:grid-cols-6 gap-3">
-          {topMovers.gainers.map((e) => (
-            <motion.div
-              key={`g-${e.symbol}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between p-3 rounded-2xl border border-[#39FF14]/10 bg-[#39FF14]/[0.03] cursor-pointer hover:bg-[#39FF14]/[0.06] transition-all"
-              onClick={() => setSelectedCoinForConfig(e.symbol)}
-            >
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-white">{getSymbolAlias(e.symbol)}</span>
-                <span className="text-[8px] font-bold text-slate-500">${formatPrice(e.price)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <TrendingUp size={10} className="text-[#39FF14]" />
-                <span className="text-[10px] font-black text-[#39FF14] tabular-nums">+{e.change24h.toFixed(1)}%</span>
-              </div>
-            </motion.div>
-          ))}
-          {topMovers.losers.map((e) => (
-            <motion.div
-              key={`l-${e.symbol}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between p-3 rounded-2xl border border-[#FF4B5C]/10 bg-[#FF4B5C]/[0.03] cursor-pointer hover:bg-[#FF4B5C]/[0.06] transition-all"
-              onClick={() => setSelectedCoinForConfig(e.symbol)}
-            >
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-white">{getSymbolAlias(e.symbol)}</span>
-                <span className="text-[8px] font-bold text-slate-500">${formatPrice(e.price)}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <TrendingDown size={10} className="text-[#FF4B5C]" />
-                <span className="text-[10px] font-black text-[#FF4B5C] tabular-nums">{e.change24h.toFixed(1)}%</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
+
 
       {/* ── Main List (Table or Cards) ── */}
       {isMobile ? (
@@ -4209,16 +3813,16 @@ export default function ScreenerDashboard() {
           )}
         </div>
       ) : (
-        <div className="rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden shadow-lg mb-8">
-          <div className="overflow-x-auto overflow-y-auto max-h-[800px] custom-scrollbar">
+        <div className="rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-8">
+          <div className="overflow-x-auto overflow-y-auto max-h-[min(850px,85vh)] custom-scrollbar">
             <table className="w-full border-collapse">
               <thead className="sticky top-0 z-20 bg-[#0A0F1B]/95 border-b border-white/5">
                 <tr>
                   {visibleCols.has('rank') && (
-                    <th className="px-4 py-4 text-[10px] font-black uppercase text-slate-600 text-left w-12 tracking-widest">#</th>
+                    <th className="px-3 py-3 text-[10px] font-bold uppercase text-slate-500 text-left w-10 tracking-widest whitespace-nowrap">#</th>
                   )}
-                  <th className="px-2 py-4 text-[10px] font-black text-slate-600 text-center w-8 uppercase tracking-widest">★</th>
-                  <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} />
+                  <th className="px-2 py-3 text-[10px] font-bold text-slate-500 text-center w-8 uppercase tracking-widest">★</th>
+                  <SortHeader label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="left" />
                   <SortHeader label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   <SortHeader label="24h Change" sortKey="change24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   <SortHeader label="Volume" sortKey="volume24h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
@@ -4245,13 +3849,13 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('longCandle') && <SortHeader label="Long Candle" sortKey="longCandle" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
                   {visibleCols.has('volumeSpike') && <SortHeader label="Vol Spike" sortKey="volumeSpike" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
 
-                  {visibleCols.has('fundingRate') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Funding</th>}
-                  {visibleCols.has('orderFlow') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Flow</th>}
-                  {visibleCols.has('smartMoney') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider">Smart $</th>}
+                  {visibleCols.has('fundingRate') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap">Funding</th>}
+                  {visibleCols.has('orderFlow') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap">Flow</th>}
+                  {visibleCols.has('smartMoney') && <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap">Smart $</th>}
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" />}
-                  <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 hidden sm:table-cell">Edit</th>
+                  <th className="px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 hidden sm:table-cell tracking-widest whitespace-nowrap">Edit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">

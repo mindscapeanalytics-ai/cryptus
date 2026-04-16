@@ -634,22 +634,25 @@ async function getTopSymbols(count: number, exchange: string = 'binance'): Promi
     const tickers = await fetchTickers(exchange);
     const usdtPairs = [...tickers.values()]
       .filter((t) => {
-        // Always include forced symbols (Gold, Forex) ONLY for Binance
+        // ALWAYS include High-Liquidity Institutional Assets (Metal, Forex)
         if (exchange === 'binance' && BINANCE_NATIVE_SPECIAL.includes(t.symbol)) return true;
         
+        // Ensure symbol ends with USDT (Institutional standard for this screener)
         if (!t.symbol.endsWith('USDT')) return false;
-        // Exclude leverage tokens, stablecoins, wrapped/pegged tokens, and fiat pairs
+
         const base = t.symbol.slice(0, -4);
         
-        // Smart filter: keep PAXG and major Forex, exclude junk
-        if (/^(USDC|BUSD|TUSD|DAI|FDUSD|USDP|USDD|PYUSD|USD1|WBTC|WBETH|BFUSD|EUR|GBP|AUD|BRL|TRY|BIDR|IDRT|UAH|NGN|PLN|RON|ARS|CZK)$/.test(base)) {
-           // Allow if it's explicitly in our SPECIAL list (Binance only)
+        // AGGRESSIVE JUNK FILTER: Exclude Stablecoins, Fiat-wraps, and Peaked tokens
+        // This ensures the top 100 are strictly tradable market assets.
+        if (/^(USDC|BUSD|TUSD|DAI|FDUSD|USDP|USDD|PYUSD|USD1|WBTC|WBETH|BFUSD|EUR|GBP|AUD|BRL|TRY|BIDR|IDRT|UAH|NGN|PLN|RON|ARS|CZK|RUB|ZAR|TRY|VAI|USDE)$/.test(base)) {
            if (exchange !== 'binance' || !BINANCE_NATIVE_SPECIAL.includes(t.symbol)) return false;
         }
 
+        // Exclude Leveraged Tokens (UP/DOWN/BEAR/BULL) to maintain institutional purity
         if (/UP$|DOWN$|BEAR$|BULL$/.test(base)) return false;
+
         const vol = parseFloat(t.quoteVolume);
-        return Number.isFinite(vol) && vol > 0;
+        return Number.isFinite(vol) && vol > 1000; // Require at least $1k/day for "alive" check
       })
       .sort((a, b) => {
         // Prioritize special assets so they always make the cut (Binance only)
@@ -879,10 +882,10 @@ async function fetchAllKlinesBatched(
         fetchKlines1h(sym, exchange)
       ]);
 
-      // Adaptive stagger to avoid slamming all API end-points at exactly the same microsecond
-      if (symbols.length > 100) {
-        // More aggressive stagger for larger sets to smooth out the request curve
-        await new Promise(r => setTimeout(r, Math.random() * 100));
+      // 🔥 Institutional Stagger Logic: Top 100 assets execute with zero-intentional lag
+      if (symbols.length > 100 && idx >= 100) {
+        // Only stagger non-priority symbols to ensure the first results appear instantly
+        await new Promise(r => setTimeout(r, Math.random() * 80));
       }
 
       results[idx] = { sym, res1m, res1h };
@@ -1217,7 +1220,7 @@ function runRefresh(
     // Merge: search matches first, then top symbols (uniquely)
     const symbols = [...new Set([...searchMatches, ...topSymbols])];
     
-    // 🔥 Rank-based Priority Mapping
+    // ⚡ 2. RANK-BASED PRIORITY (Ensure Top 100 are ALWAYS refreshed)
     const symbolRanks = new Map<string, number>();
     symbols.forEach((s, i) => symbolRanks.set(s, i));
 
@@ -1232,6 +1235,17 @@ function runRefresh(
       const hasAlerts = cfg && (cfg.alertOn1m || cfg.alertOn5m || cfg.alertOn15m || cfg.alertOn1h || cfg.alertOnCustom || cfg.alertOnStrategyShift);
       const ttl = hasAlerts ? INDICATOR_CACHE_TTL_ALERT : INDICATOR_CACHE_TTL;
       return cached.ts < nowTs - ttl;
+    });
+
+    // Force-inclusion logic for Priority Symbols (Search & Watchlist)
+    // These assets bypass the refreshCap to ensure instant user feedback.
+    const mustRefresh = new Set<string>();
+    symbolsToRefresh.forEach(s => {
+      const isPriority = prioritySymbols.includes(s);
+      const isSearchMatch = search && s.toUpperCase().includes(search.toUpperCase());
+      if (isPriority || isSearchMatch) {
+        mustRefresh.add(s);
+      }
     });
 
     // Bootstrap mode: prioritise full coverage so all selected pairs get indicators quickly.
@@ -1293,7 +1307,11 @@ function runRefresh(
         const tb = indicatorCache.get(getCacheKey(b))?.ts ?? 0;
         return ta - tb; // oldest first
       });
-      symbolsToRefresh = symbolsToRefresh.slice(0, refreshCap);
+
+      // Ensure 'mustRefresh' symbols are at the start and NOT sliced out
+      const prioritySet = new Set(symbolsToRefresh.filter(s => mustRefresh.has(s)));
+      const others = symbolsToRefresh.filter(s => !mustRefresh.has(s));
+      symbolsToRefresh = [...prioritySet, ...others].slice(0, Math.max(refreshCap, prioritySet.size));
     }
 
     debugLog(
