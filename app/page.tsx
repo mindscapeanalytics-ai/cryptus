@@ -65,8 +65,10 @@ export default function LandingPage() {
             <div className="relative w-11 h-11 sm:w-14 sm:h-14 overflow-hidden rounded-xl border border-[#39FF14]/20 shadow-lg shadow-[#39FF14]/10 bg-gradient-to-br from-[#39FF14]/10 to-transparent">
               <Image 
                 src="/logo/rsiq-mindscapeanalytics.png" 
-                alt="RSIQ Logo" 
+                alt="RSIQ Pro | Institutional Crypto Terminal" 
                 fill
+                priority
+                loading="eager"
                 className="object-cover scale-110"
               />
             </div>
@@ -158,14 +160,18 @@ export default function LandingPage() {
             <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.15em] sm:tracking-[0.25em] text-[#39FF14]">Enterprise Engine Active — 500+ Live Symbols (Crypto, Forex, Gold & Silver)</span>
           </motion.div>
 
-          <motion.h1 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-[3.2rem] sm:text-6xl md:text-8xl lg:text-9xl font-black text-center text-white tracking-tighter leading-[0.88] sm:leading-[0.85] mb-6 sm:mb-10 drop-shadow-2xl"
-          >
-            THE ALPHA <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-br from-white via-[#39FF14] to-emerald-800">TERMINAL.</span>
-          </motion.h1>
+          <div className="flex flex-col items-center">
+            <motion.h1 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-[3.2rem] sm:text-6xl md:text-8xl lg:text-9xl font-black text-center text-white tracking-tighter leading-[0.88] sm:leading-[0.85] mb-4 drop-shadow-2xl"
+            >
+              THE ALPHA <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-br from-white via-[#39FF14] to-emerald-800">TERMINAL.</span>
+            </motion.h1>
+            
+            <h2 className="text-[10px] sm:text-xs md:text-sm font-black uppercase tracking-[0.4em] sm:tracking-[0.6em] text-[#39FF14] mb-10 sm:mb-16">The Global Crypto Market Scanner for Professional Traders</h2>
+          </div>
 
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -173,7 +179,7 @@ export default function LandingPage() {
             transition={{ delay: 0.2 }}
             className="text-base sm:text-lg md:text-2xl text-slate-400 max-w-4xl text-center leading-relaxed mb-10 sm:mb-16 font-medium px-2 sm:px-0"
           >
-            <strong className="text-white">Stop missing critical setups.</strong> Retail traders lose edge by manually checking charts and relying on delayed, localized data. RSIQ Pro solves this by instantly scanning <span className="text-[#39FF14]">500+ assets (Crypto, Top Forex Pairs, and Metals)</span> in real-time, delivering institutional-grade alerts so you never miss a profitable convergence again.
+            <strong className="text-white">Stop missing critical setups.</strong> Retail traders lose edge by manually checking charts and relying on delayed, localized data. RSIQ Pro solves this by instantly scanning <span className="text-[#39FF14]">500+ assets (Crypto, Top Forex Pairs, and Metals)</span> in real-time, delivering institutional-grade indicators (RSI, MACD, Order Flow) so you never miss a profitable convergence again.
           </motion.p>
 
           <motion.div 
@@ -402,8 +408,8 @@ export default function LandingPage() {
       <section id="features" className="py-20 sm:py-32 md:py-40 bg-white/[0.02] border-t border-white/5 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12 sm:mb-20 md:mb-24 space-y-3 sm:space-y-4">
-            <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] text-[#39FF14]">Advanced Capabilities</h2>
-            <p className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">Everything for Professional Trading.</p>
+            <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] text-[#39FF14]">RSI & MACD Crypto Scanner</h2>
+            <h3 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">Everything for Professional Trading.</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">

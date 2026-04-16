@@ -2,8 +2,20 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'RSIQ Pro — Mindscape Analytics LLC',
-  description: 'Enterprise-grade multi-indicator crypto market scanner by Mindscape Analytics LLC. Monitor 500+ pairs with real-time RSI, MACD, and strategy scoring.',
+  title: {
+    default: 'RSIQ Pro | Institutional Crypto Terminal & Real-Time Scanner',
+    template: '%s | RSIQ Pro',
+  },
+  description: 'Enterprise-grade multi-indicator crypto market scanner by Mindscape Analytics. Monitor 500+ pairs with institutional RSI, MACD, Order Flow, and Liquidation Flux analytics.',
+  metadataBase: new URL('https://rsiq.mindscapeanalytics.com'),
+  alternates: {
+    canonical: 'https://rsiq.mindscapeanalytics.com',
+  },
+  keywords: [
+    'Crypto Scanner', 'Institutional RSI Terminal', 'Real-time Crypto Analytics', 'Liquidation Tracker',
+    'MACD Strategy', 'Bybit Screener', 'Binance Scanner', 'Mindscape Analytics', 'RSIQ Pro',
+    'Order Flow Analysis', 'Smart Money Tracker', 'Crypto Market Intelligence'
+  ],
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -16,11 +28,39 @@ export const metadata: Metadata = {
   icons: {
     apple: '/logo/rsiq-mindscapeanalytics.png',
   },
-  robots: 'index, follow',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   openGraph: {
-    title: 'RSIQ Pro | Mindscape Analytics',
-    description: 'Real-time enterprise crypto scanner with 500+ pairs and advanced analytics.',
+    title: 'RSIQ Pro | Institutional Crypto Terminal & Market Scanner',
+    description: 'Monitor 500+ pairs with real-time institutional analytics, RSI, and Liquidation Flux. Engineered by Mindscape Analytics.',
+    url: 'https://rsiq.mindscapeanalytics.com',
+    siteName: 'RSIQ Pro',
+    images: [
+      {
+        url: '/logo/rsiq-mindscapeanalytics.png',
+        width: 1200,
+        height: 630,
+        alt: 'RSIQ Pro Terminal',
+      },
+    ],
+    locale: 'en_US',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RSIQ Pro | Institutional Crypto Terminal',
+    description: 'Real-time multi-indicator market scanner with institutional density.',
+    images: ['/logo/rsiq-mindscapeanalytics.png'],
+    creator: '@MindscapeAL',
   },
 };
 
@@ -35,11 +75,13 @@ export const viewport: Viewport = {
 import { Toaster } from 'sonner';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { PWAServiceWorkerRegistration } from '@/components/pwa-service-worker-registration';
+import { JsonLd } from '@/components/seo/json-ld';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen antialiased bg-[#0a0e17]" suppressHydrationWarning>
+        <JsonLd />
         {children}
         <PWAServiceWorkerRegistration />
         <PWAInstallPrompt />

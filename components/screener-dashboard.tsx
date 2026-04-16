@@ -3405,8 +3405,8 @@ export default function ScreenerDashboard() {
              {/* ROW 1: STRATEGIC IDENTITY & COMMAND SEARCH */}
             <div className="hidden lg:flex items-center justify-between gap-4 h-10">
               <div className="flex items-center gap-4 bg-black/40 border border-white/5 rounded-2xl p-0.5 pl-3 pr-0.5 shadow-inner h-full shrink-0">
-                <Link href="/" className="flex items-center gap-3 group">
-                  <div className="relative w-24 h-5 transition-all group-hover:scale-105 active:scale-95">
+                <Link href="/" className="flex items-center gap-3 group px-1">
+                  <div className="relative w-28 h-7 transition-all group-hover:scale-105 active:scale-95">
                     <Image src="/logo/rsiq-mindscapeanalytics.png" alt="RSIQ Pro" fill priority className="object-contain" />
                   </div>
                 </Link>
@@ -3660,7 +3660,7 @@ export default function ScreenerDashboard() {
               {/* COMPACT COMMAND BAR (Mobile Row 1) */}
               <div className="flex items-center justify-between gap-3 h-10 items-center">
                 <Link href="/" className="flex items-center gap-2 active:scale-95 transition-all">
-                  <div className="relative w-24 h-5">
+                  <div className="relative w-28 h-6">
                     <Image src="/logo/rsiq-mindscapeanalytics.png" alt="RSIQ Pro" fill className="object-contain" />
                   </div>
                 </Link>
