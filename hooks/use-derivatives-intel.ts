@@ -56,6 +56,10 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
   const [orderFlow, setOrderFlow] = useState<Map<string, OrderFlowData>>(new Map());
   const [openInterest, setOpenInterest] = useState<Map<string, OpenInterestData>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  const [lastHealthPulse, setLastHealthPulse] = useState<number>(Date.now());
+  
+  // Stale detection: true if we haven't received data in 12 seconds
+  const isStale = isConnected && (Date.now() - lastHealthPulse > 12000);
 
   const mountedRef = useRef(true);
   const enabledRef = useRef(enabled);
@@ -98,6 +102,11 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
         case 'DISCONNECTED':
           setIsConnected(false);
           break;
+
+        case 'HEALTH_STATUS': {
+          setLastHealthPulse(payload.lastDataReceived);
+          break;
+        }
 
         case 'FUNDING_UPDATE': {
           const entries = payload as [string, FundingRateData][];
@@ -191,6 +200,16 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
 
     worker.addEventListener('message', handleMessage);
 
+    // Visibility-Aware Resumption:
+    // If user returns to tab, signal worker to check connection health immediately
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && workerStarted) {
+        console.log('[DerivativesIntel] Tab focused, triggering RESUME sync...');
+        derivativesWorker?.postMessage({ type: 'RESUME' });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     // Start worker if not already started
     if (!workerStarted) {
       worker.postMessage({
@@ -209,6 +228,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     return () => {
       mountedRef.current = false;
       worker.removeEventListener('message', handleMessage);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [enabled]); // Only re-attach on enabled change
 
@@ -238,6 +258,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     openInterest,
     smartMoney,
     isConnected,
+    isStale,
     updateConfig,
   };
 }

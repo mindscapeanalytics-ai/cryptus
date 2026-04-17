@@ -73,6 +73,7 @@ let consecutiveOiErrors = 0;
 let oiHistory = new Map();          // symbol → { value1hAgo, value24hAgo, snapshots[] }
 let lastDataReceived = Date.now();  // tracker for watchdog
 let zombieWatchdog = null;
+let healthTimer = null;
 
 // ── Utility Functions ────────────────────────────────────────────
 
@@ -542,6 +543,16 @@ function startFlushing() {
       });
       oiDirty = false;
     }
+
+    // Task: Periodic Health Pulse for UI Heartbeat
+    broadcast({ 
+      type: 'HEALTH_STATUS', 
+      payload: { 
+        lastDataReceived, 
+        isRunning,
+        timestamp: Date.now()
+      } 
+    });
   }, FLUSH_INTERVAL_MS);
 }
 
@@ -597,6 +608,9 @@ function reconnectAll() {
   connectLiquidationStream();
   connectWhaleStream();
   lastDataReceived = Date.now();
+  
+  // Also force a refresh of OI if technically feasible
+  pollOpenInterest();
 }
 
 function stop() {
@@ -612,6 +626,9 @@ function stop() {
   // Clear timers
   if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
   if (oiPollTimer) { clearInterval(oiPollTimer); oiPollTimer = null; }
+  if (zombieWatchdog) { clearInterval(zombieWatchdog); zombieWatchdog = null; }
+  if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
+  
   reconnectTimers.forEach(timer => clearTimeout(timer));
   reconnectTimers.clear();
   reconnectAttempts.clear();
@@ -665,6 +682,15 @@ self.onmessage = function(e) {
       if (payload?.liquidationThreshold) {
         LIQUIDATION_THRESHOLD = payload.liquidationThreshold;
         console.log(`[deriv-worker] Liquidation threshold updated to $${LIQUIDATION_THRESHOLD}`);
+      }
+      break;
+
+    case 'RESUME':
+      // Priority resync called on tab focus
+      const silenceMs = Date.now() - lastDataReceived;
+      if (silenceMs > 5000) {
+        console.log('[deriv-worker] RESUME: Health check triggered priority resync');
+        reconnectAll();
       }
       break;
 

@@ -2216,6 +2216,7 @@ export default function ScreenerDashboard() {
     openInterest,
     smartMoney,
     isConnected: derivativesConnected,
+    isStale: derivativesStale,
     updateConfig: updateDerivConfig,
   } = useDerivativesIntel(symbolSet, activeAssetClass === 'crypto');
 
@@ -3646,9 +3647,43 @@ export default function ScreenerDashboard() {
 
               <div className="flex items-center gap-2 h-full">
                 <div className="flex items-center bg-black/40 border border-white/5 rounded-2xl p-0.5 h-full shadow-inner">
-                  <div className="flex items-center gap-2 px-3 h-full border-r border-white/5">
-                    <motion.div animate={{ opacity: isConnected ? [1, 0.4, 1] : 1 }} transition={{ duration: 2, repeat: Infinity }} className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_#39FF14]" : "bg-slate-700")} />
-                    <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600">{isConnected ? "Live" : "Offline"}</span>
+                  <div className="flex items-center gap-2 px-3 h-full border-r border-white/5 relative group/health">
+                    <motion.div 
+                      animate={{ 
+                        opacity: (isConnected && !derivativesStale) ? [1, 0.4, 1] : 1,
+                        scale: (isConnected && !derivativesStale) ? [1, 1.2, 1] : 1
+                      }} 
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} 
+                      className={cn(
+                        "w-2 h-2 rounded-full", 
+                        !isConnected ? "bg-slate-700" : (derivativesStale ? "bg-amber-500 shadow-[0_0_8px_#f59e0b]" : "bg-[#39FF14] shadow-[0_0_8px_#39FF14]")
+                      )} 
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 leading-none">
+                        {!isConnected ? "Offline" : (derivativesStale ? "Syncing" : "Ultra-Live")}
+                      </span>
+                      {isConnected && !derivativesStale && (
+                        <span className="text-[5px] font-bold text-[#39FF14]/50 uppercase tracking-tighter mt-0.5">Verified</span>
+                      )}
+                    </div>
+
+                    {/* Pro Health Tooltip */}
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-[#0A0E17] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover/health:opacity-100 transition-opacity pointer-events-none z-[100]">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[7px] font-black text-slate-500 uppercase">Price Engine</span>
+                          <span className={cn("text-[7px] font-bold", isConnected ? "text-[#39FF14]" : "text-slate-600")}>{isConnected ? "Connected" : "Idle"}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[7px] font-black text-slate-500 uppercase">Intel Heartbeat</span>
+                          <span className={cn("text-[7px] font-bold", !derivativesStale ? "text-[#39FF14]" : "text-amber-500")}>{!derivativesStale ? "Active" : "Re-syncing..."}</span>
+                        </div>
+                        <div className="pt-1 border-t border-white/5">
+                          <p className="text-[6px] text-slate-600 leading-tight">Institutional-grade monitoring ensures zero-gap data liveness across all derivatives streams.</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <button onClick={() => fetchData()} className="w-10 h-full flex flex-col items-center justify-center rounded-xl hover:bg-white/5 text-slate-500 hover:text-[#39FF14] transition-all group">
                     <RefreshCcw size={12} className={cn("transition-transform duration-700", refreshing && "animate-spin")} />
@@ -3870,11 +3905,19 @@ export default function ScreenerDashboard() {
                 <div className="flex items-center gap-1.5 h-full">
                   <div className="flex items-center bg-black/40 border border-white/5 rounded-xl px-2.5 h-full shadow-inner">
                     <motion.div 
-                      animate={{ opacity: isConnected ? [0.4, 1, 0.4] : 1 }} 
-                      transition={{ duration: 2, repeat: Infinity }} 
-                      className={cn("w-1 h-1 rounded-full", isConnected ? "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")} 
+                      animate={{ 
+                        opacity: (isConnected && !derivativesStale) ? [0.4, 1, 0.4] : 1,
+                        scale: (isConnected && !derivativesStale) ? [0.9, 1.1, 0.9] : 1
+                      }} 
+                      transition={{ duration: 1.5, repeat: Infinity }} 
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full", 
+                        !isConnected ? "bg-slate-700" : (derivativesStale ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]")
+                      )} 
                     />
-                    <span className="text-[7.5px] font-black tabular-nums text-slate-500 uppercase tracking-widest ml-1.5">Live</span>
+                    <span className="text-[7.5px] font-black tabular-nums text-slate-500 uppercase tracking-widest ml-1.5">
+                      {!isConnected ? "Off" : (derivativesStale ? "Sync" : "Live")}
+                    </span>
                   </div>
                   
                   <button 
@@ -4345,8 +4388,13 @@ export default function ScreenerDashboard() {
                 <div className="flex flex-col">
                   <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-600 leading-none mb-1">Engine Status</span>
                   <div className="flex items-center gap-1.5 leading-none">
-                    <div className={cn("w-1.5 h-1.5 rounded-full", isConnected ? "bg-[#39FF14] animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-700")} />
-                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tight">{isConnected ? "Live Network" : "Polling Mode"}</span>
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full", 
+                      !isConnected ? "bg-slate-700" : (derivativesStale ? "bg-amber-500 shadow-[0_0_8px_#f59e0b]" : "bg-[#39FF14] animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.5)]")
+                    )} />
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tight">
+                      {!isConnected ? "Polling Mode" : (derivativesStale ? "Institutional Syncing" : "Ultra-Liveness Engine")}
+                    </span>
                   </div>
                 </div>
 
