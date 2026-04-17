@@ -624,7 +624,7 @@ async function searchSymbols(query: string, exchange: string = 'binance'): Promi
   return [...new Set(matches)];
 }
 
-async function getTopSymbols(count: number, exchange: string = 'binance'): Promise<string[]> {
+export async function getTopSymbols(count: number, exchange: string = 'binance'): Promise<string[]> {
   const cached = symbolCache.get(exchange);
   if (cached && Date.now() - cached.ts < SYMBOL_CACHE_TTL) {
     return cached.data.slice(0, count);

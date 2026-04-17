@@ -1,0 +1,25 @@
+import { MetadataRoute } from 'next';
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: [
+      {
+        userAgent: '*',
+        allow: '/',
+        disallow: [
+          '/api/',
+          '/_next/',
+          '/static/',
+          '/admin/',
+          '/terminal/settings',
+        ],
+      },
+      {
+        userAgent: 'GPTBot',
+        allow: ['/'],
+        disallow: ['/api/'],
+      },
+    ],
+    sitemap: 'https://rsiq.mindscapeanalytics.com/sitemap.xml',
+  };
+}

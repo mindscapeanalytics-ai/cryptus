@@ -84,11 +84,11 @@ export async function GET(request: Request) {
     const { user, entitlements } = authInfo;
 
     // ── Business Rule Hardening ──
-    if (!user && !entitlements) {
-      return NextResponse.json({ error: 'System busy. Please retry.' }, { status: 503 });
-    }
+    // GUEST ACCESS: Allow unauthorized users to see a limited preview (Top 20)
+    // This powers viral social sharing and public symbol pages.
+    const isGuestQuery = !user && rawCount <= 20;
 
-    if (!user) {
+    if (!user && !isGuestQuery) {
       return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 });
     }
 

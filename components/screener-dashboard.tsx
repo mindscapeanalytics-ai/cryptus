@@ -144,8 +144,9 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
 
   // Signal Sharing - copy narration shareLine to clipboard for viral growth
   const handleCopySignal = useCallback(() => {
-    if (!narration) return;
-    const text = `${narration.shareLine}\n\n- Powered by RSIQ Pro - mindscapeanalytics.com`;
+    if (!narration || !entry) return;
+    const symbolUrl = `https://rsiq.mindscapeanalytics.com/symbol/${entry.symbol.toLowerCase()}`;
+    const text = `${narration.shareLine}\n\nView Institutional Data: ${symbolUrl}\n\n- Powered by RSIQ Pro`;
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Signal copied to clipboard!', { duration: 2000 });
     }).catch(() => {
@@ -3899,7 +3900,7 @@ export default function ScreenerDashboard() {
               </div>
             </div>
 
-            {/* MOBILE COMMAND CENTER DRAWER */}
+            {/* MOBILE COMMAND CENTER SIDEBAR */}
             <AnimatePresence>
               {showMobileMenu && (
                 <div className="fixed inset-0 z-[600] lg:hidden">
@@ -3908,69 +3909,69 @@ export default function ScreenerDashboard() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={() => setShowMobileMenu(false)}
-                    className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+                    className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
                   />
                   <motion.div 
-                    initial={{ y: '100%' }}
-                    animate={{ y: 0 }}
-                    exit={{ y: '100%' }}
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="absolute bottom-0 left-0 right-0 bg-[#080F1B] border-t border-white/10 rounded-t-[2.5rem] p-6 pb-12 flex flex-col gap-6"
+                    className="absolute top-0 right-0 bottom-0 w-[280px] sm:w-[320px] bg-[#05080F]/95 backdrop-blur-2xl border-l border-white/10 p-6 flex flex-col gap-6 shadow-[0_0_80px_rgba(0,0,0,0.8)]"
                   >
                     {/* Header */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between pb-4 border-b border-white/5">
                       <div>
-                        <h3 className="text-white font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                        <h3 className="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2">
                           <BrainCircuit size={16} className="text-[#39FF14]" />
-                          Command Center
+                          Command
                         </h3>
-                        <p className="text-[8px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Configure Tactical Matrix</p>
+                        <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Tactical Matrix</p>
                       </div>
-                      <button onClick={() => setShowMobileMenu(false)} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 active:scale-90">
-                        <X size={20} />
+                      <button onClick={() => setShowMobileMenu(false)} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 active:scale-90">
+                        <X size={18} />
                       </button>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-8">
                       {/* Section: Asset Universe */}
-                      <div className="space-y-3">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Asset Universe</span>
-                        <div className="grid grid-cols-4 gap-2">
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#39FF14]">Asset Universe</span>
+                        <div className="grid grid-cols-2 gap-2">
                           {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
                             <button
                               key={ac}
                               onClick={() => { setActiveAssetClass(ac as any); setShowMobileMenu(false); }}
                               className={cn(
-                                "py-2.5 rounded-xl flex flex-col items-center justify-center transition-all border",
-                                activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500"
+                                "py-3 rounded-xl flex items-center gap-3 px-4 transition-all border",
+                                activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500 hover:text-slate-300"
                               )}
                             >
-                              <span className="text-lg mb-1">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
-                              <span className="text-[7px] font-black uppercase tracking-widest">{ac}</span>
+                              <span className="text-sm">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
+                              <span className="text-[8px] font-black uppercase tracking-[0.1em]">{ac}</span>
                             </button>
                           ))}
                         </div>
                       </div>
 
                       {/* Section: Matrix Signal Filter */}
-                      <div className="space-y-3">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Matrix Signal Filter</span>
-                        <div className="grid grid-cols-4 gap-2">
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Signal Confluence</span>
+                        <div className="grid grid-cols-2 gap-2">
                           {[
-                            { label: "ALL", id: 'all' },
-                            { label: "OS", id: 'oversold' },
-                            { label: "SB", id: 'strong-buy' },
-                            { label: "B", id: 'buy' },
-                            { label: "N", id: 'neutral' },
-                            { label: "S", id: 'sell' },
-                            { label: "SS", id: 'strong-sell' },
-                            { label: "OB", id: 'overbought' },
+                            { label: "ALL ASSETS", id: 'all' },
+                            { label: "OVERSOLD", id: 'oversold' },
+                            { label: "STRONG BUY", id: 'strong-buy' },
+                            { label: "BUY", id: 'buy' },
+                            { label: "NEUTRAL", id: 'neutral' },
+                            { label: "SELL", id: 'sell' },
+                            { label: "STRONG SELL", id: 'strong-sell' },
+                            { label: "OVERBOUGHT", id: 'overbought' },
                           ].map((s) => (
                             <button
                               key={s.id}
                               onClick={() => { setSignalFilter(s.id as any); setShowMobileMenu(false); }}
                               className={cn(
-                                "py-3 rounded-xl text-[9px] font-black transition-all border",
+                                "py-3 rounded-xl text-[8px] font-black transition-all border uppercase px-2",
                                 signalFilter === s.id 
                                   ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" 
                                   : "bg-white/5 border-white/5 text-slate-500"
@@ -3983,23 +3984,27 @@ export default function ScreenerDashboard() {
                       </div>
 
                       {/* Section: Operations */}
-                      <div className="space-y-3">
-                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Operations</span>
-                        <div className="grid grid-cols-3 gap-2">
-                           <button onClick={() => { setShowGlobalSettings(true); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
-                            <LayoutGrid size={16} className="mb-2 text-[#39FF14]" />
-                            <span className="text-[8px] font-black uppercase tracking-tighter">Columns</span>
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Terminal Ops</span>
+                        <div className="flex flex-col gap-2">
+                           <button onClick={() => { setShowGlobalSettings(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            <LayoutGrid size={18} className="text-[#39FF14]" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Edit Columns</span>
                           </button>
-                          <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
-                            {alertsEnabled ? <Bell size={16} className="mb-2 text-amber-500" /> : <BellOff size={16} className="mb-2 text-slate-600" />}
-                            <span className="text-[8px] font-black uppercase tracking-tighter">Alerts</span>
+                          <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            {alertsEnabled ? <Bell size={18} className="text-amber-500" /> : <BellOff size={18} className="text-slate-600" />}
+                            <span className="text-[10px] font-black uppercase tracking-widest">Live Alerts</span>
                           </button>
-                          <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="p-3 rounded-xl bg-white/5 border border-white/5 flex flex-col items-center text-slate-300 active:bg-[#39FF14]/10">
-                            <RefreshCcw size={16} className={cn("mb-2 text-blue-400", refreshing && "animate-spin")} />
-                            <span className="text-[8px] font-black uppercase tracking-tighter">Refresh</span>
+                          <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            <RefreshCcw size={18} className={cn("text-blue-400", refreshing && "animate-spin")} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Hard Refresh</span>
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/5">
+                        <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-700">RSIQ PRO Institutional v4.0.2</span>
                     </div>
                   </motion.div>
                 </div>

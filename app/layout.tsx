@@ -46,20 +46,23 @@ export const metadata: Metadata = {
     siteName: 'RSIQ Pro',
     images: [
       {
-        url: '/logo/rsiq-mindscapeanalytics.png',
+        url: 'https://rsiq.mindscapeanalytics.com/api/og/BTC',
         width: 1200,
         height: 630,
-        alt: 'RSIQ Pro Terminal',
+        alt: 'RSIQ Pro Institutional Terminal - Real-Time BTC Alpha',
       },
     ],
     locale: 'en_US',
     type: 'website',
   },
+  verification: {
+    google: 'YOUR_GSC_VERIFICATION_TOKEN', // [ACTION REQUIRED] Replace with token from Google Search Console
+  },
   twitter: {
     card: 'summary_large_image',
     title: 'RSIQ Pro | Institutional Crypto Terminal',
     description: 'Real-time multi-indicator market scanner with institutional density.',
-    images: ['/logo/rsiq-mindscapeanalytics.png'],
+    images: ['https://rsiq.mindscapeanalytics.com/api/og/BTC'],
     creator: '@MindscapeAL',
   },
 };
@@ -76,6 +79,7 @@ import { Toaster } from 'sonner';
 import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { PWAServiceWorkerRegistration } from '@/components/pwa-service-worker-registration';
 import { JsonLd } from '@/components/seo/json-ld';
+import { GrowthTracer } from '@/components/growth-tracer';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -118,6 +122,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <JsonLd />
+        <GrowthTracer />
         {children}
         <PWAServiceWorkerRegistration />
         <PWAInstallPrompt />
