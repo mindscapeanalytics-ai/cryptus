@@ -10,6 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
+import { Suspense } from "react";
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -19,7 +20,7 @@ const registerSchema = z.object({
 
 type RegisterValues = z.infer<typeof registerSchema>;
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -92,7 +93,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[#05080F] flex font-sans selection:bg-[#39FF14]/30 text-white overflow-hidden">
       {/* Left Column: Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-16 xl:px-32 relative z-10">
-        <div className="w-full max-md mx-auto">
+        <div className="w-full max-w-md mx-auto">
           <div className="mb-12">
             <Link href="/" className="flex items-center gap-3 group mb-12 transition-transform hover:scale-[1.02]">
                <div className="relative w-11 h-11 overflow-hidden rounded-xl border border-[#39FF14]/20 shadow-lg shadow-[#39FF14]/10 bg-gradient-to-br from-[#39FF14]/10 to-transparent">
@@ -222,5 +223,17 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#05080F] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#39FF14]" size={40} />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   );
 }

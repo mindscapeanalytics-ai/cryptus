@@ -1,31 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Loader2, Shield, Crown } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useSubscription } from "@/hooks/use-subscription";
 import { AUTH_CONFIG } from "@/lib/config";
 import { PaymentSentinel } from "@/components/payment-sentinel";
+import { useSearchParams } from "next/navigation";
 
-export default function SubscriptionPage() {
+function SubscriptionContent() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
-  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
   const [loadingCrypto, setLoadingCrypto] = useState<string | null>(null);
   const [sentinelOpen, setSentinelOpen] = useState(false);
   const [sentinelPlan, setSentinelPlan] = useState<string>("");
-  const [requestedPlan, setRequestedPlan] = useState<string | null>(null);
+  
+  const searchParams = useSearchParams();
+  const subscriptionRequired = searchParams.get("required") === "1";
+  const requestedPlan = searchParams.get("plan");
+
   const session = authClient.useSession();
   const { subscription, isTrialing, hasActiveSubscription, daysLeft } = useSubscription();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    setSubscriptionRequired(params.get("required") === "1");
-    setRequestedPlan(params.get("plan"));
-  }, []);
 
   const isOwner =
     session.data?.user?.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL ||
@@ -281,6 +278,18 @@ export default function SubscriptionPage() {
         plan={sentinelPlan}
       />
     </div>
+  );
+}
+
+export default function SubscriptionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#05080F] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#39FF14]" size={40} />
+      </div>
+    }>
+      <SubscriptionContent />
+    </Suspense>
   );
 }
 
