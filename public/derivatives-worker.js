@@ -22,6 +22,8 @@ const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
 const FLUSH_INTERVAL_MS = 400;
 const OI_POLL_INTERVAL_MS = 30000;
+const ZOMBIE_WATCHDOG_MS = 30000;   // check every 30s
+const ZOMBIE_THRESHOLD_MS = 60000;  // force reconnect if no data for 60s
 let LIQUIDATION_THRESHOLD = 1000;          // Default $1K (lowered from $10K for better visibility)
 const WHALE_THRESHOLD_USD = 100000;        // $100K+ = whale trade
 const MEGA_WHALE_THRESHOLD_USD = 500000;   // $500K+ = mega whale
@@ -69,6 +71,8 @@ let oiPollTimer = null;
 let currentOiInterval = OI_POLL_INTERVAL_MS;
 let consecutiveOiErrors = 0;
 let oiHistory = new Map();          // symbol → { value1hAgo, value24hAgo, snapshots[] }
+let lastDataReceived = Date.now();  // tracker for watchdog
+let zombieWatchdog = null;
 
 // ── Utility Functions ────────────────────────────────────────────
 
@@ -131,6 +135,7 @@ function connectFundingStream() {
         if (!Array.isArray(data)) return;
 
         const now = Date.now();
+        lastDataReceived = now;
         for (const item of data) {
           // Only track symbols we care about
           const symbol = item.s;
@@ -214,6 +219,7 @@ function connectLiquidationStream() {
     liquidationWs.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        lastDataReceived = Date.now();
 
         // Bybit heartbeat response
         if (data.op === 'pong' || data.op === 'subscribe') return;
@@ -309,6 +315,8 @@ function connectWhaleStream() {
         const wrapper = JSON.parse(event.data);
         const data = wrapper.data;
         if (!data || !data.s) return;
+        
+        lastDataReceived = Date.now();
 
         const symbol = data.s;
         const price = parseFloat(data.p);
@@ -558,8 +566,37 @@ function start(symbols) {
 
   // Start flush engine
   startFlushing();
+  startZombieWatchdog();
 
   broadcast({ type: 'CONNECTED' });
+}
+
+/** Zombie connection watchdog - prevents silent death of WebSocket streams */
+function startZombieWatchdog() {
+  if (zombieWatchdog) clearInterval(zombieWatchdog);
+  zombieWatchdog = setInterval(() => {
+    if (!isRunning) return;
+    const silenceMs = Date.now() - lastDataReceived;
+    if (silenceMs > ZOMBIE_THRESHOLD_MS) {
+      console.warn(`[deriv-worker] ZOMBIE DETECTED: No data for ${Math.round(silenceMs/1000)}s - Revitalizing streams...`);
+      // Force reconnect all by stopping/starting
+      reconnectAll();
+    }
+  }, ZOMBIE_WATCHDOG_MS);
+}
+
+function reconnectAll() {
+  // Close sockets
+  if (fundingWs) { try { fundingWs.close(); } catch(e) {} fundingWs = null; }
+  if (liquidationWs) { try { liquidationWs.close(); } catch(e) {} liquidationWs = null; }
+  whaleWsSockets.forEach(ws => { try { ws.close(); } catch(e) {} });
+  whaleWsSockets.clear();
+  
+  // Immeditae reconnect
+  connectFundingStream();
+  connectLiquidationStream();
+  connectWhaleStream();
+  lastDataReceived = Date.now();
 }
 
 function stop() {
