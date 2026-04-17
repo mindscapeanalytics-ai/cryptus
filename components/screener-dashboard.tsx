@@ -1841,6 +1841,10 @@ export default function ScreenerDashboard() {
   const latencyHistoryRef = useRef<number[]>([]);
   const adaptiveDownshiftRef = useRef<{ active: boolean; original: number | null }>({ active: false, original: null });
   const stableSuccessCountRef = useRef(0);
+  const [preferencesSynced, setPreferencesSynced] = useState(false);
+  const savingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncChannelRef = useRef<BroadcastChannel | null>(null);
+  const isSyncingRef = useRef(false);
 
   // Use a refined mount-aware hydration strategy for client-only defaults
   const [hasMounted, setHasMounted] = useState(false);
@@ -1876,6 +1880,132 @@ export default function ScreenerDashboard() {
   useEffect(() => {
     setHasMounted(true);
 
+    const loadPrefsFromServer = async () => {
+      if (!session?.user?.id) return;
+      try {
+        const res = await fetch('/api/user/preferences');
+        if (!res.ok) throw new Error('Failed to load prefs');
+        const prefs = await res.json();
+        
+        if (prefs && Object.keys(prefs).length > 0) {
+          isSyncingRef.current = true;
+          try {
+            if (prefs.watchlist) setWatchlist(new Set(prefs.watchlist));
+            if (prefs.globalThresholdsEnabled !== undefined) setGlobalThresholdsEnabled(prefs.globalThresholdsEnabled);
+            if (prefs.globalOverbought !== undefined) setGlobalOverbought(prefs.globalOverbought);
+            if (prefs.globalOversold !== undefined) setGlobalOversold(prefs.globalOversold);
+            if (prefs.globalThresholdTimeframes !== undefined) setGlobalThresholdTimeframes(prefs.globalThresholdTimeframes);
+            if (prefs.globalLongCandleThreshold !== undefined) setGlobalLongCandleThreshold(prefs.globalLongCandleThreshold);
+            if (prefs.globalVolumeSpikeThreshold !== undefined) setGlobalVolumeSpikeThreshold(prefs.globalVolumeSpikeThreshold);
+            if (prefs.globalVolatilityEnabled !== undefined) setGlobalVolatilityEnabled(prefs.globalVolatilityEnabled);
+            if (prefs.globalSignalThresholdMode !== undefined) setGlobalSignalThresholdMode(prefs.globalSignalThresholdMode as any);
+            if (prefs.globalUseRsi !== undefined) setGlobalUseRsi(prefs.globalUseRsi);
+            if (prefs.globalUseMacd !== undefined) setGlobalUseMacd(prefs.globalUseMacd);
+            if (prefs.globalUseBb !== undefined) setGlobalUseBb(prefs.globalUseBb);
+            if (prefs.globalUseStoch !== undefined) setGlobalUseStoch(prefs.globalUseStoch);
+            if (prefs.globalUseEma !== undefined) setGlobalUseEma(prefs.globalUseEma);
+            if (prefs.globalUseVwap !== undefined) setGlobalUseVwap(prefs.globalUseVwap);
+            if (prefs.globalUseConfluence !== undefined) setGlobalUseConfluence(prefs.globalUseConfluence);
+            if (prefs.globalUseDivergence !== undefined) setGlobalUseDivergence(prefs.globalUseDivergence);
+            if (prefs.globalUseMomentum !== undefined) setGlobalUseMomentum(prefs.globalUseMomentum);
+            if (prefs.visibleColumns !== undefined) setVisibleCols(new Set(prefs.visibleColumns as ColumnId[]));
+            if (prefs.refreshInterval !== undefined) setRefreshInterval(prefs.refreshInterval);
+            if (prefs.pairCount !== undefined) setPairCount(prefs.pairCount);
+            if (prefs.smartMode !== undefined) setSmartMode(prefs.smartMode);
+            if (prefs.showHeader !== undefined) setShowHeader(prefs.showHeader);
+            if (prefs.rsiPeriod !== undefined) setRsiPeriod(prefs.rsiPeriod);
+            if (prefs.soundEnabled !== undefined) setSoundEnabled(prefs.soundEnabled);
+          } finally {
+            setTimeout(() => { isSyncingRef.current = false; }, 200);
+          }
+          setPreferencesSynced(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('[screener] Initial server-side pref sync failed, using local fallback:', err);
+      }
+
+      // ── Local Fallback (Only if server fails or is empty) ──
+      const alerts = localStorage.getItem('crypto-rsi-alerts-enabled');
+      if (alerts !== null) setAlertsEnabled(alerts === '1');
+
+      const sound = localStorage.getItem('crypto-rsi-sound-enabled');
+      if (sound !== null) setSoundEnabled(sound === '1');
+
+      const refresh = localStorage.getItem('crypto-rsi-refresh');
+      if (refresh) setRefreshInterval(Number(refresh));
+
+      const pairs = localStorage.getItem('crypto-rsi-pairs');
+      if (pairs) {
+        const p = Number(pairs);
+        setPairCount(Math.min(Math.max(p, 100), 500));
+      }
+
+      const smart = localStorage.getItem('crypto-rsi-smart-mode');
+      if (smart !== null) setSmartMode(smart === '1');
+
+      const header = localStorage.getItem('crypto-rsi-show-header');
+      if (header !== null) setShowHeader(header !== '0');
+
+      const rsi = localStorage.getItem('crypto-rsi-period');
+      if (rsi) setRsiPeriod(Math.min(Math.max(Number(rsi), 2), 50));
+
+      const cols = localStorage.getItem('crypto-rsi-visible-cols');
+      if (cols) {
+        try {
+          setVisibleCols(new Set(JSON.parse(cols)));
+        } catch { }
+      } else {
+        if (window.innerWidth < 1280) setVisibleCols(new Set(['rsi15m', 'strategy']) as any);
+      }
+
+      const globalEnabled = localStorage.getItem('crypto-rsi-global-thresholds-enabled');
+      if (globalEnabled !== null) setGlobalThresholdsEnabled(globalEnabled === '1');
+
+      const globalOB = localStorage.getItem('crypto-rsi-global-overbought');
+      if (globalOB) setGlobalOverbought(Number(globalOB));
+
+      const globalOS = localStorage.getItem('crypto-rsi-global-oversold');
+      if (globalOS) setGlobalOversold(Number(globalOS));
+
+      const globalTFs = localStorage.getItem('crypto-rsi-global-timeframes');
+      if (globalTFs) {
+        try {
+          setGlobalThresholdTimeframes(JSON.parse(globalTFs));
+        } catch { }
+      }
+
+      const gLCT = localStorage.getItem('crypto-rsi-global-long-candle-threshold');
+      if (gLCT) setGlobalLongCandleThreshold(Number(gLCT));
+
+      const gVST = localStorage.getItem('crypto-rsi-global-volume-spike-threshold');
+      if (gVST) setGlobalVolumeSpikeThreshold(Number(gVST));
+
+      const gVE = localStorage.getItem('crypto-rsi-global-volatility-enabled');
+      if (gVE !== null) setGlobalVolatilityEnabled(gVE === '1');
+
+      const gSTM = localStorage.getItem('crypto-rsi-global-signal-threshold-mode');
+      if (gSTM === 'custom' || gSTM === 'default') setGlobalSignalThresholdMode(gSTM);
+
+      const loadFlag = (key: string, setter: (v: boolean) => void) => {
+        const val = localStorage.getItem(key);
+        if (val !== null) setter(val === '1');
+      };
+      loadFlag('crypto-rsi-global-use-rsi', setGlobalUseRsi);
+      loadFlag('crypto-rsi-global-use-macd', setGlobalUseMacd);
+      loadFlag('crypto-rsi-global-use-bb', setGlobalUseBb);
+      loadFlag('crypto-rsi-global-use-stoch', setGlobalUseStoch);
+      loadFlag('crypto-rsi-global-use-ema', setGlobalUseEma);
+      loadFlag('crypto-rsi-global-use-vwap', setGlobalUseVwap);
+      loadFlag('crypto-rsi-global-use-confluence', setGlobalUseConfluence);
+      loadFlag('crypto-rsi-global-use-divergence', setGlobalUseDivergence);
+      loadFlag('crypto-rsi-global-use-momentum', setGlobalUseMomentum);
+      
+      setPreferencesSynced(true);
+    };
+
+    loadPrefsFromServer();
+
     // User Profile Click-Outside Orchestration
     const handleClickOutside = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
@@ -1885,95 +2015,58 @@ export default function ScreenerDashboard() {
     if (isProfileOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
+
+    // ── Multi-Tab Sync Infrastructure ──
+    if (!syncChannelRef.current && typeof window !== 'undefined') {
+      syncChannelRef.current = new BroadcastChannel('rsiq-state-sync');
+      syncChannelRef.current.onmessage = (event) => {
+        const { type, payload } = event.data;
+        isSyncingRef.current = true;
+        try {
+          if (type === 'PREFS_UPDATED') {
+            // Update local state without triggering a re-save cycle
+            if (payload.globalOverbought !== undefined) setGlobalOverbought(payload.globalOverbought);
+            if (payload.globalOversold !== undefined) setGlobalOversold(payload.globalOversold);
+            if (payload.globalThresholdsEnabled !== undefined) {
+               setGlobalThresholdsEnabled(payload.globalThresholdsEnabled);
+               setAlertsEnabled(payload.globalThresholdsEnabled);
+            }
+            if (payload.pairCount !== undefined) setPairCount(payload.pairCount);
+            if (payload.refreshInterval !== undefined) setRefreshInterval(payload.refreshInterval);
+            if (payload.smartMode !== undefined) setSmartMode(payload.smartMode);
+            if (payload.showHeader !== undefined) setShowHeader(payload.showHeader);
+            if (payload.rsiPeriod !== undefined) setRsiPeriod(payload.rsiPeriod);
+            if (payload.soundEnabled !== undefined) setSoundEnabled(payload.soundEnabled);
+            if (payload.visibleColumns !== undefined) setVisibleCols(new Set(payload.visibleColumns));
+            
+            // Indicator Synching
+            if (payload.globalUseRsi !== undefined) setGlobalUseRsi(payload.globalUseRsi);
+            if (payload.globalUseMacd !== undefined) setGlobalUseMacd(payload.globalUseMacd);
+            if (payload.globalUseBb !== undefined) setGlobalUseBb(payload.globalUseBb);
+            if (payload.globalUseStoch !== undefined) setGlobalUseStoch(payload.globalUseStoch);
+            if (payload.globalUseEma !== undefined) setGlobalUseEma(payload.globalUseEma);
+            if (payload.globalUseVwap !== undefined) setGlobalUseVwap(payload.globalUseVwap);
+            if (payload.globalUseConfluence !== undefined) setGlobalUseConfluence(payload.globalUseConfluence);
+            if (payload.globalUseDivergence !== undefined) setGlobalUseDivergence(payload.globalUseDivergence);
+            if (payload.globalUseMomentum !== undefined) setGlobalUseMomentum(payload.globalUseMomentum);
+          } else if (type === 'CONFIGS_UPDATED') {
+            setCoinConfigs(payload);
+          } else if (type === 'WATCHLIST_UPDATED') {
+            setWatchlist(new Set(payload));
+          }
+        } finally {
+          // Reset sync flag after state updates propagate
+          setTimeout(() => { isSyncingRef.current = false; }, 100);
+        }
+      };
+    }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      syncChannelRef.current?.close();
+      syncChannelRef.current = null;
     };
-  }, [isProfileOpen]);
-
-  useEffect(() => {
-    setHasMounted(true);
-
-    // Defer localStorage reads to after mount to prevent hydration mismatch
-    const alerts = localStorage.getItem('crypto-rsi-alerts-enabled');
-    if (alerts !== null) setAlertsEnabled(alerts === '1');
-
-    const sound = localStorage.getItem('crypto-rsi-sound-enabled');
-    if (sound !== null) setSoundEnabled(sound === '1');
-
-    const refresh = localStorage.getItem('crypto-rsi-refresh');
-    if (refresh) setRefreshInterval(Number(refresh));
-
-    const pairs = localStorage.getItem('crypto-rsi-pairs');
-    if (pairs) {
-      const p = Number(pairs);
-      setPairCount(Math.min(Math.max(p, 100), 500));
-    }
-
-    const smart = localStorage.getItem('crypto-rsi-smart-mode');
-    if (smart !== null) setSmartMode(smart === '1');
-
-    const header = localStorage.getItem('crypto-rsi-show-header');
-    if (header !== null) setShowHeader(header !== '0');
-
-    const rsi = localStorage.getItem('crypto-rsi-period');
-    if (rsi) setRsiPeriod(Math.min(Math.max(Number(rsi), 2), 50));
-
-    const cols = localStorage.getItem('crypto-rsi-visible-cols');
-    if (cols) {
-      try {
-        setVisibleCols(new Set(JSON.parse(cols)));
-      } catch { }
-    } else {
-      // If no saved prefs, check if we're on a mobile-ish screen and hide non-essential columns by default
-      if (window.innerWidth < 1280) {
-        setVisibleCols(new Set(['rsi15m', 'strategy']) as any);
-      }
-    }
-
-    const globalEnabled = localStorage.getItem('crypto-rsi-global-thresholds-enabled');
-    if (globalEnabled !== null) setGlobalThresholdsEnabled(globalEnabled === '1');
-
-    const globalOB = localStorage.getItem('crypto-rsi-global-overbought');
-    if (globalOB) setGlobalOverbought(Number(globalOB));
-
-    const globalOS = localStorage.getItem('crypto-rsi-global-oversold');
-    if (globalOS) setGlobalOversold(Number(globalOS));
-
-    const globalTFs = localStorage.getItem('crypto-rsi-global-timeframes');
-    if (globalTFs) {
-      try {
-        setGlobalThresholdTimeframes(JSON.parse(globalTFs));
-      } catch { }
-    }
-
-    const gLCT = localStorage.getItem('crypto-rsi-global-long-candle-threshold');
-    if (gLCT) setGlobalLongCandleThreshold(Number(gLCT));
-
-    const gVST = localStorage.getItem('crypto-rsi-global-volume-spike-threshold');
-    if (gVST) setGlobalVolumeSpikeThreshold(Number(gVST));
-
-    const gVE = localStorage.getItem('crypto-rsi-global-volatility-enabled');
-    if (gVE !== null) setGlobalVolatilityEnabled(gVE === '1');
-
-    // Signal tag control settings
-    const gSTM = localStorage.getItem('crypto-rsi-global-signal-threshold-mode');
-    if (gSTM === 'custom' || gSTM === 'default') setGlobalSignalThresholdMode(gSTM);
-
-    // Indicator feature flags
-    const loadFlag = (key: string, setter: (v: boolean) => void) => {
-      const val = localStorage.getItem(key);
-      if (val !== null) setter(val === '1');
-    };
-    loadFlag('crypto-rsi-global-use-rsi', setGlobalUseRsi);
-    loadFlag('crypto-rsi-global-use-macd', setGlobalUseMacd);
-    loadFlag('crypto-rsi-global-use-bb', setGlobalUseBb);
-    loadFlag('crypto-rsi-global-use-stoch', setGlobalUseStoch);
-    loadFlag('crypto-rsi-global-use-ema', setGlobalUseEma);
-    loadFlag('crypto-rsi-global-use-vwap', setGlobalUseVwap);
-    loadFlag('crypto-rsi-global-use-confluence', setGlobalUseConfluence);
-    loadFlag('crypto-rsi-global-use-divergence', setGlobalUseDivergence);
-    loadFlag('crypto-rsi-global-use-momentum', setGlobalUseMomentum);
-  }, []);
+  }, [session?.user?.id, isProfileOpen]);
 
   const reportVisibility = useCallback((symbol: string, isVisible: boolean) => {
     if (isVisible) {
@@ -2455,7 +2548,96 @@ export default function ScreenerDashboard() {
     globalSignalThresholdMode, globalOverbought, globalOversold
   ]);
 
-  // Removed old duplicate processedData block
+  // ── Persistence Engine: Sync to Server ──
+  useEffect(() => {
+    if (!preferencesSynced || !session?.user?.id || isSyncingRef.current) return;
+
+    if (savingRef.current) clearTimeout(savingRef.current);
+
+    savingRef.current = setTimeout(async () => {
+      try {
+        const body = {
+          globalThresholdsEnabled,
+          globalOverbought,
+          globalOversold,
+          globalThresholdTimeframes,
+          globalLongCandleThreshold,
+          globalVolumeSpikeThreshold,
+          globalVolatilityEnabled,
+          globalSignalThresholdMode,
+          globalUseRsi,
+          globalUseMacd,
+          globalUseBb,
+          globalUseStoch,
+          globalUseEma,
+          globalUseVwap,
+          globalUseConfluence,
+          globalUseDivergence,
+          globalUseMomentum,
+          visibleColumns: Array.from(visibleCols),
+          refreshInterval,
+          pairCount,
+          smartMode,
+          showHeader,
+          rsiPeriod,
+          soundEnabled,
+          watchlist: Array.from(watchlist)
+        };
+
+        await fetch('/api/user/preferences', {
+          method: 'POST',
+          body: JSON.stringify(body),
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        // ── Keep localStorage as local fallback for immediate hydration ──
+        localStorage.setItem('crypto-rsi-alerts-enabled', alertsEnabled ? '1' : '0');
+        localStorage.setItem('crypto-rsi-sound-enabled', soundEnabled ? '1' : '0');
+        localStorage.setItem('crypto-rsi-global-thresholds-enabled', globalThresholdsEnabled ? '1' : '0');
+        localStorage.setItem('crypto-rsi-global-overbought', String(globalOverbought));
+        localStorage.setItem('crypto-rsi-global-oversold', String(globalOversold));
+        localStorage.setItem('crypto-rsi-global-timeframes', JSON.stringify(globalThresholdTimeframes));
+        localStorage.setItem('crypto-rsi-global-long-candle-threshold', String(globalLongCandleThreshold));
+        localStorage.setItem('crypto-rsi-global-volume-spike-threshold', String(globalVolumeSpikeThreshold));
+        localStorage.setItem('crypto-rsi-global-volatility-enabled', globalVolatilityEnabled ? '1' : '0');
+        localStorage.setItem('crypto-rsi-global-signal-threshold-mode', globalSignalThresholdMode);
+        localStorage.setItem('crypto-rsi-refresh', String(refreshInterval));
+        localStorage.setItem('crypto-rsi-pairs', String(pairCount));
+        localStorage.setItem('crypto-rsi-smart-mode', smartMode ? '1' : '0');
+        localStorage.setItem('crypto-rsi-show-header', showHeader ? '1' : '0');
+        localStorage.setItem('crypto-rsi-period', String(rsiPeriod));
+        localStorage.setItem('crypto-rsi-visible-cols', JSON.stringify(Array.from(visibleCols)));
+        
+        const saveFlag = (key: string, val: boolean) => localStorage.setItem(key, val ? '1' : '0');
+        saveFlag('crypto-rsi-global-use-rsi', globalUseRsi);
+        saveFlag('crypto-rsi-global-use-macd', globalUseMacd);
+        saveFlag('crypto-rsi-global-use-bb', globalUseBb);
+        saveFlag('crypto-rsi-global-use-stoch', globalUseStoch);
+        saveFlag('crypto-rsi-global-use-ema', globalUseEma);
+        saveFlag('crypto-rsi-global-use-vwap', globalUseVwap);
+        saveFlag('crypto-rsi-global-use-confluence', globalUseConfluence);
+        saveFlag('crypto-rsi-global-use-divergence', globalUseDivergence);
+        saveFlag('crypto-rsi-global-use-momentum', globalUseMomentum);
+
+        // ── Broadcast to other tabs for seamless "Zero-Lag" sync ──
+        syncChannelRef.current?.postMessage({ type: 'PREFS_UPDATED', payload: body });
+      } catch (err) {
+        console.error('[screener] failed to sync preferences to server:', err);
+      }
+    }, 2000); // 2s debounce for institutional stability
+
+    return () => {
+      if (savingRef.current) clearTimeout(savingRef.current);
+    };
+  }, [
+    preferencesSynced, session?.user?.id,
+    globalThresholdsEnabled, globalOverbought, globalOversold, globalThresholdTimeframes,
+    globalLongCandleThreshold, globalVolumeSpikeThreshold, globalVolatilityEnabled,
+    globalSignalThresholdMode, globalUseRsi, globalUseMacd, globalUseBb, globalUseStoch,
+    globalUseEma, globalUseVwap, globalUseConfluence, globalUseDivergence, globalUseMomentum,
+    visibleCols, refreshInterval, pairCount, smartMode, showHeader, rsiPeriod, soundEnabled,
+    alertsEnabled
+  ]);
 
   const { alerts, clearAlertHistory, resumeAudioContext, getGlobalWinRate } = useAlertEngine(
     processedData,
@@ -2639,8 +2821,7 @@ export default function ScreenerDashboard() {
         const updated = await res.json();
         setCoinConfigs(prev => ({ ...prev, [symbol]: updated }));
 
-        // Gap 3: Immediately push new thresholds/periods to the worker without
-        // waiting for the 800ms debounced syncStates - ensures no stale-threshold alerts
+        // Gap 3: Immediately push new thresholds/periods to the worker
         if (typeof window !== 'undefined') {
           const eng = (window as any).__priceEngine;
           if (eng?.postToWorker) {
@@ -2652,6 +2833,12 @@ export default function ScreenerDashboard() {
         }
 
         fetchData(true);
+        
+        // ── Institutional Multi-Tab Sync ──
+        syncChannelRef.current?.postMessage({ 
+          type: 'CONFIGS_UPDATED', 
+          payload: { ...coinConfigs, [symbol]: updated } 
+        });
       }
     } catch (err) {
       console.error('[screener] Failed to save config:', err);
@@ -2698,6 +2885,13 @@ export default function ScreenerDashboard() {
       const next = new Set(prev);
       if (next.has(symbol)) next.delete(symbol);
       else next.add(symbol);
+      
+      // Sync to other tabs
+      syncChannelRef.current?.postMessage({
+        type: 'WATCHLIST_UPDATED',
+        payload: Array.from(next)
+      });
+      
       return next;
     });
   }, []);

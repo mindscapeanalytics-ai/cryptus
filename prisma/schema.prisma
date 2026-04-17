@@ -25,10 +25,54 @@ model User {
   alertLogs         AlertLog[]
   alertTemplates    AlertTemplate[]
   subscriptions     Subscription[]
+  preferences       UserPreference?
   coins             Int       @default(0)
   trialActivated    Boolean   @default(false)
 
   @@map("user")
+}
+
+model UserPreference {
+  id                           String   @id @default(uuid())
+  userId                       String   @unique
+  user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Global Alert Settings
+  globalThresholdsEnabled      Boolean  @default(false)
+  globalOverbought             Int      @default(90)
+  globalOversold               Int      @default(15)
+  globalThresholdTimeframes    String[] @default(["1m", "5m", "15m", "1h"])
+  
+  // Volatility Surge Settings
+  globalVolatilityEnabled      Boolean  @default(false)
+  globalLongCandleThreshold    Float    @default(5.0)
+  globalVolumeSpikeThreshold   Float    @default(5.0)
+  
+  // UI & Indicator Settings
+  globalSignalThresholdMode    String   @default("default") // 'default' | 'custom'
+  globalUseRsi                 Boolean  @default(true)
+  globalUseMacd                Boolean  @default(false)
+  globalUseBb                  Boolean  @default(false)
+  globalUseStoch               Boolean  @default(false)
+  globalUseEma                 Boolean  @default(false)
+  globalUseVwap                Boolean  @default(false)
+  globalUseConfluence          Boolean  @default(false)
+  globalUseDivergence          Boolean  @default(false)
+  globalUseMomentum            Boolean  @default(false)
+  
+  // Dashboard State
+  visibleColumns               String[] @default(["rsi15m", "strategy"])
+  refreshInterval              Int      @default(30)
+  pairCount                    Int      @default(100)
+  smartMode                    Boolean  @default(true)
+  showHeader                   Boolean  @default(true)
+  rsiPeriod                    Int      @default(14)
+  soundEnabled                 Boolean  @default(true)
+  
+  updatedAt                    DateTime @updatedAt
+  watchlist                    String[] @default([])
+
+  @@map("user_preference")
 }
 
 model Subscription {

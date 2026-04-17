@@ -667,12 +667,11 @@ export function useAlertEngine(
               }
             }
 
-            // INTELLIGENCE: Strict Custom Mode Whitelisting.
-            // If in Custom Mode, we ONLY allow notifications if this coin is explicitly configured & enabled.
-            const isCustomMode = globalSignalThresholdMode === 'custom';
-            const shouldNotify = isCustomMode 
-              ? (config && hasManualAlert) 
-              : (hasManualAlert || isGlobalHit);
+            // INTELLIGENCE: Extreme RSI Mode (Alerts) Fallback logic overrides visual mode
+            // Extreme alerts fire if either a manual alert exists, or a global extreme is hit
+            // and no specific manual alert overrides it for this timeframe.
+            const hasManualSpecific = config && configKey in config;
+            const shouldNotify = hasManualAlert || (globalEnabled && isGlobalHit && !hasManualSpecific);
 
 
 

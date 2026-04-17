@@ -56,6 +56,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // ── Institutional De-duplication: Prevent Multi-Tab Alert Storms ──
+    const COOLDOWN_WINDOW = 60000; // 60s
+    const cutoff = new Date(Date.now() - COOLDOWN_WINDOW);
+    const existing = await prisma.alertLog.findFirst({
+      where: {
+        userId: session.user.id,
+        symbol: body.symbol,
+        timeframe: body.timeframe,
+        type: body.type,
+        createdAt: { gte: cutoff }
+      }
+    });
+
+    if (existing) {
+      return NextResponse.json({ success: true, skipped: true, reason: 'cooldown' });
+    }
+
     const alert = await createAlertLog({
       userId: session.user.id,
       symbol: body.symbol,

@@ -742,11 +742,11 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
         }
       }
 
-      // If in Custom Mode, we ONLY allow notifications if this coin is explicitly configured & enabled.
-      const isCustomMode = globalSignalThresholdMode === 'custom';
-      const shouldNotify = isCustomMode 
-        ? (config && hasManualAlert) 
-        : (hasManualAlert || isGlobalHit);
+      // INTELLIGENCE: Extreme RSI Mode (Alerts) Fallback logic overrides visual mode
+      // Extreme alerts fire if either a manual alert exists, or a global extreme is hit 
+      // (and we check if the user specifically turned off manual alert for this TF).
+      const hasManualSpecific = config && config.hasOwnProperty(tf.cfgKey);
+      const shouldNotify = hasManualAlert || (globalThresholdsEnabled && isGlobalHit && !hasManualSpecific);
 
       if (!shouldNotify || tf.rsi === null || tf.rsi === undefined) return;
 
