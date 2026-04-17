@@ -1,5 +1,5 @@
-// Cache shell for 5 minutes, but client-side real-time updates handle fresh data
-export const revalidate = 300;
+// Force dynamic rendering to ensure session and entitlement checks are run on every request
+export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
 import ScreenerDashboard from '@/components/screener-dashboard';

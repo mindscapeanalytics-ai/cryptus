@@ -129,6 +129,15 @@ export async function middleware(request: NextRequest) {
   // If we have a validated session, we inject trusted markers for downstream APIs.
   // This allows the Screener API to skip DB-based auth and provide "instant" data.
   const response = NextResponse.next();
+
+  // Enterprise Hardening: Prevent Service Worker and Browser from caching sensitive routes
+  if (pathname.startsWith('/terminal') || pathname.startsWith('/login')) {
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+    response.headers.set("Vary", "Cookie");
+  }
+
   if (session) {
     response.headers.set("x-rsiq-user-id", session.user.id);
     response.headers.set("x-rsiq-user-role", session.user.role || "user");

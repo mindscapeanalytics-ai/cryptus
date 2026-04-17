@@ -18,8 +18,21 @@ const withPWA = withPWAInit({
     skipWaiting: true,
     clientsClaim: true,
     navigateFallback: '/offline',
-    // 2026 Resilience: Ensure subresources (JS/CSS) never fallback to HTML shell
-    navigateFallbackDenylist: [/^\/api/, /^\/login/, /^\/register/, /^\/auth/, /\.js$/, /\.css$/, /\.png$/, /\.jpg$/],
+    // 2026 Resilience: Ensure subresources and critical app routes NEVER fallback to HTML shell
+    // This prevents the "Permanently Offline" bug on /terminal and /login.
+    navigateFallbackDenylist: [
+      /^\/api/, 
+      /^\/login/, 
+      /^\/register/, 
+      /^\/terminal/, 
+      /^\/dashboard/,
+      /^\/auth/, 
+      /\.js$/, 
+      /\.css$/, 
+      /\.png$/, 
+      /\.jpg$/,
+      /\.ico$/
+    ],
     
     // Performance: Don't cache-bust fingerprinted assets (they are immutable)
     dontCacheBustURLsMatching: /\.[0-9a-f]{8}\./,
@@ -38,7 +51,11 @@ const withPWA = withPWAInit({
         handler: 'NetworkFirst',
         options: {
           cacheName: 'html-pages',
-          networkTimeoutSeconds: 5,
+          networkTimeoutSeconds: 3, // Faster timeout for better UX
+          expiration: {
+            maxEntries: 50,
+            maxAgeSeconds: 60 * 60 * 24, // 24 hours
+          },
         },
       },
       // ── CRITICAL: Real-time trading data MUST NEVER be cached ──
