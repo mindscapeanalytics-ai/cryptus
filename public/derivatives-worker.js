@@ -64,8 +64,10 @@ let whaleWsSockets = new Map();     // symbol → WebSocket
 let reconnectAttempts = new Map();  // streamKey → attempt count
 let reconnectTimers = new Map();    // streamKey → setTimeout id
 
-// OI polling
+// OI polling state
 let oiPollTimer = null;
+let currentOiInterval = OI_POLL_INTERVAL_MS;
+let consecutiveOiErrors = 0;
 let oiHistory = new Map();          // symbol → { value1hAgo, value24hAgo, snapshots[] }
 
 // ── Utility Functions ────────────────────────────────────────────
@@ -376,34 +378,73 @@ function connectWhaleStream() {
 // Polled every 30s for top symbols (no WebSocket stream available)
 
 async function pollOpenInterest() {
-  const OI_SYMBOLS = WHALE_WATCH_SYMBOLS.slice(0, 20).map(s => s.toUpperCase());
+  // ── Intelligence: Dynamic Symbol Prioritization ──
+  // Prioritize symbols user is viewing, then fill rest with top market cap symbols
+  const activeSymbols = Array.from(currentSymbols);
+  const prioritizedSymbols = new Set([...activeSymbols, ...WHALE_WATCH_SYMBOLS.map(s => s.toUpperCase())]);
+  const OI_SYMBOLS = Array.from(prioritizedSymbols).slice(0, 25);
 
-  for (const symbol of OI_SYMBOLS) {
-    if (!isRunning) return;
-    try {
-      const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`,
-        { signal: AbortSignal.timeout(5000) }
-      );
-      if (!res.ok) continue;
-      const data = await res.json();
+  if (OI_SYMBOLS.length === 0) return;
 
-      const value = parseFloat(data.openInterest);
-      if (isNaN(value)) continue;
+  try {
+    const res = await fetch(
+      `/api/derivatives/oi?symbols=${OI_SYMBOLS.join(',')}`,
+      { signal: AbortSignal.timeout(12000) }
+    );
+    
+    if (!res.ok) {
+      if (res.status === 429 || res.status >= 500) {
+        // ── Intelligence: Adaptive Backoff ──
+        consecutiveOiErrors++;
+        currentOiInterval = Math.min(OI_POLL_INTERVAL_MS * Math.pow(1.5, consecutiveOiErrors), 300000); // Max 5 mins
+        console.warn(`[deriv-worker] OI Proxy overloaded. Backing off to ${Math.round(currentOiInterval/1000)}s`);
+        
+        // Reschedule with new interval
+        if (oiPollTimer) {
+          clearInterval(oiPollTimer);
+          oiPollTimer = setInterval(pollOpenInterest, currentOiInterval);
+        }
+      }
+      return;
+    }
 
-      // Get mark price for USD conversion
+    // Success - reset backoff gracefully
+    if (consecutiveOiErrors > 0) {
+      consecutiveOiErrors = 0;
+      currentOiInterval = OI_POLL_INTERVAL_MS;
+      if (oiPollTimer) {
+        clearInterval(oiPollTimer);
+        oiPollTimer = setInterval(pollOpenInterest, currentOiInterval);
+      }
+    }
+
+    const json = await res.json();
+    const oiDataMap = json.data;
+    if (!oiDataMap || typeof oiDataMap !== 'object') return;
+
+    const now = Date.now();
+
+    // 2. Process each symbol returned by the proxy
+    Object.entries(oiDataMap).forEach(([symbol, value]) => {
+      const oiValue = parseFloat(value);
+      if (isNaN(oiValue) || oiValue <= 0) return;
+
+      // Intelligence: Data Integrity Check
+      // If we don't have a fresh markPrice, the OI USD value is misleading.
       const funding = fundingBuffer.get(symbol);
       const markPrice = funding ? funding.markPrice : 0;
-      const valueUsd = value * markPrice;
+      if (markPrice <= 0) return; 
+
+      const valueUsd = oiValue * markPrice;
 
       // Track history for change calculation
-      const now = Date.now();
       let history = oiHistory.get(symbol);
       if (!history) {
         history = { snapshots: [] };
         oiHistory.set(symbol, history);
       }
       history.snapshots.push({ value: valueUsd, timestamp: now });
+      
       // Keep only last 24h of snapshots (at 30s intervals = max 2880)
       if (history.snapshots.length > 2880) {
         history.snapshots = history.snapshots.slice(-2880);
@@ -422,13 +463,11 @@ async function pollOpenInterest() {
         change24h: Math.round(change24h * 100) / 100,
         updatedAt: now
       });
-      oiDirty = true;
+    });
 
-      // Small stagger between requests to avoid rate limits
-      await new Promise(r => setTimeout(r, 150));
-    } catch (e) {
-      // Silent - REST polling is best-effort
-    }
+    oiDirty = true;
+  } catch (e) {
+    console.error('[deriv-worker] pollOpenInterest critical error:', e);
   }
 }
 

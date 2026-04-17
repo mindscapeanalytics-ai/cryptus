@@ -62,12 +62,17 @@ const withPWA = withPWAInit({
       // These endpoints power the live screener and alerts — serving stale data
       // from the PWA cache causes the "no price updates" bug on installed apps.
       {
-        urlPattern: /\/api\/(screener|alerts|config|entitlements|health)/,
-        handler: 'NetworkFirst', // Use NetworkFirst to allow offline graceful failure instead of immediate crash
+        urlPattern: /\/api\/(screener|alerts|config|entitlements|health|market-data)/,
+        handler: 'NetworkFirst', 
         options: {
           cacheName: 'live-data-bypass',
-          networkTimeoutSeconds: 3,
+          networkTimeoutSeconds: 2, // 2s timeout for real-time urgency
         },
+      },
+      // ── Real-time Engine Script Bypass ──
+      {
+        urlPattern: /\/(ticker-worker|sw|derivatives-worker)\.js$/,
+        handler: 'NetworkOnly',
       },
       // External exchange APIs (Binance/Bybit REST + Futures) — always fresh
       {
@@ -93,9 +98,13 @@ const withPWA = withPWAInit({
           expiration: { maxAgeSeconds: 31536000 },
         },
       },
-      // Hardened Static Assets Strategy
+      // Hardened Static Assets Strategy (excluding live-engine scripts)
       {
-        urlPattern: /\.(?:js|css|woff2?)$/,
+        urlPattern: ({ url }) => {
+          return /\.(?:js|css|woff2?)$/.test(url.pathname) && 
+                 !url.pathname.includes('ticker-worker') && 
+                 !url.pathname.includes('sw');
+        },
         handler: 'StaleWhileRevalidate',
         options: {
           cacheName: 'static-resources',
@@ -168,7 +177,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.tradingview.com https://cdn.jsdelivr.net",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: https: https://*.tradingview.com",
-              "connect-src 'self' https://*.binance.com wss://*.binance.com wss://*.binance.com:* https://*.bybit.com wss://*.bybit.com wss://*.bybit.com:* https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://api.stripe.com https://*.tradingview.com https://fonts.googleapis.com https://fonts.gstatic.com",
+              "connect-src 'self' https://*.binance.com wss://*.binance.com wss://*.binance.com:* https://*.bybit.com wss://*.bybit.com wss://*.bybit.com:* https://api.bybit.com https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://api.stripe.com https://api.nowpayments.io wss://*.nowpayments.io https://*.tradingview.com https://fonts.googleapis.com https://fonts.gstatic.com",
               "media-src 'self' data: blob:",
               "frame-src 'self' https://*.tradingview.com https://*.tradingview-widget.com https://js.stripe.com",
               "frame-ancestors 'none'",

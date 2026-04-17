@@ -17,13 +17,14 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // 1. API & Worker Bypass (High Priority)
-  // We explicitly bypass ticker-worker.js to ensure the browser always fetches the latest 
-  // real-time engine script without Service Worker interference.
-  if (url.pathname === '/ticker-worker.js') {
-    return; // Let the browser handle this naturally
+  // 1. API & Worker Bypass (High Priority Institutional Guard)
+  // We explicitly bypass ticker-worker.js and sw.js to ensure the browser always 
+  // fetches the latest real-time engine script without Service Worker interference.
+  if (url.pathname === '/ticker-worker.js' || url.pathname === '/sw.js' || url.pathname === '/derivatives-worker.js') {
+    return; // Let the browser handle this without SW interception
   }
 
+  // Ensure all local API calls hit the network fresh
   if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
