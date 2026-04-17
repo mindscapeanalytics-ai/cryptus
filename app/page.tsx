@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,25 +46,11 @@ export default function LandingPage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  React.useEffect(() => {
-    if (session && !isPending) {
-      router.push('/terminal');
-    }
-  }, [session, isPending, router]);
-
-  if (session && !isPending) {
-    return (
-      <div className="min-h-screen bg-[#05080F] flex items-center justify-center">
-        <div className="w-16 h-16 border-t-2 border-[#39FF14] rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#05080F] text-slate-300 selection:bg-[#39FF14]/30 selection:text-white overflow-x-hidden font-sans">
       {/* ─── Global Market Pulse Ticker ─── */}
-      <div className="fixed top-0 w-full z-[110] bg-[#39FF14] text-black h-8 flex items-center overflow-hidden border-b border-black/10">
-        <div className="animate-marquee whitespace-nowrap flex items-center gap-12 font-black text-[10px] uppercase tracking-widest px-4">
+      <div className="fixed top-0 w-full z-[110] bg-[#39FF14] text-black h-6 sm:h-8 flex items-center overflow-hidden border-b border-black/10">
+        <div className="animate-marquee whitespace-nowrap flex items-center gap-8 sm:gap-12 font-black text-[9px] sm:text-[10px] uppercase tracking-widest px-4">
           {[...Array(10)].map((_, i) => (
             <React.Fragment key={i}>
               <div className="flex items-center gap-2">
@@ -81,7 +67,8 @@ export default function LandingPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Gauge size={12} />
-                <span>MARKET VOLATILITY: EXTREME</span>
+                <span className="hidden sm:inline">MARKET VOLATILITY: EXTREME</span>
+                <span className="sm:hidden">VOLATILITY: HIGH</span>
               </div>
             </React.Fragment>
           ))}
@@ -92,11 +79,11 @@ export default function LandingPage() {
       <div className="fixed inset-0 bg-[linear-gradient(rgba(57,255,20,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(57,255,20,0.03)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_at_center,black,transparent)] pointer-events-none z-0" />
 
       {/* ─── Header ─── */}
-      <nav className="fixed top-8 w-full z-[100] border-b border-white/5 bg-[#05080F]/95 backdrop-blur-2xl">
+      <nav className="fixed top-0 sm:top-8 w-full z-[100] border-b border-white/5 bg-[#05080F]/95 backdrop-blur-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 sm:w-14 sm:h-14 overflow-hidden rounded-xl border border-[#39FF14]/20 shadow-lg shadow-[#39FF14]/10 bg-gradient-to-br from-[#39FF14]/10 to-transparent">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="relative w-9 h-9 sm:w-14 sm:h-14 overflow-hidden rounded-xl border border-[#39FF14]/20 shadow-lg shadow-[#39FF14]/10 bg-gradient-to-br from-[#39FF14]/10 to-transparent">
               <Image 
                 src="/logo/rsiq-mindscapeanalytics.png" 
                 alt="RSIQ Pro | Institutional Crypto Terminal" 
@@ -124,12 +111,14 @@ export default function LandingPage() {
 
           {/* Desktop CTA + Mobile Menu Toggle */}
           <div className="flex items-center gap-3 sm:gap-6">
-            <Link href="/login" className="hidden sm:block text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors">Login</Link>
+            <Link href={session ? "/terminal" : "/login"} className="hidden sm:block text-xs font-black uppercase tracking-widest text-slate-400 hover:text-white transition-colors">
+              {session ? "Account" : "Login"}
+            </Link>
             <Link 
-              href="/terminal" 
+              href={session ? "/terminal" : "/register"} 
               className="px-4 py-2.5 sm:px-6 sm:py-3 rounded-xl bg-[#39FF14] text-black text-[10px] sm:text-[11px] font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] shadow-xl shadow-[#39FF14]/20 hover:scale-105 active:scale-95 transition-all"
             >
-              Launch
+              {session ? "Terminal" : "Launch"}
             </Link>
             {/* Mobile Hamburger */}
             <button
@@ -158,8 +147,12 @@ export default function LandingPage() {
                 <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">About</Link>
                 <a href="#connect" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">Connect</a>
                 <div className="my-2 border-t border-white/5" />
-                <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white hover:bg-white/5 transition-all">Login</Link>
-                <Link href="/register" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3.5 rounded-xl bg-[#39FF14] text-black text-[11px] font-black uppercase tracking-[0.2em] text-center mt-1">Start Free Trial</Link>
+                <Link href={session ? "/terminal" : "/login"} onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white hover:bg-white/5 transition-all">
+                  {session ? "My Account" : "Login"}
+                </Link>
+                <Link href={session ? "/terminal" : "/register"} onClick={() => setMobileMenuOpen(false)} className="px-4 py-3.5 rounded-xl bg-[#39FF14] text-black text-[11px] font-black uppercase tracking-[0.2em] text-center mt-1">
+                  {session ? "Enter Terminal" : "Start Free Trial"}
+                </Link>
               </div>
             </motion.div>
           )}
@@ -191,27 +184,27 @@ export default function LandingPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#39FF14] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-[#39FF14]"></span>
             </span>
-            <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-[0.15em] sm:tracking-[0.25em] text-[#39FF14]">Enterprise Engine Active — 500+ Live Symbols (Crypto, Forex, Gold & Silver)</span>
+            <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.25em] text-[#39FF14] text-center px-1">Enterprise Engine Active — 500+ Live Symbols (Crypto, Forex, Gold & Silver)</span>
           </motion.div>
 
           <div className="flex flex-col items-center">
             <motion.h1 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="text-[3.2rem] sm:text-6xl md:text-8xl lg:text-9xl font-black text-center text-white tracking-tighter leading-[0.88] sm:leading-[0.85] mb-4 drop-shadow-2xl"
+              className="text-[2.4rem] sm:text-6xl md:text-8xl lg:text-9xl font-black text-center text-white tracking-tighter leading-[1.05] sm:leading-[0.85] mb-4 drop-shadow-2xl"
             >
               THE ALPHA <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-br from-white via-[#39FF14] to-emerald-800">TERMINAL.</span>
             </motion.h1>
             
-            <h2 className="text-[10px] sm:text-xs md:text-sm font-black uppercase tracking-[0.4em] sm:tracking-[0.6em] text-[#39FF14] mb-10 sm:mb-16">The Global Crypto Market Scanner for Professional Traders</h2>
+            <h2 className="text-[9px] sm:text-xs md:text-sm font-black uppercase tracking-[0.2em] sm:tracking-[0.6em] text-[#39FF14] mb-10 sm:mb-16 text-center px-4">The Global Crypto Market Scanner for Professional Traders</h2>
           </div>
 
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-sm sm:text-base md:text-xl text-slate-400 max-w-4xl text-center leading-relaxed mb-10 sm:mb-12 font-medium px-2 sm:px-0"
+            className="text-xs sm:text-base md:text-xl text-slate-400 max-w-4xl text-center leading-relaxed mb-10 sm:mb-12 font-medium px-6 sm:px-0"
           >
             <strong className="text-white">Stop missing critical setups.</strong> Retail traders lose their edge by manually checking charts. RSIQ Pro solves this by instantly scanning <span className="text-[#39FF14]">500+ assets in real-time</span>. Get institution-grade alerts, <strong>verified historical win-rates</strong>, and <span className="text-white">AI-generated signal narratives</span> instantly formatted for 1-click sharing.
           </motion.p>
@@ -244,17 +237,17 @@ export default function LandingPage() {
               {/* Main CTAs */}
               <div className="flex flex-col gap-4">
                 <Link 
-                  href="/register" 
+                  href={session ? "/terminal" : "/register"} 
                   className="w-full px-8 py-5 sm:py-7 rounded-2xl bg-[#39FF14] text-black font-black uppercase tracking-[0.25em] shadow-[0_20px_60px_rgba(57,255,20,0.3)] hover:shadow-[0_20px_80px_rgba(57,255,20,0.5)] transition-all text-[12px] sm:text-[14px] active:scale-95 text-center group"
                 >
-                  Launch Terminal
+                  {session ? "Enter Terminal" : "Launch Terminal"}
                   <ChevronRight size={18} className="inline ml-2 group-hover:translate-x-1 transition-transform" />
                 </Link>
                 <Link
-                  href="/login"
+                  href={session ? "/terminal" : "/login"}
                   className="w-full text-center px-8 py-4 rounded-2xl border border-white/10 bg-white/[0.02] text-slate-300 font-black uppercase tracking-[0.2em] text-[11px] active:scale-95 transition-all backdrop-blur-sm"
                 >
-                  Sign In to Desk
+                  {session ? "Return to Desk" : "Sign In to Desk"}
                 </Link>
               </div>
 
@@ -379,38 +372,29 @@ export default function LandingPage() {
              <p className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">Unified Multi-Asset Authority.</p>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="rounded-3xl border border-white/10 bg-[#0A0E17] h-[400px] overflow-hidden relative group">
+          <div className="flex flex-row lg:grid lg:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto lg:overflow-x-hidden snap-x snap-mandatory pb-6 sm:pb-0 px-4 sm:px-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="w-[85vw] lg:w-full flex-shrink-0 snap-center rounded-3xl border border-white/10 bg-[#0A0E17] h-[350px] sm:h-[400px] overflow-hidden relative group">
                <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse" />
                  <span className="text-[9px] font-black uppercase tracking-widest text-white">BTC / USD - REAL-TIME</span>
                </div>
-               <iframe 
-                 src="https://s.tradingview.com/embed-widget/mini-symbol-overview/?locale=en#%7B%22symbol%22%3A%22BINANCE%3ABTCUSDT%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A%22100%25%22%2C%22dateRange%22%3A%221D%22%2C%22colorTheme%22%3A%22dark%22%2C%22isTransparent%22%3Atrue%2C%22autosize%22%3Atrue%7D" 
-                 className="w-full h-full opacity-60 group-hover:opacity-100 transition-opacity mt-8 border-none pointer-events-none" 
-               />
+               <TradingViewMiniChart symbol="BINANCE:BTCUSDT" />
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-[#0A0E17] h-[400px] overflow-hidden relative group">
+            <div className="w-[85vw] lg:w-full flex-shrink-0 snap-center rounded-3xl border border-white/10 bg-[#0A0E17] h-[350px] sm:h-[400px] overflow-hidden relative group">
                <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                  <span className="text-[9px] font-black uppercase tracking-widest text-white">GOLD / USD - REAL-TIME</span>
                </div>
-               <iframe 
-                 src="https://s.tradingview.com/embed-widget/mini-symbol-overview/?locale=en#%7B%22symbol%22%3A%22OANDA%3AXAUUSD%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A%22100%25%22%2C%22dateRange%22%3A%221D%22%2C%22colorTheme%22%3A%22dark%22%2C%22isTransparent%22%3Atrue%2C%22autosize%22%3Atrue%7D" 
-                 className="w-full h-full opacity-60 group-hover:opacity-100 transition-opacity mt-8 border-none pointer-events-none" 
-               />
+               <TradingViewMiniChart symbol="OANDA:XAUUSD" />
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-[#0A0E17] h-[400px] overflow-hidden relative group">
+            <div className="w-[85vw] lg:w-full flex-shrink-0 snap-center rounded-3xl border border-white/10 bg-[#0A0E17] h-[350px] sm:h-[400px] overflow-hidden relative group">
                <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2">
                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                  <span className="text-[9px] font-black uppercase tracking-widest text-white">EUR / USD - REAL-TIME</span>
                </div>
-               <iframe 
-                 src="https://s.tradingview.com/embed-widget/mini-symbol-overview/?locale=en#%7B%22symbol%22%3A%22FX%3AEURUSD%22%2C%22width%22%3A%22100%25%22%2C%22height%22%3A%22100%25%22%2C%22dateRange%22%3A%221D%22%2C%22colorTheme%22%3A%22dark%22%2C%22isTransparent%22%3Atrue%2C%22autosize%22%3Atrue%7D" 
-                 className="w-full h-full opacity-60 group-hover:opacity-100 transition-opacity mt-8 border-none pointer-events-none" 
-               />
+               <TradingViewMiniChart symbol="FX:EURUSD" />
             </div>
           </div>
         </div>
@@ -877,13 +861,14 @@ function PersonaCard({ icon, role, needs, impact }: { icon: React.ReactNode; rol
   return (
     <motion.div 
       whileHover={{ y: -5 }}
-      className="p-8 sm:p-10 rounded-[32px] bg-white/[0.02] border border-white/10 hover:border-white/20 transition-all flex flex-col"
+      whileTap={{ scale: 0.98 }}
+      className="p-6 sm:p-10 rounded-[28px] sm:rounded-[32px] bg-white/[0.02] border border-white/10 hover:border-white/20 transition-all flex flex-col"
     >
-      <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-8">
-        {React.cloneElement(icon as React.ReactElement<any>, { size: 24 })}
+      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/5 flex items-center justify-center mb-6 sm:mb-8">
+        {React.cloneElement(icon as React.ReactElement<any>, { size: 20 })}
       </div>
-      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">TARGET PERSONA</h4>
-      <h3 className="text-2xl font-black text-white tracking-tight mb-4">{role}</h3>
+      <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">TARGET PERSONA</h4>
+      <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mb-4">{role}</h3>
       <p className="text-sm text-slate-400 font-medium leading-relaxed mb-6 flex-1">
         {needs}
       </p>
@@ -897,10 +882,10 @@ function PersonaCard({ icon, role, needs, impact }: { icon: React.ReactNode; rol
 
 function AnalysisItem({ title, desc }: { title: string; desc: string }) {
   return (
-    <div className="group border-l-2 border-white/10 pl-5 sm:pl-8 py-2 sm:py-3 hover:border-[#39FF14] transition-colors relative">
+    <div className="group border-l-2 border-white/10 pl-5 sm:pl-8 py-1 sm:py-3 hover:border-[#39FF14] transition-colors relative">
       <div className="absolute left-0 top-0 bottom-0 w-0 bg-gradient-to-r from-[#39FF14]/5 to-transparent group-hover:w-full transition-all duration-500" />
-      <h4 className="text-white font-black uppercase tracking-widest text-[11px] sm:text-[12px] mb-1.5 sm:mb-2 relative z-10 group-hover:text-[#39FF14] transition-colors">{title}</h4>
-      <p className="text-slate-500 text-[12px] sm:text-[13px] font-medium leading-relaxed relative z-10 group-hover:text-slate-400 transition-colors">{desc}</p>
+      <h4 className="text-white font-black uppercase tracking-widest text-[10px] sm:text-[12px] mb-1 sm:mb-2 relative z-10 group-hover:text-[#39FF14] transition-colors">{title}</h4>
+      <p className="text-slate-500 text-[11px] sm:text-[13px] font-medium leading-relaxed relative z-10 group-hover:text-slate-400 transition-colors">{desc}</p>
     </div>
   );
 }
@@ -983,5 +968,36 @@ function LeadServiceCard({
         Explore Service <ArrowUpRight size={14} />
       </a>
     </motion.div>
+  );
+}
+
+function TradingViewMiniChart({ symbol }: { symbol: string }) {
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!container.current) return;
+    container.current.innerHTML = '';
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      "symbol": symbol,
+      "width": "100%",
+      "height": "100%",
+      "locale": "en",
+      "dateRange": "1D",
+      "colorTheme": "dark",
+      "isTransparent": true,
+      "autosize": true,
+      "largeChartUrl": ""
+    });
+    container.current.appendChild(script);
+  }, [symbol]);
+
+  return (
+    <div className="tradingview-widget-container h-[calc(100%-80px)] w-full opacity-60 group-hover:opacity-100 transition-opacity mt-14 pointer-events-none relative z-0" ref={container}>
+      <div className="tradingview-widget-container__widget h-full w-full"></div>
+    </div>
   );
 }
