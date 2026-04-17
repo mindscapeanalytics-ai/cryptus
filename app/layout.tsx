@@ -89,15 +89,40 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                // Enterprise Recovery Script: Detects if the app is stuck in an offline 'cache-trap'
-                // and force-clears it if we are actually online.
+                // ── Institutional Log Lockdown™ ──────────────────
+                // Silences noisy browser extension junk and Chrome internal errors
+                // that distract from the high-density terminal intelligence.
+                const originalError = console.error;
+                const originalWarn = console.warn;
+                
+                const NOISY_PATTERNS = [
+                  'Receiving end does not exist',
+                  'Phantom',
+                  'metamask',
+                  'Extension context invalidated',
+                  'unchecked runtime.lastError',
+                  'PHANTOM'
+                ];
+
+                console.error = function(...args) {
+                  const msg = args.join(' ');
+                  if (NOISY_PATTERNS.some(p => msg.includes(p))) return;
+                  originalError.apply(console, args);
+                };
+
+                console.warn = function(...args) {
+                  const msg = args.join(' ');
+                  if (NOISY_PATTERNS.some(p => msg.includes(p))) return;
+                  originalWarn.apply(console, args);
+                };
+
+                // ── Enterprise Recovery Script ──────────────────
+                // Detects if the app is stuck in an offline 'cache-trap'
                 const checkStuckState = async () => {
                   const isTerminal = window.location.pathname.startsWith('/terminal');
                   const isHome = window.location.pathname === '/';
                   
                   if ((isTerminal || isHome) && navigator.onLine) {
-                    // Check if Service Worker is serving stale fallback content
-                    // We check for a marker that is only in the offline page
                     if (document.body.innerText.includes('SYSTEM RESTORED') || document.body.innerText.includes('SIGNAL LOST')) {
                       console.log('[Recovery] Stuck state detected. Force clearing Service Worker...');
                       if ('serviceWorker' in navigator) {
@@ -109,13 +134,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   }
                 };
                 
-                // Run on load and on visibility change
                 window.addEventListener('load', checkStuckState);
                 document.addEventListener('visibilitychange', () => {
                   if (document.visibilityState === 'visible') checkStuckState();
                 });
-                
-                // Periodically check every 10s if we are on the landing page/terminal to prevent zombie shells
                 setInterval(checkStuckState, 10000);
               })();
             `

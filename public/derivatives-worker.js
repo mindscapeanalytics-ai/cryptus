@@ -201,10 +201,14 @@ function connectLiquidationStream() {
       ]);
 
       const topics = Array.from(symbolsToWatch).slice(0, 50).map(s => `allLiquidation.${s}`);
-      liquidationWs.send(JSON.stringify({
-        op: 'subscribe',
-        args: topics
-      }));
+      
+      // Institutional Guard: Only send if open
+      if (liquidationWs.readyState === WebSocket.OPEN) {
+        liquidationWs.send(JSON.stringify({
+          op: 'subscribe',
+          args: topics
+        }));
+      }
     };
 
     liquidationWs.onmessage = (event) => {
@@ -250,11 +254,16 @@ function connectLiquidationStream() {
     };
 
     // Bybit requires periodic ping
+    // Bybit requires periodic ping with a touch of entropy to prevent synchronized disconnects
     const pingInterval = setInterval(() => {
       if (liquidationWs && liquidationWs.readyState === WebSocket.OPEN) {
-        liquidationWs.send(JSON.stringify({ op: 'ping' }));
+        try {
+          liquidationWs.send(JSON.stringify({ op: 'ping' }));
+        } catch (e) {
+          console.warn('[deriv-worker] Failed to send Bybit ping', e.message);
+        }
       }
-    }, HEARTBEAT_MS);
+    }, HEARTBEAT_MS + (Math.random() * 2000));
 
     liquidationWs.onclose = () => {
       console.log('[deriv-worker] Liquidation stream closed');
@@ -584,10 +593,16 @@ function updateSymbols(symbols) {
     ]);
     const topics = Array.from(symbolsToWatch).slice(0, 50).map(s => `allLiquidation.${s}`);
     
-    liquidationWs.send(JSON.stringify({
-      op: 'subscribe',
-      args: topics
-    }));
+    try {
+      if (liquidationWs.readyState === WebSocket.OPEN) {
+        liquidationWs.send(JSON.stringify({
+          op: 'subscribe',
+          args: topics
+        }));
+      }
+    } catch (e) {
+      console.warn('[deriv-worker] Mutation subscription failed', e.message);
+    }
   }
 }
 
