@@ -200,6 +200,7 @@ model AlertLog {
   exchange  String?
   timeframe String
   value     Float
+  price     Float?
   type      String
   priority  String   @default("medium")
   createdAt DateTime @default(now())

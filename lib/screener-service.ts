@@ -1039,6 +1039,7 @@ function buildEntry(
     const bb = calculateBollinger(closes15m);
     const stochRsi = calculateStochRsi(closes15m);
 
+    // VWAP Anchor: Anchored to the start of the current UTC day (Session VWAP)
     const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
     let vwapStart = 0;
     for (let j = 0; j < validKlines.length; j++) {
@@ -1046,6 +1047,15 @@ function buildEntry(
         vwapStart = j;
         break;
       }
+    }
+    
+    // Stability Guard: If the day just started (less than 10 mins of data), 
+    // fallback to a rolling 4-hour VWAP to ensure the indicator shows data immediately.
+    if (validKlines.length - vwapStart < 10 && validKlines.length >= 240) {
+      vwapStart = validKlines.length - 240;
+    } else if (validKlines.length - vwapStart < 10) {
+      // If we don't even have 4 hours, just use all available data
+      vwapStart = 0;
     }
 
     const vwap = calculateVwap(

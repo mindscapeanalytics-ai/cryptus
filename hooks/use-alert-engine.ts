@@ -45,6 +45,7 @@ export interface Alert {
   exchange?: string;
   timeframe: string;
   value: number;
+  price?: number;
   type: 'OVERSOLD' | 'OVERBOUGHT' | 'STRATEGY_STRONG_BUY' | 'STRATEGY_STRONG_SELL' | 'LONG_CANDLE' | 'VOLUME_SPIKE';
   createdAt: number;
 }
@@ -381,7 +382,7 @@ export function useAlertEngine(
                  });
                  
                  playAlertSoundRef.current(false, priority);
-                 logAlertRef.current({ symbol, exchange: getExchange(), timeframe: tf, value: rsi, type: currentZone });
+                 logAlertRef.current({ symbol, exchange: getExchange(), timeframe: tf, value: rsi, price: live.price, type: currentZone });
                  triggerNativeRef.current(`${getSymbolAlias(symbol)} ${tf} RSI ${currentZone}`, `RSI: ${rsi.toFixed(1)} @ $${formatPrice(live.price)}`);
                }
             }
@@ -401,7 +402,7 @@ export function useAlertEngine(
                 recordSignal(symbol, isBuy ? 'strong-buy' : 'strong-sell', live.price);
                 toast[isBuy ? 'success' : 'error'](`${getSymbolAlias(symbol)} → ${isBuy?'🟢 BUY':'🔴 SELL'}`, { description: `Score: ${liveStrategy.score.toFixed(0)} @ $${formatPrice(live.price)}` });
                 playAlertSoundRef.current(false, (config.priority as any) ?? 'medium');
-                logAlertRef.current({ symbol, exchange: getExchange(), timeframe: 'STRATEGY', value: liveStrategy.score, type: isBuy ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL' });
+                logAlertRef.current({ symbol, exchange: getExchange(), timeframe: 'STRATEGY', value: liveStrategy.score, price: live.price, type: isBuy ? 'STRATEGY_STRONG_BUY' : 'STRATEGY_STRONG_SELL' });
                 triggerNativeRef.current(`${getSymbolAlias(symbol)} Strategy Shift`, `${isBuy?'Bullish':'Bearish'} signal @ $${formatPrice(live.price)}`);
               }
             }
@@ -439,7 +440,7 @@ export function useAlertEngine(
         const isPos = type === 'OVERSOLD' || type === 'STRATEGY_STRONG_BUY' || type === 'LONG_CANDLE';
         toast[isPos ? 'success' : 'error'](`${getSymbolAlias(symbol)} ${timeframe} ${type}`, { description: `Value: ${value.toFixed(1)}` });
         playAlertSoundRef.current(isVol, priority);
-        logAlertRef.current({ symbol, exchange: exchange ?? getExchange(), timeframe, value, type });
+        logAlertRef.current({ symbol, exchange: exchange ?? getExchange(), timeframe, value, price: payload.price, type });
         triggerNativeRef.current(`${getSymbolAlias(symbol)} Alert`, `${type} detected on ${timeframe}`);
       }
     };

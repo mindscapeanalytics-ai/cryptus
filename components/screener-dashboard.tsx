@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import {
   Search, Bell, BellOff, Settings, Filter, Star, Info, Download,
-  RefreshCcw, Zap, BarChart3, TrendingUp, TrendingDown,
+  RefreshCcw, Zap, ZapOff, BarChart3, TrendingUp, TrendingDown,
   LayoutGrid, LayoutList, ChevronUp, ChevronDown, Clock,
   Flame, ShieldCheck, Activity, BrainCircuit, Gauge,
   LogOut, User as UserIcon, Minus, Plus, AlertTriangle,
@@ -804,14 +804,14 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
       {visibleCols.has('orderFlow') && (
-        <td className="px-3 py-3 text-right">
+        <td className="px-3 py-3 text-right min-w-[80px]">
           {orderFlowData ? (
             <div className="flex items-center justify-end gap-1">
-              <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
-                <div className="h-full bg-[#39FF14]/60" style={{ width: `${orderFlowData.ratio * 100}%` }} />
-                <div className="h-full bg-[#FF4B5C]/60" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
+              <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden flex shrink-0">
+                <div className="h-full bg-[#39FF14]/60 transition-all duration-700" style={{ width: `${orderFlowData.ratio * 100}%` }} />
+                <div className="h-full bg-[#FF4B5C]/60 transition-all duration-700" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
               </div>
-              <span className={cn("text-[8px] font-black",
+              <span className={cn("text-[8px] font-black tabular-nums font-mono w-[30px]",
                 orderFlowData.pressure === 'strong-buy' ? "text-[#39FF14]" :
                   orderFlowData.pressure === 'buy' ? "text-[#39FF14]/70" :
                     orderFlowData.pressure === 'strong-sell' ? "text-[#FF4B5C]" :
@@ -820,7 +820,7 @@ const ScreenerRow = memo(function ScreenerRow({
                 {(orderFlowData.ratio * 100).toFixed(0)}%
               </span>
             </div>
-          ) : <span className="text-slate-700 text-[10px]">-</span>}
+          ) : <span className="text-slate-700 text-[10px] tabular-nums font-mono">-</span>}
         </td>
       )}
       {visibleCols.has('smartMoney') && (
@@ -840,16 +840,21 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
-      <td className="px-3 py-3 text-right">
-        {display.signal !== 'neutral' && <SignalBadge signal={display.signal.toLowerCase() as any} />}
-
+      <td className="px-3 py-3 text-right w-[110px] min-w-[110px]">
+        <div className="flex justify-end items-center h-full">
+          {display.signal !== 'neutral' ? (
+            <SignalBadge signal={display.signal.toLowerCase() as any} />
+          ) : (
+            <div className="h-6 w-full opacity-0" aria-hidden="true" /> // Layout preservation
+          )}
+        </div>
       </td>
 
       {visibleCols.has('strategy') && (
         <td className="px-3 py-3 text-right min-w-[120px] whitespace-nowrap">
           <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
-              <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums font-mono uppercase" title="Time since signal started">
+              <span suppressHydrationWarning className="text-[9px] font-black text-slate-600 tabular-nums font-mono uppercase w-[32px] text-right" title="Time since signal started">
                 {formatTimeAgo(entry.signalStartedAt)}
               </span>
               <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
@@ -3738,6 +3743,22 @@ export default function ScreenerDashboard() {
 
                 <div className="flex items-center gap-1.5 h-full">
                   <button
+                    onClick={() => setShowAlertPanel(!showAlertPanel)}
+                    className={cn(
+                      "h-full px-3 rounded-2xl border transition-all flex items-center gap-1.5",
+                      showAlertPanel ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14] shadow-[0_0_10px_rgba(57,255,20,0.1)]" : "bg-white/5 border-white/10 text-slate-500 hover:text-white"
+                    )}
+                    title="Intelligence Alerts Panel"
+                  >
+                    <div className="relative">
+                      <Bell size={14} className={alerts.length > 0 && !showAlertPanel ? "animate-pulse" : ""} />
+                      {alerts.length > 0 && (
+                        <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#FF4B5C] shadow-[0_0_5px_#FF4B5C]" />
+                      )}
+                    </div>
+                    {alerts.length > 0 && <span className="text-[10px] font-black">{alerts.length}</span>}
+                  </button>
+                  <button
                     onClick={() => setAlertsEnabled(!alertsEnabled)}
                     className={cn(
                       "h-full px-3 rounded-2xl border transition-all",
@@ -3745,7 +3766,7 @@ export default function ScreenerDashboard() {
                     )}
                     title={alertsEnabled ? "Global Alerts Enabled" : "Global Alerts Muted"}
                   >
-                    {alertsEnabled ? <Bell size={14} /> : <BellOff size={14} />}
+                    {alertsEnabled ? <Zap size={14} /> : <ZapOff size={14} />}
                   </button>
                   <button onClick={() => setShowGlobalSettings(true)} className="h-full px-3 rounded-2xl border border-white/10 bg-white/5 text-slate-500 hover:text-[#39FF14] hover:bg-[#39FF14]/5 transition-all" title="Institutional Interface Settings"><Settings size={14} /></button>
                   <div className="relative h-full" ref={profileRef}>
@@ -3990,117 +4011,7 @@ export default function ScreenerDashboard() {
               </div>
             </div>
 
-            {/* MOBILE COMMAND CENTER SIDEBAR */}
-            <AnimatePresence>
-              {showMobileMenu && (
-                <div className="fixed inset-0 z-[600] lg:hidden">
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setShowMobileMenu(false)}
-                    className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-                  />
-                  <motion.div 
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="absolute top-0 right-0 bottom-0 w-[280px] sm:w-[320px] bg-[#05080F]/95 backdrop-blur-2xl border-l border-white/10 p-6 flex flex-col gap-6 shadow-[0_0_80px_rgba(0,0,0,0.8)]"
-                  >
-                    {/* Header */}
-                    <div className="flex items-center justify-between pb-4 border-b border-white/5">
-                      <div>
-                        <h3 className="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2">
-                          <BrainCircuit size={16} className="text-[#39FF14]" />
-                          Command
-                        </h3>
-                        <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Tactical Matrix</p>
-                      </div>
-                      <button onClick={() => setShowMobileMenu(false)} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 active:scale-90">
-                        <X size={18} />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-8">
-                      {/* Section: Asset Universe */}
-                      <div className="space-y-4">
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#39FF14]">Asset Universe</span>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
-                            <button
-                              key={ac}
-                              onClick={() => { setActiveAssetClass(ac as any); setShowMobileMenu(false); }}
-                              className={cn(
-                                "py-3 rounded-xl flex items-center gap-3 px-4 transition-all border",
-                                activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500 hover:text-slate-300"
-                              )}
-                            >
-                              <span className="text-sm">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
-                              <span className="text-[8px] font-black uppercase tracking-[0.1em]">{ac}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Section: Matrix Signal Filter */}
-                      <div className="space-y-4">
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Signal Confluence</span>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { label: "ALL ASSETS", id: 'all' },
-                            { label: "OVERSOLD", id: 'oversold' },
-                            { label: "STRONG BUY", id: 'strong-buy' },
-                            { label: "BUY", id: 'buy' },
-                            { label: "NEUTRAL", id: 'neutral' },
-                            { label: "SELL", id: 'sell' },
-                            { label: "STRONG SELL", id: 'strong-sell' },
-                            { label: "OVERBOUGHT", id: 'overbought' },
-                          ].map((s) => (
-                            <button
-                              key={s.id}
-                              onClick={() => { setSignalFilter(s.id as any); setShowMobileMenu(false); }}
-                              className={cn(
-                                "py-3 rounded-xl text-[8px] font-black transition-all border uppercase px-2",
-                                signalFilter === s.id 
-                                  ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" 
-                                  : "bg-white/5 border-white/5 text-slate-500"
-                              )}
-                            >
-                              {s.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Section: Operations */}
-                      <div className="space-y-4">
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Terminal Ops</span>
-                        <div className="flex flex-col gap-2">
-                           <button onClick={() => { setShowGlobalSettings(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
-                            <LayoutGrid size={18} className="text-[#39FF14]" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Edit Columns</span>
-                          </button>
-                          <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
-                            {alertsEnabled ? <Bell size={18} className="text-amber-500" /> : <BellOff size={18} className="text-slate-600" />}
-                            <span className="text-[10px] font-black uppercase tracking-widest">Live Alerts</span>
-                          </button>
-                          <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
-                            <RefreshCcw size={18} className={cn("text-blue-400", refreshing && "animate-spin")} />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Hard Refresh</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-6 border-t border-white/5">
-                        <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-700">RSIQ PRO Institutional v4.0.2</span>
-                    </div>
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
-
+            
           </div>
         </header>
       )}
@@ -4599,6 +4510,117 @@ export default function ScreenerDashboard() {
         )}
       </AnimatePresence>
 
+{/* MOBILE COMMAND CENTER SIDEBAR */}
+            <AnimatePresence>
+              {showMobileMenu && (
+                <div className="fixed inset-0 z-[600] lg:hidden">
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowMobileMenu(false)}
+                    className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+                  />
+                  <motion.div 
+                    initial={{ x: '100%' }}
+                    animate={{ x: 0 }}
+                    exit={{ x: '100%' }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                    className="absolute top-0 right-0 bottom-0 w-[280px] sm:w-[320px] bg-[#05080F]/95 backdrop-blur-2xl border-l border-white/10 p-6 flex flex-col gap-6 shadow-[0_0_80px_rgba(0,0,0,0.8)]"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-4 border-b border-white/5">
+                      <div>
+                        <h3 className="text-white font-black uppercase tracking-widest text-xs flex items-center gap-2">
+                          <BrainCircuit size={16} className="text-[#39FF14]" />
+                          Command
+                        </h3>
+                        <p className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Tactical Matrix</p>
+                      </div>
+                      <button onClick={() => setShowMobileMenu(false)} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 active:scale-90">
+                        <X size={18} />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-8">
+                      {/* Section: Asset Universe */}
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#39FF14]">Asset Universe</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {['crypto', 'forex', 'metals', 'stocks'].map((ac) => (
+                            <button
+                              key={ac}
+                              onClick={() => { setActiveAssetClass(ac as any); setShowMobileMenu(false); }}
+                              className={cn(
+                                "py-3 rounded-xl flex items-center gap-3 px-4 transition-all border",
+                                activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500 hover:text-slate-300"
+                              )}
+                            >
+                              <span className="text-sm">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
+                              <span className="text-[8px] font-black uppercase tracking-[0.1em]">{ac}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section: Matrix Signal Filter */}
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Signal Confluence</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { label: "ALL ASSETS", id: 'all' },
+                            { label: "OVERSOLD", id: 'oversold' },
+                            { label: "STRONG BUY", id: 'strong-buy' },
+                            { label: "BUY", id: 'buy' },
+                            { label: "NEUTRAL", id: 'neutral' },
+                            { label: "SELL", id: 'sell' },
+                            { label: "STRONG SELL", id: 'strong-sell' },
+                            { label: "OVERBOUGHT", id: 'overbought' },
+                          ].map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => { setSignalFilter(s.id as any); setShowMobileMenu(false); }}
+                              className={cn(
+                                "py-3 rounded-xl text-[8px] font-black transition-all border uppercase px-2",
+                                signalFilter === s.id 
+                                  ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" 
+                                  : "bg-white/5 border-white/5 text-slate-500"
+                              )}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section: Operations */}
+                      <div className="space-y-4">
+                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">Terminal Ops</span>
+                        <div className="flex flex-col gap-2">
+                           <button onClick={() => { setShowGlobalSettings(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            <LayoutGrid size={18} className="text-[#39FF14]" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Edit Columns</span>
+                          </button>
+                          <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            {alertsEnabled ? <Bell size={18} className="text-amber-500" /> : <BellOff size={18} className="text-slate-600" />}
+                            <span className="text-[10px] font-black uppercase tracking-widest">Live Alerts</span>
+                          </button>
+                          <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all">
+                            <RefreshCcw size={18} className={cn("text-blue-400", refreshing && "animate-spin")} />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Hard Refresh</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 border-t border-white/5">
+                        <span className="text-[7px] font-black uppercase tracking-[0.4em] text-slate-700">RSIQ PRO Institutional v4.0.2</span>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
+
       {/* Mobile-only Bottom Navigation Dock */}
       <BottomDock
         onOpenAlerts={() => {
@@ -5076,7 +5098,9 @@ function CoinSettingsModal({
             {loading ? 'SAVING...' : 'APPLY CONFIGURATION'}
           </button>
         </div>
-      </motion.div>
+      
+      
+</motion.div>
     </motion.div>
   );
 }
@@ -5354,11 +5378,21 @@ function AlertHistoryPanel({ alerts, onClose, onClear }: { alerts: any[]; onClos
                       {isBullish ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                       <span className="text-[9px] font-black uppercase tracking-[0.1em]">{label}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] font-black text-white/90 tabular-nums">
-                        {alert.value.toFixed(2)}
+                    <div className="text-right flex items-center gap-4">
+                      {alert.price && (
+                        <div className="text-right border-r border-white/10 pr-4">
+                          <div className="text-[10px] font-black text-white tabular-nums tracking-wider">
+                            ${formatPrice(alert.price)}
+                          </div>
+                          <div className="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Price</div>
+                        </div>
+                      )}
+                      <div>
+                        <div className="text-[10px] font-black text-white/90 tabular-nums">
+                          {alert.value.toFixed(2)}
+                        </div>
+                        <div className="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Reading</div>
                       </div>
-                      <div className="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Reading</div>
                     </div>
                   </div>
 

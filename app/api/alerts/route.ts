@@ -79,6 +79,7 @@ export async function POST(request: Request) {
       exchange: body.exchange,
       timeframe: body.timeframe,
       value: body.value,
+      price: body.price,
       type: body.type,
     });
     return NextResponse.json(alert, {

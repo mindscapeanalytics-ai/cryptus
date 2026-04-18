@@ -6,6 +6,7 @@ export interface AlertLogEntry {
   exchange?: string;
   timeframe: string;
   value: number;
+  price?: number;
   type: string;
 }
 
@@ -18,6 +19,7 @@ export async function createAlertLog(entry: AlertLogEntry) {
         exchange: entry.exchange,
         timeframe: entry.timeframe,
         value: entry.value,
+        price: entry.price,
         type: entry.type,
       },
     });
