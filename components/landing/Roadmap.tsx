@@ -1,34 +1,60 @@
 "use client";
 
 import React from 'react';
-import { Cpu, LineChart, Handshake } from 'lucide-react';
+import { Cpu, Network, ShieldCheck, Activity, BrainCircuit, Globe, Bot } from 'lucide-react';
 import { FeatureCard } from './LandingUI';
 
 export function Roadmap() {
   return (
     <section className="py-20 sm:py-32 md:py-40 border-t border-white/5 bg-[#05080F] px-4 sm:px-6 relative overflow-hidden">
-      <div className="max-w-7xl mx-auto">
+      {/* Background glow for the 2026 section */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#39FF14]/5 rounded-full blur-[120px] pointer-events-none" />
+      
+      <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-12 sm:mb-20 space-y-3 sm:space-y-4">
-          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] text-amber-400">Future Roadmap</h2>
-          <p className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">Expanding the <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">Alpha Edge.</span></p>
-          <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mt-4 font-medium">We are continuously pushing the boundaries of retail trading technology. Here is what is deploying next to your terminal.</p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#39FF14]/10 border border-[#39FF14]/20 rounded-full mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#39FF14] animate-pulse" />
+            <span className="text-[9px] font-black tracking-widest uppercase text-[#39FF14]">Project 2026</span>
+          </div>
+          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] text-slate-500">The Ultimate Paradigm</h2>
+          <p className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">
+            We are building the <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">Autonomous Edge.</span>
+          </p>
+          <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mt-4 font-medium">
+            RSIQ Pro is evolving from a descriptive terminal into an agentic decision engine. Here is a glimpse into the classified intelligence dropping in our upcoming cycle.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           <FeatureCard
-            icon={<Cpu />}
-            title="Autonomous Webhooks"
-            desc="Connect RSIQ Pro directly to your broker or algorithmic trading bots via customizable JSON webhook triggers. Completely automate your execution."
+            icon={<Bot />}
+            title="Autonomous Alpha Agents"
+            desc="Deploy intelligent copilot processes that adapt to your logic and manage your risk. Your personal 24/7 institutional execution desk."
           />
           <FeatureCard
-            icon={<LineChart />}
-            title="Advanced Flow & Options Insights"
-            desc="Incorporate dark pool prints, options delta exposure, and institutional orderbook flow directly into the scanning confluence logic."
+            icon={<Globe />}
+            title="Macro Liquidity Topologies"
+            desc="Visualize the tectonic shifts of global capital in real-time. Front-run retail as liquidity aggressively rotates across entire asset classes."
           />
           <FeatureCard
-            icon={<Handshake />}
-            title="Alpha Syndicates"
-            desc="Share your customized screening layouts and trigger conditions with your community through private generated share-links."
+            icon={<Network />}
+            title="Predictive Network Forensics"
+            desc="Look past the orderbook. Next-generation topology algorithms detect institutional accumulation and spoofing before it manifests on the chart."
+          />
+          <FeatureCard
+            icon={<BrainCircuit />}
+            title="Multimodal Intelligence Parsing"
+            desc="Go beyond price action. Our upcoming systems ingest and vectorize raw global data feeds—converting unspoken market shifts into measurable quantitative metrics."
+          />
+          <FeatureCard
+            icon={<ShieldCheck />}
+            title="Behavioral Risk Guardrails"
+            desc="Eliminate human error. An adaptive copilot that learns your execution psychology, mathematically intervening to protect your capital from deviation."
+          />
+          <FeatureCard
+            icon={<Activity />}
+            title="Cognitive Alerting Matrix"
+            desc="Speak your strategy in plain language. Let the engine compile your natural logic into a relentless, highly-complex cross-asset monitor."
           />
         </div>
       </div>
