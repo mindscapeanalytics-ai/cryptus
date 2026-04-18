@@ -184,16 +184,20 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   let emoji: string;
 
   if (netBias > 20) {
-    headline = conviction >= 65 ? 'High-Conviction Bullish Setup' : 'Bullish Setup Forming';
+    if (conviction >= 80) headline = 'High-Conviction Institutional Buy Setup';
+    else if (conviction >= 50) headline = 'Bullish Expansion Identified';
+    else headline = 'Emerging Bullish Momentum';
     emoji = conviction >= 65 ? '🟢🔥' : '🟢';
   } else if (netBias < -20) {
-    headline = conviction >= 65 ? 'High-Conviction Bearish Setup' : 'Bearish Pressure Building';
+    if (conviction >= 80) headline = 'High-Conviction Institutional Sell Setup';
+    else if (conviction >= 50) headline = 'Bearish Distribution Pattern';
+    else headline = 'Bearish Pressure Building';
     emoji = conviction >= 65 ? '🔴🔥' : '🔴';
-  } else if (totalPoints > 20) {
-    headline = 'Mixed Signals - Consolidation Phase';
+  } else if (totalPoints > 30) {
+    headline = 'Equilibrium - Market Consolidation';
     emoji = '🟡';
   } else {
-    headline = 'Neutral - Awaiting Catalyst';
+    headline = 'Technical Neutral - Awaiting Trigger';
     emoji = '⚪';
   }
 

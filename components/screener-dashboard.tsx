@@ -114,7 +114,7 @@ function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
   const styles: Record<string, string> = {
     oversold: 'bg-[#39FF14]/15 text-[#39FF14] border-[#39FF14]/50 shadow-[0_0_15px_rgba(57,255,20,0.2)] animate-pulse',
     overbought: 'bg-[#722f37]/30 text-[#FF4B5C] border-[#722f37]/60 shadow-[0_0_15px_rgba(255,75,92,0.2)] animate-pulse',
-    neutral: 'bg-slate-800/50 text-slate-500 border-slate-700/50',
+    neutral: 'bg-slate-800/20 text-slate-700 border-white/5 opacity-40',
   };
   return (
     <span className={cn("inline-flex items-center px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.15em] rounded-full border shadow-sm transition-all duration-300", styles[signal])}>
@@ -139,16 +139,16 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
   }, [entry, signal]);
 
   const title = narration
-    ? `${narration.emoji} ${narration.headline} (${narration.conviction}% ${narration.convictionLabel})\n\n${narration.reasons.join('\n')}\n\n📋 Click to copy signal`
-    : reasons?.length ? reasons.join(' \u00B7 ') : undefined;
+    ? `${narration.emoji} ${narration.headline} (${narration.conviction}% ${narration.convictionLabel})\n\nTechnical Signals:\n${narration.reasons.map(r => `• ${r}`).join('\n')}\n\n📋 Click to copy institutional brief`
+    : reasons?.length ? `Strategic Alignment:\n${reasons.map(r => `• ${r}`).join('\n')}` : undefined;
 
   // Signal Sharing - copy narration shareLine to clipboard for viral growth
   const handleCopySignal = useCallback(() => {
     if (!narration || !entry) return;
     const symbolUrl = `https://rsiq.mindscapeanalytics.com/symbol/${entry.symbol.toLowerCase()}`;
-    const text = `${narration.shareLine}\n\nView Institutional Data: ${symbolUrl}\n\n- Powered by RSIQ Pro`;
+    const text = `📊 RSIQ PRO | ${narration.emoji} ${narration.headline}\n\n${narration.reasons.join('\n')}\n\nConviction: ${narration.conviction}% (${narration.convictionLabel})\nView Data: ${symbolUrl}`;
     navigator.clipboard.writeText(text).then(() => {
-      toast.success('Signal copied to clipboard!', { duration: 2000 });
+      toast.success('Strategy Brief copied!', { duration: 2000 });
     }).catch(() => {
       toast.error('Failed to copy');
     });
@@ -156,7 +156,7 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
 
   return (
     <span
-      className={cn("inline-flex items-center gap-1 px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded border shadow-[0_0_10px_rgba(0,0,0,0.2)] transition-all", styles[signal], narration ? 'cursor-pointer hover:scale-105 active:scale-95' : 'cursor-help')}
+      className={cn("inline-flex items-center gap-1 px-3 py-1 text-[9px] font-black uppercase tracking-wider rounded border shadow-[0_0_10px_rgba(0,0,0,0.2)] transition-all", styles[signal], (narration || reasons?.length) ? 'cursor-help' : '')}
       title={title}
       onClick={narration ? handleCopySignal : undefined}
     >
@@ -842,11 +842,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
       <td className="px-3 py-3 text-right w-[110px] min-w-[110px]">
         <div className="flex justify-end items-center h-full">
-          {display.signal !== 'neutral' ? (
-            <SignalBadge signal={display.signal.toLowerCase() as any} />
-          ) : (
-            <div className="h-6 w-full opacity-0" aria-hidden="true" /> // Layout preservation
-          )}
+          <SignalBadge signal={display.signal.toLowerCase() as any} />
         </div>
       </td>
 

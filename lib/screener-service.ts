@@ -1,4 +1,4 @@
-import { calculateRsi, calculateRsiWithState } from './rsi';
+import { calculateRsi, calculateRsiWithState, calculateRsiSeries, detectRsiCrossover } from './rsi';
 import { LRUCache } from './lru-cache';
 import {
   latestEma, detectEmaCross, calculateMacd, calculateEma,
@@ -1097,6 +1097,9 @@ function buildEntry(
       bbPosition: bb?.position ?? null,
     });
 
+    const rsiSeries15m = calculateRsiSeries(closes15m, r15mP);
+    const rsiCrossover = detectRsiCrossover(rsiSeries15m);
+    
     const strategy = computeStrategyScore({
       rsi1m,
       rsi5m,
@@ -1112,6 +1115,7 @@ function buildEntry(
       price,
       confluence: confluenceResult.score,
       rsiDivergence: stdRsiDivergence,
+      rsiCrossover,
       momentum,
     });
 

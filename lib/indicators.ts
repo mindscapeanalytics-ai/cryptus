@@ -7,6 +7,13 @@
  * All functions operate on arrays of numeric values (close prices, volumes, etc.)
  */
 
+import { calculateRsiSeries } from './rsi';
+import { LRUCache } from './lru-cache';
+
+function round(n: number): number {
+  return Math.round(n * 1e8) / 1e8;
+}
+
 // ── EMA (Exponential Moving Average) ────────────────────────────
 
 export function calculateEma(data: number[], period: number): number[] {
@@ -149,35 +156,8 @@ export function calculateBollinger(
 // ── RSI (Relative Strength Index) ───────────────────────────────
 
 export function calculateRsi(closes: number[], period = 14): number | null {
-  if (closes.length < period + 1) return null;
-
-  const changes: number[] = [];
-  for (let i = 1; i < closes.length; i++) {
-    changes.push(closes[i] - closes[i - 1]);
-  }
-
-  let avgGain = 0;
-  let avgLoss = 0;
-  for (let i = 0; i < period; i++) {
-    if (changes[i] > 0) avgGain += changes[i];
-    else avgLoss += Math.abs(changes[i]);
-  }
-  avgGain /= period;
-  avgLoss /= period;
-
-  // Wilder's smoothing
-  for (let i = period; i < changes.length; i++) {
-    const c = changes[i];
-    if (c > 0) {
-      avgGain = (avgGain * (period - 1) + c) / period;
-      avgLoss = (avgLoss * (period - 1)) / period;
-    } else {
-      avgGain = (avgGain * (period - 1)) / period;
-      avgLoss = (avgLoss * (period - 1) + Math.abs(c)) / period;
-    }
-  }
-
-  return avgLoss === 0 ? 100 : round(100 - 100 / (1 + avgGain / avgLoss));
+  const series = calculateRsiSeries(closes, period);
+  return series.length > 0 ? series[series.length - 1] : null;
 }
 
 // ── Stochastic RSI ──────────────────────────────────────────────
@@ -534,6 +514,7 @@ export function computeStrategyScore(params: {
   confluence?: number;
   rsiDivergence?: 'bullish' | 'bearish' | 'none';
   momentum?: number | null;
+  rsiCrossover?: 'bullish_reversal' | 'bearish_reversal' | 'none';
   enabledIndicators?: {
     rsi?: boolean;
     macd?: boolean;
@@ -638,14 +619,26 @@ export function computeStrategyScore(params: {
     else if (params.confluence <= -20) reasons.push('Multi-TF bearish');
   }
 
+  // RSI crossover (active reversal)
+  if (params.rsiCrossover && params.rsiCrossover !== 'none' && enabled.rsi !== false) {
+    factors += 1.0;
+    if (params.rsiCrossover === 'bullish_reversal') {
+      score += 60 * 1.0;
+      reasons.push('Bullish RSI reversal');
+    } else {
+      score -= 60 * 1.0;
+      reasons.push('Bearish RSI reversal');
+    }
+  }
+
   // RSI divergence (powerful reversal signal)
   if (params.rsiDivergence && params.rsiDivergence !== 'none' && enabled.divergence !== false) {
-    factors += 1.5;
+    factors += 2.0; // Increased weight for divergence
     if (params.rsiDivergence === 'bullish') {
-      score += 70 * 1.5;
+      score += 80 * 2.0;
       reasons.push('Bullish divergence');
     } else {
-      score -= 70 * 1.5;
+      score -= 80 * 2.0;
       reasons.push('Bearish divergence');
     }
   }
@@ -824,7 +817,5 @@ export function deriveSignal(
   return 'neutral';
 }
 
-function round(n: number): number {
-  return Math.round(n * 1e8) / 1e8;
-}
+
 
