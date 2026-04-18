@@ -143,6 +143,9 @@ const resultCache = new LRUCache<string, { data: ScreenerResponse; count: number
 const smartTuningByCount = new Map<number, SmartTuningState>();
 const trafficWarmLastRun = new Map<string, number>();
 
+const KLINE_1H_CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache for 1h baseline
+const kline1hCache = new Map<string, { data: BinanceKline[]; ts: number }>();
+
 function getResultCacheTtl(symbolCount: number): number {
   if (symbolCount >= 800) return 30_000;
   if (symbolCount >= 500) return 20_000;
@@ -903,13 +906,25 @@ async function fetchKlines(symbol: string, exchange: string = 'binance'): Promis
  * Fetch 1h klines for a single symbol.
  */
 async function fetchKlines1h(symbol: string, exchange: string = 'binance'): Promise<BinanceKline[]> {
+  const cacheKey = `${exchange}:${symbol}`;
+  const cached = kline1hCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < KLINE_1H_CACHE_TTL) {
+    return cached.data;
+  }
+
+  let res: BinanceKline[];
   if (YAHOO_SYMBOLS.includes(symbol)) {
-    return fetchYahooKlines(symbol, '1h');
+    res = await fetchYahooKlines(symbol, '1h');
+  } else if (exchange.startsWith('bybit')) {
+    res = await fetchBybitKlines(symbol, '60', exchange);
+  } else {
+    res = await fetchWithRetry(`/api/v3/klines?symbol=${symbol}&interval=1h&limit=${KLINE_LIMIT_1H}`, `1h candle for ${symbol}`);
   }
-  if (exchange.startsWith('bybit')) {
-    return fetchBybitKlines(symbol, '60', exchange);
+
+  if (res && res.length > 0) {
+    kline1hCache.set(cacheKey, { data: res, ts: Date.now() });
   }
-  return fetchWithRetry(`/api/v3/klines?symbol=${symbol}&interval=1h&limit=${KLINE_LIMIT_1H}`, `1h candle for ${symbol}`);
+  return res;
 }
 
 
