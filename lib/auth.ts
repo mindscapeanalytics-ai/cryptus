@@ -139,8 +139,9 @@ export const auth = betterAuth({
     autoSignIn: false,
   },
 
-  email: {
-    async sendEmail({ to, subject, body }: { to: string; subject: string; body: string }) {
+  emailVerification: {
+    sendOnSignUp: true,
+    async sendVerificationEmail({ user, url }) {
       if (!process.env.RESEND_API_KEY) {
         console.warn("[auth] RESEND_API_KEY is missing. Skipping email delivery.");
         return;
@@ -154,14 +155,25 @@ export const auth = betterAuth({
           },
           body: JSON.stringify({
             from: "RSIQ Pro <noreply@rsiq.mindscapeanalytics.com>",
-            to,
-            subject,
-            html: body,
+            to: user.email,
+            subject: "Verify your RSIQ Pro account",
+            html: `
+              <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+                <h2 style="color: #111;">Welcome to RSIQ Pro</h2>
+                <p style="color: #444; margin-top: 10px;">Please verify your email address to activate your institutional dashboard access.</p>
+                <div style="margin: 30px 0;">
+                  <a href="${url}" style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email Address</a>
+                </div>
+                <p style="font-size: 13px; color: #777;">Or copy this link into your browser:<br/>${url}</p>
+              </div>
+            `,
           }),
         });
         if (!res.ok) {
           const error = await res.json();
           console.error("[auth] Resend API error:", error);
+        } else {
+          console.log(`[auth] Verification email sent successfully to ${user.email}`);
         }
       } catch (err) {
         console.error("[auth] Failed to send email via Resend:", err);
