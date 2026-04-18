@@ -154,7 +154,7 @@ export const auth = betterAuth({
             Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
           },
           body: JSON.stringify({
-            from: "RSIQ Pro <noreply@rsiq.mindscapeanalytics.com>",
+            from: "RSIQ Pro <noreply@mindscapeanalytics.com>",
             to: user.email,
             subject: "Verify your RSIQ Pro account",
             html: `
@@ -169,9 +169,16 @@ export const auth = betterAuth({
             `,
           }),
         });
+        
+        // 🚀 ALWAYS output the URL in the terminal so we can manually click it during dev/testing!
+        console.log(`\n======================================================`);
+        console.log(`🔐 VERIFICATION LINK FOR ${user.email}:`);
+        console.log(`🔗 ${url}`);
+        console.log(`======================================================\n`);
+
         if (!res.ok) {
           const error = await res.json();
-          console.error("[auth] Resend API error:", error);
+          console.error("[auth] Resend API error (Domain likely not verified):", error);
         } else {
           console.log(`[auth] Verification email sent successfully to ${user.email}`);
         }
