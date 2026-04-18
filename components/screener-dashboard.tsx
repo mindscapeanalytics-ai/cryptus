@@ -1719,8 +1719,8 @@ const BottomDock = memo(function BottomDock({
   alertCount: number;
 }) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[200] lg:hidden px-4 mb-8">
-      <div className="rounded-3xl border border-white/10 bg-[#080F1B]/95 backdrop-blur-2xl shadow-[0_-12px_40px_rgba(0,0,0,1)] p-2 flex items-center justify-between pointer-events-auto">
+    <div className="fixed bottom-0 left-0 right-0 z-[200] lg:hidden">
+      <div className="border-t border-white/10 bg-[#080F1B]/95 backdrop-blur-md shadow-[0_-10px_20px_rgba(0,0,0,0.5)] px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-between pointer-events-auto">
         {[
           { id: 'home', icon: LayoutGrid, label: 'Home', onClick: onGoHome },
           { id: 'watchlist', icon: Star, label: 'Watchlist', onClick: onOpenWatchlist },
@@ -1734,7 +1734,7 @@ const BottomDock = memo(function BottomDock({
               key={item.id}
               onClick={item.onClick}
               className={cn(
-                "relative flex flex-col items-center justify-center py-2 px-5 rounded-2xl transition-all active:scale-90",
+                "relative flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition-all active:scale-95",
                 isActive ? "text-[#39FF14] bg-[#39FF14]/10" : "text-slate-500 hover:text-slate-300"
               )}
             >
