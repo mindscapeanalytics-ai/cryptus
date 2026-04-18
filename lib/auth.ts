@@ -177,32 +177,6 @@ export const auth = betterAuth({
   // ── 2026 Production Readiness Guard ────────────────────────
   plugins: [
     ...authPlugins,
-    {
-      id: "prod-guard",
-      hooks: {
-        before: async () => {
-          if (process.env.NODE_ENV === "production") {
-            const MISSING = [];
-            if (!process.env.BETTER_AUTH_SECRET) MISSING.push("BETTER_AUTH_SECRET");
-            if (!process.env.STRIPE_SECRET_KEY) MISSING.push("STRIPE_SECRET_KEY");
-            if (!process.env.RESEND_API_KEY) MISSING.push("RESEND_API_KEY");
-            
-            if (MISSING.length > 0) {
-              console.error(`
-┌──────────────────────────────────────────────────────────────────┐
-│  ⚠️  SYSTEM INCOMPLETE (PRODUCTION MODE)                          │
-├──────────────────────────────────────────────────────────────────┤
-│ Missing Critical Secrets: ${MISSING.join(", ")}
-│ The institutional terminal may experience failures.              │
-└──────────────────────────────────────────────────────────────────┘
-              `);
-            } else {
-              console.log("- RSIQ Pro: Institutional Auth System READY ──");
-            }
-          }
-        }
-      }
-    }
   ],
 
   trustedOrigins,
