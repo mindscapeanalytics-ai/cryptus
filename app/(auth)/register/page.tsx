@@ -62,26 +62,12 @@ function RegisterForm() {
         return;
       }
 
-      setSuccess("Account created. Signing you in...");
-
-      await signIn.email(
-        {
-          email: values.email,
-          password: values.password,
-        },
-        {
-          onError: (ctx) => {
-            setError(ctx.error.message || "Account created, but auto-login failed. Please sign in.");
-            setIsLoading(false);
-          },
-          onSuccess: () => {
-            const dest = selectedPlan ? `/subscription?plan=${selectedPlan}` : "/terminal";
-            setSuccess(`Connected. Launching ${selectedPlan ? "billing" : "terminal"}...`);
-            router.refresh();
-            router.push(dest);
-          },
-        },
-      );
+      setSuccess("Account created! Please check your email to verify your account.");
+      setIsLoading(false);
+      
+      // We do not auto sign-in because requireEmailVerification is turned on.
+      // The user must click the link in their email which will verify them,
+      // and redirect them to /login or auto-authenticate them.
     } catch (err) {
       console.error("Signup error:", err);
       setError("An unexpected error occurred. Please try again.");

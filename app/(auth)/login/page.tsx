@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,12 +18,19 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, isPending: isSessionLoading } = useSession();
+
+  useEffect(() => {
+    if (searchParams.get("verified") === "true") {
+      setSuccess("Account Verified Successfully! You can now access the terminal.");
+    }
+  }, [searchParams]);
 
   // ── Auto-Redirect & Prefetch ──
   // Institutional Guard: prevents the "Synchronizing..." stuck state by ensuring
@@ -199,5 +206,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#05080F] flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#39FF14]" size={40} />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
