@@ -124,7 +124,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
           const liq = payload as LiquidationEvent;
           setLiquidations(prev => {
             const next = [...prev, liq];
-            return next.length > 100 ? next.slice(-100) : next;
+            return next.length > 200 ? next.slice(-200) : next;
           });
 
           // Institutional Notification for large liquidations ($50K+)

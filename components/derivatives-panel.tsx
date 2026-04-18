@@ -134,6 +134,9 @@ const LiquidationItem = memo(function LiquidationItem({ liq }: { liq: Liquidatio
         )}>
           {isLong ? 'LONG' : 'SHORT'}
         </span>
+        <span className="text-[6px] font-mono text-slate-500 bg-white/5 px-1 rounded border border-white/5 uppercase shrink-0">
+          {liq.exchange?.slice(0, 3)}
+        </span>
       </div>
       <div className="flex items-center gap-2 tabular-nums">
         <span className={cn(

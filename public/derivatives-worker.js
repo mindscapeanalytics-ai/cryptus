@@ -65,7 +65,8 @@ let flushTimer = null;
 
 // WebSocket connections
 let fundingWs = null;
-let liquidationWs = null;
+let liquidationWs = null;      // Bybit
+let binanceLiqWs = null;       // Binance Aggregated Force Orders
 let whaleWsSockets = new Map();     // symbol → WebSocket
 
 // Reconnection tracking
@@ -212,16 +213,23 @@ function connectFundingStream() {
   }
 }
 
-// ── Stream 2: Bybit Linear Liquidations ──────────────────────────
-// FREE: wss://stream.bybit.com/v5/public/linear → allLiquidation
+// ── Stream 2: Aggregated Liquidations ────────────────────────────
+// Connects to Bybit (Linear) and Binance (Futures Force Orders)
+// Provides a unified real-time liquidation feed.
 
 function connectLiquidationStream() {
+  connectBybitLiquidationStream();
+  connectBinanceLiquidationStream();
+}
+
+// ── Stream 2A: Bybit Linear Liquidations ─────────
+function connectBybitLiquidationStream() {
   if (liquidationWs) {
     try { liquidationWs.close(); } catch(e) {}
     liquidationWs = null;
   }
 
-  const STREAM_KEY = 'liquidation';
+  const STREAM_KEY = 'liquidation_bybit';
   try {
     liquidationWs = new WebSocket('wss://stream.bybit.com/v5/public/linear');
 
@@ -229,7 +237,6 @@ function connectLiquidationStream() {
       console.log('[deriv-worker] Liquidation stream connected (Bybit Linear)');
       resetReconnect(STREAM_KEY);
 
-      // Subscribe to liquidations for Top 20 whales + current monitored symbols
       const symbolsToWatch = new Set([
         ...WHALE_WATCH_SYMBOLS.map(s => s.toUpperCase()),
         ...Array.from(currentSymbols)
@@ -237,12 +244,8 @@ function connectLiquidationStream() {
 
       const topics = Array.from(symbolsToWatch).slice(0, 50).map(s => `allLiquidation.${s}`);
       
-      // Institutional Guard: Only send if open
       if (liquidationWs.readyState === WebSocket.OPEN) {
-        liquidationWs.send(JSON.stringify({
-          op: 'subscribe',
-          args: topics
-        }));
+        liquidationWs.send(JSON.stringify({ op: 'subscribe', args: topics }));
       }
     };
 
@@ -250,8 +253,6 @@ function connectLiquidationStream() {
       try {
         const data = JSON.parse(event.data);
         lastDataReceived = Date.now();
-
-        // Bybit heartbeat response
         if (data.op === 'pong' || data.op === 'subscribe') return;
 
         if (data.topic && data.topic.startsWith('allLiquidation.') && data.data) {
@@ -261,10 +262,9 @@ function connectLiquidationStream() {
           const price = parseFloat(liq.price) || lastPrices.get(symbol) || 0;
           const valueUsd = size * price;
 
-          // Only track significant liquidations (dynamic threshold)
           if (valueUsd < LIQUIDATION_THRESHOLD) return;
 
-          const event = {
+          const eventPayload = {
             id: generateId(),
             symbol,
             side: liq.side || 'Buy',
@@ -275,21 +275,13 @@ function connectLiquidationStream() {
             timestamp: parseInt(liq.updatedTime) || Date.now()
           };
 
-          // Circular buffer
-          liquidationBuffer.push(event);
-          if (liquidationBuffer.length > MAX_LIQUIDATIONS) {
-            liquidationBuffer = liquidationBuffer.slice(-MAX_LIQUIDATIONS);
-          }
-
-          // Broadcast immediately for real-time feed
-          broadcast({ type: 'LIQUIDATION', payload: event });
+          liquidationBuffer.push(eventPayload);
+          if (liquidationBuffer.length > MAX_LIQUIDATIONS) liquidationBuffer = liquidationBuffer.slice(-MAX_LIQUIDATIONS);
+          broadcast({ type: 'LIQUIDATION', payload: eventPayload });
         }
-      } catch (e) {
-        // Silent
-      }
+      } catch (e) {}
     };
 
-    // Bybit requires periodic ping
     // Bybit requires periodic ping with a touch of entropy to prevent synchronized disconnects
     const pingInterval = setInterval(() => {
       if (liquidationWs && liquidationWs.readyState === WebSocket.OPEN) {
@@ -302,18 +294,77 @@ function connectLiquidationStream() {
     }, HEARTBEAT_MS + (Math.random() * 2000));
 
     liquidationWs.onclose = () => {
-      console.log('[deriv-worker] Liquidation stream closed');
       clearInterval(pingInterval);
-      liquidationWs = null;
-      if (isRunning) scheduleReconnect(STREAM_KEY, connectLiquidationStream);
+      if (isRunning) scheduleReconnect(STREAM_KEY, connectBybitLiquidationStream);
+    };
+    liquidationWs.onerror = () => liquidationWs?.close();
+  } catch (e) {
+    if (isRunning) scheduleReconnect(STREAM_KEY, connectBybitLiquidationStream);
+  }
+}
+
+// ── Stream 2B: Binance Futures Global Force Orders ───────
+function connectBinanceLiquidationStream() {
+  if (binanceLiqWs) {
+    try { binanceLiqWs.close(); } catch(e) {}
+    binanceLiqWs = null;
+  }
+
+  const STREAM_KEY = 'liquidation_binance';
+  try {
+    // !forceOrder@arr: Single stream for ALL Binance Futures liquidations
+    binanceLiqWs = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+
+    binanceLiqWs.onopen = () => {
+      console.log('[deriv-worker] Liquidation stream connected (Binance Futures)');
+      resetReconnect(STREAM_KEY);
     };
 
-    liquidationWs.onerror = () => {
-      liquidationWs?.close();
+    binanceLiqWs.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        lastDataReceived = Date.now();
+        
+        // Binance returns an array of force orders
+        if (data.e === 'forceOrder' && data.o) {
+          const o = data.o;
+          const symbol = o.s.toUpperCase();
+          // Force orders are per-symbol, but we filter for symbols we're tracking or top market caps
+          const isTracked = currentSymbols.has(symbol) || WHALE_WATCH_SYMBOLS.some(s => s.toUpperCase() === symbol);
+          if (!isTracked) return;
+
+          const size = parseFloat(o.q) || 0;
+          const price = parseFloat(o.p) || lastPrices.get(symbol) || 0;
+          const valueUsd = size * price;
+
+          if (valueUsd < LIQUIDATION_THRESHOLD) return;
+
+          const eventPayload = {
+            id: generateId(),
+            symbol,
+            // In Binance forceOrder, S: "SELL" means a long was liquidated.
+            // But for UI consistency we want 'Sell' as the side of the liquidation trade.
+            side: o.S === 'SELL' ? 'Sell' : 'Buy', 
+            size,
+            price,
+            valueUsd,
+            exchange: 'binance',
+            timestamp: o.T || Date.now()
+          };
+
+          liquidationBuffer.push(eventPayload);
+          if (liquidationBuffer.length > MAX_LIQUIDATIONS) liquidationBuffer = liquidationBuffer.slice(-MAX_LIQUIDATIONS);
+          broadcast({ type: 'LIQUIDATION', payload: eventPayload });
+        }
+      } catch (e) {}
     };
+
+    binanceLiqWs.onclose = () => {
+      if (isRunning) scheduleReconnect(STREAM_KEY, connectBinanceLiquidationStream);
+    };
+    binanceLiqWs.onerror = () => binanceLiqWs?.close();
   } catch (e) {
-    console.error('[deriv-worker] Liquidation stream error:', e);
-    if (isRunning) scheduleReconnect(STREAM_KEY, connectLiquidationStream);
+    if (isRunning) scheduleReconnect(STREAM_KEY, connectBinanceLiquidationStream);
   }
 }
 
@@ -632,6 +683,7 @@ function reconnectAll() {
   // Close sockets
   if (fundingWs) { try { fundingWs.close(); } catch(e) {} fundingWs = null; }
   if (liquidationWs) { try { liquidationWs.close(); } catch(e) {} liquidationWs = null; }
+  if (binanceLiqWs) { try { binanceLiqWs.close(); } catch(e) {} binanceLiqWs = null; }
   whaleWsSockets.forEach(ws => { try { ws.close(); } catch(e) {} });
   whaleWsSockets.clear();
   
@@ -652,6 +704,7 @@ function stop() {
   // Close all WebSockets
   if (fundingWs) { try { fundingWs.close(); } catch(e) {} fundingWs = null; }
   if (liquidationWs) { try { liquidationWs.close(); } catch(e) {} liquidationWs = null; }
+  if (binanceLiqWs) { try { binanceLiqWs.close(); } catch(e) {} binanceLiqWs = null; }
   whaleWsSockets.forEach(ws => { try { ws.close(); } catch(e) {} });
   whaleWsSockets.clear();
 
