@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, ArrowRight, ShieldCheck } from "lucide-react";
+import { Loader2, ArrowRight, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { signIn, useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +22,7 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, isPending: isSessionLoading } = useSession();
@@ -151,15 +152,24 @@ function LoginForm() {
                   Reset Key
                 </Link>
               </div>
-              <input
-                {...register("password")}
-                type="password"
-                placeholder="••••••••••••"
-                className={cn(
-                  "w-full h-14 bg-[#141923] rounded-xl px-5 text-sm font-medium text-white placeholder:text-slate-600 transition-all focus:outline-none focus:ring-2 focus:ring-[#39FF14]/20 focus:bg-[#1c2330] border-none",
-                  errors.password && "ring-2 ring-red-500/20"
-                )}
-              />
+              <div className="relative w-full">
+                <input
+                  {...register("password")}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••••••"
+                  className={cn(
+                    "w-full h-14 bg-[#141923] rounded-xl px-5 pr-12 text-sm font-medium text-white placeholder:text-slate-600 transition-all focus:outline-none focus:ring-2 focus:ring-[#39FF14]/20 focus:bg-[#1c2330] border-none",
+                    errors.password && "ring-2 ring-red-500/20"
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {errors.password && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1 uppercase letter-spacing-widest">{errors.password.message}</p>}
             </div>
 
