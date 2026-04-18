@@ -142,8 +142,16 @@ export const auth = betterAuth({
   emailVerification: {
     sendOnSignUp: true,
     async sendVerificationEmail({ user, url }) {
+      // 🚀 ALWAYS output the URL in the terminal instantly so we can physically test locally
+      console.log(`\n======================================================`);
+      console.log(`[auth] sendVerificationEmail FIRED successfully.`);
+      console.log(`🔐 VERIFICATION LINK FOR ${user.email}:`);
+      console.log(`🔗 ${url}`);
+      console.log(`======================================================\n`);
+
       if (!process.env.RESEND_API_KEY) {
-        console.warn("[auth] RESEND_API_KEY is missing. Skipping email delivery.");
+        console.warn("[auth] RESEND_API_KEY is completely missing in process.env. Skipping Resend dispatch.");
+        console.warn("[auth] ---> NOTE: If you just added it to .env, YOU MUST RESTART YOUR TERMINAL SERVER!");
         return;
       }
       try {
