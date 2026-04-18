@@ -28,6 +28,7 @@ model User {
   preferences       UserPreference?
   coins             Int       @default(0)
   trialActivated    Boolean   @default(false)
+  stripeCustomerId  String?   @unique
 
   @@map("user")
 }

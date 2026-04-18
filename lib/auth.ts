@@ -1,4 +1,16 @@
 import { betterAuth } from "better-auth";
+import fs from "fs";
+import path from "path";
+
+// 🚨 Global Error Handlers for Auth Diagnostics
+if (process.env.NODE_ENV === "development") {
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error("[auth-critical] Unhandled Rejection at:", promise, "reason:", reason);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("[auth-critical] Uncaught Exception:", err);
+  });
+}
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { admin as adminPlugin } from "better-auth/plugins";
 import { stripe } from "@better-auth/stripe";
@@ -14,12 +26,11 @@ const resolvedAppUrl =
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.VERCEL_PROJECT_PRODUCTION_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-  (typeof window !== "undefined" ? window.location.origin : null) ||
-  "http://localhost:3000";
+  // 🚀 Port sync for local development
+  "http://localhost:3001";
 
-if (process.env.NODE_ENV === "development") {
-  console.log(`[auth] 🚀 Initializing Auth System | baseURL: ${resolvedAppUrl} | Timestamp: ${new Date().toISOString()}`);
-}
+// 🚀 Better-Auth Singleton for Next.js 15+ Resilience
+const globalForAuth = global as unknown as { auth: any };
 
 function normalizeOrigin(value: string | undefined): string | null {
   if (!value) return null;
@@ -43,7 +54,9 @@ const trustedOrigins = Array.from(
       "https://rsiq.mindscapeanalytics.com",
       "https://www.rsiq.mindscapeanalytics.com",
       "http://localhost:3000",
+      "http://localhost:3001",
       "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
       ...(process.env.AUTH_TRUSTED_ORIGINS
         ? process.env.AUTH_TRUSTED_ORIGINS.split(",").map((origin) => normalizeOrigin(origin.trim()))
         : []),
@@ -119,110 +132,115 @@ if (!stripeSecretKey) {
   }
 }
 
-export const auth = betterAuth({
-  baseURL: resolvedAppUrl,
-  secret: process.env.BETTER_AUTH_SECRET,
-
-  // Required when running behind a reverse proxy (Render, Vercel, Cloudflare, etc.)
-  // Without this, Better Auth rejects requests because the Host header doesn't match.
-  trustHost: true,
-
-  database: prismaAdapter(prisma, {
-    provider: "postgresql",
-  }),
-
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-    maxPasswordLength: 128,
-    requireEmailVerification: true,
-    autoSignIn: false,
-  },
-
-  emailVerification: {
-    sendOnSignUp: true,
-    async sendVerificationEmail({ user, url }) {
-      // 🚀 ALWAYS output the URL in the terminal instantly so we can physically test locally
-      console.log(`\n======================================================`);
-      console.log(`[auth] sendVerificationEmail FIRED successfully.`);
-      console.log(`🔐 VERIFICATION LINK FOR ${user.email}:`);
-      console.log(`🔗 ${url}`);
-      console.log(`======================================================\n`);
-
-      if (!process.env.RESEND_API_KEY) {
-        console.warn("[auth] RESEND_API_KEY is completely missing in process.env. Skipping Resend dispatch.");
-        console.warn("[auth] ---> NOTE: If you just added it to .env, YOU MUST RESTART YOUR TERMINAL SERVER!");
-        return;
-      }
-      try {
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: "RSIQ Pro <noreply@mindscapeanalytics.com>",
-            to: user.email,
-            subject: "Verify your RSIQ Pro account",
-            html: `
-              <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; line-height: 1.5;">
-                <h2 style="color: #111;">Welcome to RSIQ Pro</h2>
-                <p style="color: #444; margin-top: 10px;">Please verify your email address to activate your institutional dashboard access.</p>
-                <div style="margin: 30px 0;">
-                  <a href="${url}" style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email Address</a>
-                </div>
-                <p style="font-size: 13px; color: #777;">Or copy this link into your browser:<br/>${url}</p>
-              </div>
-            `,
-          }),
-        });
-        
-        // 🚀 ALWAYS output the URL in the terminal so we can manually click it during dev/testing!
+const authOptions = {
+    baseURL: resolvedAppUrl,
+    secret: process.env.BETTER_AUTH_SECRET,
+    trustHost: true,
+    logger: {
+      level: "debug" as "debug",
+    },
+    database: prismaAdapter(prisma, {
+      provider: "postgresql",
+    }),
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 8,
+      maxPasswordLength: 128,
+      requireEmailVerification: true,
+      autoSignIn: false,
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      async sendVerificationEmail({ user, url }: { user: any; url: string }) {
+        // 🚀 ALWAYS output the URL in the terminal instantly so we can physically test locally
         console.log(`\n======================================================`);
+        console.log(`[auth] sendVerificationEmail FIRED successfully.`);
         console.log(`🔐 VERIFICATION LINK FOR ${user.email}:`);
         console.log(`🔗 ${url}`);
         console.log(`======================================================\n`);
 
-        if (!res.ok) {
-          const error = await res.json();
-          console.error("[auth] Resend API error (Domain likely not verified):", error);
-        } else {
-          console.log(`[auth] Verification email sent successfully to ${user.email}`);
+        if (!process.env.RESEND_API_KEY) {
+          console.warn("[auth] RESEND_API_KEY is completely missing in process.env. Skipping Resend dispatch.");
+          console.warn("[auth] ---> NOTE: If you just added it to .env, YOU MUST RESTART YOUR TERMINAL SERVER!");
+          return;
         }
-      } catch (err) {
-        console.error("[auth] Failed to send email via Resend:", err);
-      }
-    },
-  },
-
-  session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24,      // refresh daily
-  },
-
-  // ── 2026 Production Readiness Guard ────────────────────────
-  plugins: [
-    ...authPlugins,
-  ],
-
-  trustedOrigins,
-  databaseHooks: {
-    user: {
-      create: {
-        before: async (user) => {
-          if (user.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL) {
-            return {
-              data: {
-                ...user,
-                role: "owner",
-              },
-            };
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: "RSIQ Pro <noreply@mindscapeanalytics.com>",
+              to: user.email,
+              subject: "Verify your RSIQ Pro account",
+              html: `
+                <div style="font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; line-height: 1.5;">
+                  <h2 style="color: #111;">Welcome to RSIQ Pro</h2>
+                  <p style="color: #444; margin-top: 10px;">Please verify your email address to activate your institutional dashboard access.</p>
+                  <div style="margin: 30px 0;">
+                    <a href="${url}" style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email Address</a>
+                  </div>
+                  <p style="font-size: 13px; color: #777;">Or copy this link into your browser:<br/>${url}</p>
+                </div>
+              `,
+            }),
+          });
+          if (!res.ok) {
+            const error = await res.json();
+            console.error("[auth] Resend API error (Domain likely not verified):", error);
+          } else {
+            console.log(`[auth] Verification email sent successfully to ${user.email}`);
           }
-        },
+        } catch (err) {
+          console.error("[auth] Failed to send email via Resend:", err);
+        }
       },
     },
-  },
-});
+    session: {
+      expiresAt: 60 * 60 * 24 * 30, // 30 days
+      updateAge: 60 * 60 * 24,      // 24 hours
+    },
+    plugins: [...authPlugins],
+    trustedOrigins,
+    databaseHooks: {
+      user: {
+        create: {
+          before: async (user: any) => {
+            console.log(`[auth-hook] Creating user: ${user.email}`);
+            if (user.email === AUTH_CONFIG.SUPER_ADMIN_EMAIL) {
+              return {
+                data: {
+                  ...user,
+                  role: "owner",
+                },
+              };
+            }
+          },
+        },
+      },
+      verification: {
+        create: {
+          after: async (verification: any) => {
+            console.log(`[auth-hook] Verification record created for identifier: ${verification.identifier}`);
+          }
+        }
+      }
+    },
+};
+
+const createAuth = () => {
+    console.log(`[auth] 🚀 Initializing Auth System | baseURL: ${resolvedAppUrl} | Timestamp: ${new Date().toISOString()}`);
+    return betterAuth(authOptions);
+};
+
+export const auth = globalForAuth.auth || createAuth();
+
+if (process.env.NODE_ENV !== "production") {
+    globalForAuth.auth = auth;
+}
+
+
 
 export type Session = typeof auth.$Infer.Session;
