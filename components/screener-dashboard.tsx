@@ -113,29 +113,29 @@ function getScoreBarColor(score: number): string {
 // ─── Tactical Grid Constants ─────────────────────────────────────
 
 const COL_WIDTHS = {
-  rank: "w-[48px] min-w-[48px]",
-  star: "w-[40px] min-w-[40px]",
-  symbol: "w-[180px] min-w-[180px]",
-  price: "w-[125px] min-w-[125px]",
-  change: "w-[110px] min-w-[110px]",
-  volume: "w-[120px] min-w-[120px]",
-  rsi: "w-[90px] min-w-[90px]",
-  ema: "w-[115px] min-w-[115px]",
-  trend: "w-[100px] min-w-[100px]",
-  macd: "w-[105px] min-w-[105px]",
-  bb: "w-[100px] min-w-[100px]",
-  stoch: "w-[95px] min-w-[95px]",
-  signal: "w-[155px] min-w-[155px]",
-  edit: "w-[60px] min-w-[60px]",
-  confluence: "w-[100px] min-w-[100px]",
-  divergence: "w-[100px] min-w-[100px]",
-  momentum: "w-[90px] min-w-[90px]",
-  atr: "w-[90px] min-w-[90px]",
-  adx: "w-[90px] min-w-[90px]",
-  vwap: "w-[90px] min-w-[90px]",
-  funding: "w-[105px] min-w-[105px]",
-  flow: "w-[100px] min-w-[100px]",
-  smart: "w-[110px] min-w-[110px]",
+  rank: "w-[44px] min-w-[44px]",
+  star: "w-[36px] min-w-[36px]",
+  symbol: "w-[160px] min-w-[160px]",
+  price: "w-[115px] min-w-[115px]",
+  change: "w-[95px] min-w-[95px]",
+  volume: "w-[100px] min-w-[100px]",
+  rsi: "w-[80px] min-w-[80px]",
+  ema: "w-[100px] min-w-[100px]",
+  trend: "w-[85px] min-w-[85px]",
+  macd: "w-[95px] min-w-[95px]",
+  bb: "w-[90px] min-w-[90px]",
+  stoch: "w-[85px] min-w-[85px]",
+  signal: "w-[90px] min-w-[90px]",
+  edit: "w-[50px] min-w-[50px]",
+  confluence: "w-[95px] min-w-[95px]",
+  divergence: "w-[90px] min-w-[90px]",
+  momentum: "w-[85px] min-w-[85px]",
+  atr: "w-[80px] min-w-[80px]",
+  adx: "w-[80px] min-w-[80px]",
+  vwap: "w-[85px] min-w-[85px]",
+  funding: "w-[95px] min-w-[95px]",
+  flow: "w-[90px] min-w-[90px]",
+  smart: "w-[90px] min-w-[90px]",
 };
 
 // ─── Atomic Components ──────────────────────────────────────────
@@ -221,7 +221,7 @@ const SymbolCell = memo(function SymbolCell({
   return (
     <td
       style={{ left: stickyOffset }}
-      className="sticky z-10 px-3 py-4 bg-[#0A0F1B]/95 w-[180px] min-w-[180px]"
+      className={cn("sticky z-10 px-3 py-4 bg-[#0A0F1B]/95", COL_WIDTHS.symbol)}
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center gap-1.5">
@@ -259,7 +259,7 @@ const PriceCell = memo(function PriceCell({
   return (
     <td
       style={{ left: stickyOffset }}
-      className="sticky z-10 px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px] bg-[#0A0F1B]/95 w-[125px] min-w-[125px] shadow-[4px_0_8px_-4px_rgba(0,0,0,0.5)]"
+      className={cn("sticky z-10 px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px] bg-[#0A0F1B]/95 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.5)]", COL_WIDTHS.price)}
     >
       <span className={cn(
         lastChange > 0 ? "text-[#39FF14]" : lastChange < 0 ? "text-[#FF4B5C]" : "text-slate-100"
@@ -483,7 +483,7 @@ const ScreenerRow = memo(function ScreenerRow({
 
     const liveStrategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
-      macdHistogram: entry.macdHistogram,
+      macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       bbPosition,
       stochK: entry.stochK,
       stochD: entry.stochD,
@@ -624,7 +624,7 @@ const ScreenerRow = memo(function ScreenerRow({
   }, [display.strategySignal, isVisible]);
 
   const stickyOffsetSym = visibleCols.has('rank') ? 88 : 40;
-  const stickyOffsetPrice = stickyOffsetSym + 180;
+  const stickyOffsetPrice = stickyOffsetSym + 160;
 
   return (
     <tr
@@ -750,38 +750,7 @@ const ScreenerRow = memo(function ScreenerRow({
         />
       )}
 
-      {visibleCols.has('rsiCustom') && (
-        <td className={cn(
-          "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono relative transition-all duration-300",
-          COL_WIDTHS.rsi,
-          entry.rsiPeriodAtCreation !== rsiPeriod ? "bg-slate-800/10 opacity-30" : "bg-[#39FF14]/5",
-          getRsiColor(display.rsiCustom)
-        )}>
-          <div className="flex items-center justify-end gap-1.5 flex-wrap max-w-[120px] ml-auto">
-            {globalUseRsi && entry.rsiPeriodAtCreation === rsiPeriod && display.rsiCustom !== null && display.rsi15m !== null && (
-              <>
-                {display.rsiCustom <= globalOversold && display.rsi15m > globalOversold && (
-                  <span className="text-[7px] px-1 bg-[#39FF14]/30 text-[#39FF14] rounded-full animate-pulse border border-[#39FF14]/30" title="Early Oversold">EARLY BUY</span>
-                )}
-                {display.rsiCustom >= globalOverbought && display.rsi15m < globalOverbought && (
-                  <span className="text-[7px] px-1 bg-[#722f37]/30 text-[#FF4B5C] rounded-full animate-pulse border border-[#FF4B5C]/30" title="Early Overbought">EARLY SELL</span>
-                )}
-              </>
-            )}
-            {entry.rsiPeriodAtCreation === rsiPeriod && globalUseDivergence && display.rsiDivergenceCustom && display.rsiDivergenceCustom !== 'none' && (
-              <span className={cn(
-                "text-[7px] px-1 rounded-sm font-black tracking-tighter uppercase",
-                display.rsiDivergenceCustom === 'bullish' ? "bg-[#39FF14]/20 text-[#39FF14]" : "bg-[#722f37]/20 text-[#FF4B5C]"
-              )}>
-                {display.rsiDivergenceCustom === 'bullish' ? 'DIV+' : 'DIV-'}
-              </span>
-            )}
-            <span className="drop-shadow-sm font-black">
-              {entry.rsiPeriodAtCreation === rsiPeriod ? formatRsi(display.rsiCustom) : '-'}
-            </span>
-          </div>
-        </td>
-      )}
+
 
       {visibleCols.has('emaCross') && (
         <IndicatorCell 
@@ -1158,7 +1127,7 @@ function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
 // ─── Column definitions ───────────────────────────────────────
 
 type ColumnId =
-  | 'rank' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h' | 'rsiCustom'
+  | 'rank' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
   | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy'
   | 'confluence' | 'divergence' | 'momentum'
@@ -1174,11 +1143,10 @@ interface ColumnDef {
 
 const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'rank', label: 'Rank #', group: 'Asset', defaultVisible: true },
-  { id: 'rsi1m', label: 'RSI 1m', group: 'RSI Std', defaultVisible: false },
-  { id: 'rsi5m', label: 'RSI 5m', group: 'RSI Std', defaultVisible: false },
-  { id: 'rsi15m', label: 'RSI 15m', group: 'RSI Std', defaultVisible: true },
-  { id: 'rsi1h', label: 'RSI 1h', group: 'RSI Std', defaultVisible: false },
-  { id: 'rsiCustom', label: 'RSI Custom', group: 'RSI Active', defaultVisible: false },
+  { id: 'rsi1m', label: 'RSI 1m', group: 'RSI', defaultVisible: false },
+  { id: 'rsi5m', label: 'RSI 5m', group: 'RSI', defaultVisible: false },
+  { id: 'rsi15m', label: 'RSI 15m', group: 'RSI', defaultVisible: true },
+  { id: 'rsi1h', label: 'RSI 1h', group: 'RSI', defaultVisible: false },
   { id: 'ema9', label: 'EMA 9', group: 'Moving Avg', defaultVisible: false },
   { id: 'ema21', label: 'EMA 21', group: 'Moving Avg', defaultVisible: false },
   { id: 'emaCross', label: 'Trend', group: 'Indicators', defaultVisible: true },
@@ -1397,7 +1365,7 @@ const ScreenerCard = memo(function ScreenerCard({
     const liveStrategy = computeStrategyScore({
 
       rsi1m, rsi5m, rsi15m, rsi1h,
-      macdHistogram: entry.macdHistogram,
+      macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       bbPosition,
       stochK: entry.stochK,
       stochD: entry.stochD,
@@ -3650,9 +3618,21 @@ export default function ScreenerDashboard() {
         av = (a.curCandleSize && a.avgBarSize1m) ? a.curCandleSize / a.avgBarSize1m : 0;
         bv = (b.curCandleSize && b.avgBarSize1m) ? b.curCandleSize / b.avgBarSize1m : 0;
       }
+      if (sortKey === 'fundingRate') {
+        av = fundingRates.get(a.symbol)?.rate ?? -9999;
+        bv = fundingRates.get(b.symbol)?.rate ?? -9999;
+      }
+      if (sortKey === 'orderFlow') {
+        av = orderFlow.get(a.symbol)?.ratio ?? -9999;
+        bv = orderFlow.get(b.symbol)?.ratio ?? -9999;
+      }
+      if (sortKey === 'smartMoney') {
+        av = smartMoney.get(a.symbol)?.score ?? -9999;
+        bv = smartMoney.get(b.symbol)?.score ?? -9999;
+      }
 
-      if (av === null || av === undefined) return 1;
-      if (bv === null || bv === undefined) return -1;
+      if (av === null || av === undefined || av === -9999) return 1;
+      if (bv === null || bv === undefined || bv === -9999) return -1;
       if (av === bv) return 0;
 
       if (typeof av === 'string' && typeof bv === 'string') {
@@ -3662,7 +3642,7 @@ export default function ScreenerDashboard() {
     });
 
     return items;
-  }, [processedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist, activeAssetClass]);
+  }, [processedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist, activeAssetClass, fundingRates, orderFlow, smartMoney]);
 
   // ── 2026 UX Improvement: Live Tab Item Counts ──
   const assetClassCounts = useMemo(() => {
@@ -4457,7 +4437,7 @@ export default function ScreenerDashboard() {
                   <SortHeader 
                     label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" 
                     widthClass={COL_WIDTHS.price} 
-                    stickyOffset={visibleCols.has('rank') ? 268 : 220}
+                    stickyOffset={visibleCols.has('rank') ? 88 + 160 : 40 + 160}
                   />
                   
                   <SortHeader 
@@ -4470,7 +4450,6 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('rsi5m') && <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
                   {visibleCols.has('rsi15m') && <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
                   {visibleCols.has('rsi1h') && <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
-                  {visibleCols.has('rsiCustom') && <SortHeader label={`RSI (${rsiPeriod})`} sortKey="rsiCustom" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
                   {visibleCols.has('ema9') && <SortHeader label="EMA 9" sortKey="ema9" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.ema} />}
                   {visibleCols.has('ema21') && <SortHeader label="EMA 21" sortKey="ema21" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.ema} />}
                   {visibleCols.has('emaCross') && <SortHeader label="Trend" sortKey="emaCross" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.trend} />}
@@ -4488,9 +4467,9 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('longCandle') && <SortHeader label="Long Candle" sortKey="longCandle" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
                   {visibleCols.has('volumeSpike') && <SortHeader label="Vol Spike" sortKey="volumeSpike" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
 
-                  {visibleCols.has('fundingRate') && <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap", COL_WIDTHS.funding)}>Funding</th>}
-                  {visibleCols.has('orderFlow') && <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap", COL_WIDTHS.flow)}>Flow</th>}
-                  {visibleCols.has('smartMoney') && <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-wider whitespace-nowrap", COL_WIDTHS.smart)}>Smart $</th>}
+                  {visibleCols.has('fundingRate') && <SortHeader label="Funding" sortKey="fundingRate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.funding} />}
+                  {visibleCols.has('orderFlow') && <SortHeader label="Flow" sortKey="orderFlow" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.flow} />}
+                  {visibleCols.has('smartMoney') && <SortHeader label="Smart $" sortKey="smartMoney" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.smart} />}
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
@@ -4507,9 +4486,9 @@ export default function ScreenerDashboard() {
                         <div className="w-24 h-24 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center shadow-2xl">
                           <LayoutGrid size={48} className="text-slate-800" />
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-white font-black uppercase tracking-[0.3em] text-base">Analytical Deadzone</p>
-                          <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px] max-w-sm mx-auto leading-relaxed">
+                        <div className="space-y-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Analytical Deadzone</p>
+                          <p className="text-slate-600 font-bold uppercase tracking-[0.2em] text-[8px] max-w-sm mx-auto leading-relaxed">
                             {showWatchlistOnly
                               ? "Your high-priority intelligence feed is currently empty. Star assets in the 'Global' universe to initiate dedicated tracking."
                               : "No assets match your current matrix constraints. Adjust filters or search parameters."}
@@ -4517,7 +4496,7 @@ export default function ScreenerDashboard() {
                           {showWatchlistOnly && (
                             <button
                               onClick={() => setShowWatchlistOnly(false)}
-                              className="mt-4 px-6 py-2 bg-[#39FF14]/10 text-[#39FF14] border border-[#39FF14]/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#39FF14]/20 transition-all active:scale-95"
+                              className="mt-6 px-6 py-2.5 bg-slate-800/30 text-slate-400 border border-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-white hover:bg-slate-800/80 transition-all active:scale-95"
                             >
                               Return to Global Terminal
                             </button>

@@ -122,10 +122,11 @@ export type BinanceKline = [
 
 export type SortKey =
   | 'symbol' | 'price' | 'change24h' | 'volume24h'
-  | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h' | 'rsiCustom'
+  | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'ema9' | 'ema21' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK' | 'vwapDiff' | 'volumeSpike'
   | 'strategyScore' | 'signal' | 'emaCross' | 'rsiDivergence'
-  | 'confluence' | 'momentum' | 'atr' | 'adx' | 'longCandle';
+  | 'confluence' | 'momentum' | 'atr' | 'adx' | 'longCandle'
+  | 'fundingRate' | 'orderFlow' | 'smartMoney';
 
 export type SortDir = 'asc' | 'desc';
 export type SignalFilter = 'all' | 'oversold' | 'overbought' | 'neutral'
