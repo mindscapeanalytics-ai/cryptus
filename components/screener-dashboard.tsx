@@ -3085,10 +3085,8 @@ export default function ScreenerDashboard() {
         searchCandidate
       ])].filter(Boolean).join(',');
 
-      // Over-request to compensate for multi-asset composition (Yahoo/Special symbols consume slots)
-      // This ensures the Crypto tab gets a full pairCount of crypto-specific entries
-      const multiAssetBuffer = exchange === 'binance' ? 30 : 0;
-      const effectiveCount = Math.min(pairCount + multiAssetBuffer, entitlements.maxRecords || pairCount + multiAssetBuffer);
+      // The API natively resolves Yahoo symbols out of band, so we fetch EXACTLY the Crypto pair limit.
+      const effectiveCount = Math.min(pairCount, entitlements.maxRecords || pairCount);
       const url = `/api/screener?count=${effectiveCount}&smart=${smartMode ? '1' : '0'}&rsiPeriod=${rsiPeriod}&search=${encodeURIComponent(search)}&prioritySymbols=${encodeURIComponent(prioritySymbols)}&exchange=${exchange}&ts=${Date.now()}`;
 
       const res = await fetch(url, {
