@@ -22,7 +22,17 @@ export interface LiveTick {
   ema21?: number;
   emaCross?: 'bullish' | 'bearish' | 'none';
   macdHistogram?: number;
+  stochK?: number;
+  stochD?: number;
+  vwapDiff?: number;
   bbPosition?: number;
+  bbUpper?: number;
+  bbLower?: number;
+  bbMiddle?: number;
+  vwap?: number;
+  momentum?: number;
+  rsiDivergence?: 'bullish' | 'bearish' | 'none';
+  confluence?: number;
   strategyScore?: number;
   strategySignal?: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
   volumeSpike?: boolean;

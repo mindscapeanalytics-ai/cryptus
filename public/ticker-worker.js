@@ -636,12 +636,21 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
       ema9, ema21, emaCross,
       macdHistogram,
       bbPosition,
+      bbUpper: state.bbUpper,
+      bbLower: state.bbLower,
+      bbMiddle: state.bbMiddle,
+      stochK: state.stochK,
+      stochD: state.stochD,
+      vwap: state.vwap,
+      vwapDiff: state.vwapDiff,
+      momentum: state.momentum,
+      rsiDivergence: state.rsiDivergence,
+      confluence: state.confluence,
       strategyScore: currentStrategy.score,
       strategySignal: currentStrategy.signal,
       volumeSpike: liveVolumeSpike || state.volumeSpike,
       avgBarSize1m: state.avgBarSize1m,
       avgVolume1m: state.avgVolume1m,
-      vwapDiff: state.vwapDiff
     });
 
     // ── Live Volatility Alerts (Long Candle & Volume Spike) ──
