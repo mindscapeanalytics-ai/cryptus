@@ -1390,6 +1390,11 @@ function runRefresh(
     // Merge: search matches first, then top symbols, then ALL Yahoo symbols to ensure no gaps
     const symbols = [...new Set([...searchMatches, ...topSymbols, ...YAHOO_SYMBOLS])];
 
+    // ── Shared L2 Keys (Removed Instance Isolation) ──
+    // Removing createInstanceCacheKey allows different server instances to reuse 
+    // each other's RSI results, massively reducing API cost and warm-up time.
+    const getCacheKey = (sym: string) => `${sym}:${rsiPeriod}:${exchange}`;
+
     // ── Redis L2 Hybrid Hydration ──
     // Before checking what needs refresh, pull missing data from Redis L2
     const symbolsMissingLocal = symbols.filter(s => !indicatorCache.has(getCacheKey(s)));
@@ -1416,10 +1421,6 @@ function runRefresh(
 
     // 2. Fetch klines only for symbols with stale/missing indicator cache
     // Alert-active symbols use a shorter TTL for more accurate RSI state refresh
-    // ── Shared L2 Keys (Removed Instance Isolation) ──
-    // Removing createInstanceCacheKey allows different server instances to reuse 
-    // each other's RSI results, massively reducing API cost and warm-up time.
-    const getCacheKey = (sym: string) => `${sym}:${rsiPeriod}:${exchange}`;
     const uncachedSymbols = symbols.filter((sym) => !indicatorCache.has(getCacheKey(sym)));
     let symbolsToRefresh = symbols.filter((sym) => {
       const cached = indicatorCache.get(getCacheKey(sym));
@@ -1665,13 +1666,18 @@ function runRefresh(
 
     return response;
   })()
-    .catch(() => {
+    .catch((err) => {
+      // 🔥 FIX: Don't swallow errors - let them propagate so failover can work
+      console.error(`[screener] runRefresh error for ${exchange}:`, err instanceof Error ? err.message : String(err));
+      
       const stale = fromCachedResult(symbolCount, smartMode, rsiPeriod, exchange);
-      if (stale) return stale;
-      return {
-        data: [],
-        meta: buildMeta([], 0, Date.now(), smartMode, 0),
-      };
+      if (stale) {
+        console.log(`[screener] Returning stale cache for ${exchange} after error`);
+        return stale;
+      }
+      
+      // Re-throw the error so getScreenerData can try the next exchange
+      throw err;
     })
     .finally(() => {
       refreshInFlight.delete(inflightKey);
@@ -1733,8 +1739,15 @@ export async function getScreenerData(
         }
         return result;
       }
+      
+      // Empty result but no error - log and try next exchange
+      console.warn(`[screener] ⚠️ Exchange ${tryExchange} returned empty data. Trying next...`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
+      const errStack = err instanceof Error ? err.stack : '';
+      console.error(`[screener] ❌ Exchange ${tryExchange} error: ${errMsg}`);
+      if (errStack) console.error(`[screener] Stack: ${errStack.split('\n').slice(0, 3).join('\n')}`);
+      
       if (errMsg.includes('geo-blocked') || errMsg.includes('403') || errMsg.includes('451')) {
         console.warn(`[screener] 🌍 Exchange ${tryExchange} geo-blocked. Trying next...`);
         geoBlockedExchanges.add(tryExchange);
@@ -1754,15 +1767,18 @@ export async function getScreenerData(
   console.error(`[screener] ❌ All exchanges failed. Attempting cached fallback...`);
   
   // 🔥 NEW: Try to return cached data from any exchange before returning empty
-  const anyCached = Array.from(resultCache.values())
-    .sort((a, b) => b.value.ts - a.value.ts)[0];
+  const cachedEntries = Array.from(resultCache.entries())
+    .map(([key, entry]) => entry.value)
+    .sort((a, b) => b.ts - a.ts);
+  
+  const anyCached = cachedEntries[0];
 
-  if (anyCached && Date.now() - anyCached.value.ts < 300_000) { // 5 min stale cache acceptable
+  if (anyCached && Date.now() - anyCached.ts < 300_000) { // 5 min stale cache acceptable
     console.warn('[screener] ⚠️ Using stale cache due to API failures');
     return {
-      ...anyCached.value.data,
+      ...anyCached.data,
       meta: {
-        ...anyCached.value.data.meta,
+        ...anyCached.data.meta,
         calibrating: true,
         apiUnavailable: true,
         geoBlocked: true,
