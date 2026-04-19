@@ -490,10 +490,10 @@ export function useLivePrices(symbols: Set<string>, throttleMs: number = 300) {
     return engine.hydrate();
   });
   const mountedRef = useRef(true);
-  const throttleRef = useRef(Math.max(80, throttleMs));
+  const throttleRef = useRef(Math.max(50, throttleMs)); // 🔥 REDUCED: 80ms → 50ms for smoother updates
 
   useEffect(() => {
-    throttleRef.current = Math.max(80, throttleMs);
+    throttleRef.current = Math.max(50, throttleMs); // 🔥 REDUCED: 80ms → 50ms for smoother updates
   }, [throttleMs]);
 
   useEffect(() => {

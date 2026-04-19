@@ -1915,7 +1915,10 @@ export default function ScreenerDashboard() {
   const isMobile = useIsMobile();
   const [meta, setMeta] = useState<ScreenerResponse['meta'] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true); // 🔥 NEW: Track first load separately
   const [error, setError] = useState<string | null>(null);
+  const [geoBlocked, setGeoBlocked] = useState(false); // 🔥 NEW: Track geo-blocking
+  const [apiUnavailable, setApiUnavailable] = useState(false); // 🔥 NEW: Track API failures
   const [search, setSearch] = useState('');
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -3195,7 +3198,11 @@ export default function ScreenerDashboard() {
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     const requestStartedAt = Date.now();
     try {
-      if (!background) setError(null);
+      if (!background) {
+        setError(null);
+        setGeoBlocked(false); // 🔥 NEW: Reset geo-block flag
+        setApiUnavailable(false); // 🔥 NEW: Reset API unavailable flag
+      }
       const timeoutMs = pairCount >= 800 ? 60_000 : pairCount >= 500 ? 55_000 : pairCount >= 300 ? 40_000 : 25_000;
       timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -3253,6 +3260,41 @@ export default function ScreenerDashboard() {
         return;
       }
 
+      // 🔥 NEW: Check for geo-blocking or API unavailability
+      if (json.meta && (json.meta as any).geoBlocked) {
+        setGeoBlocked(true);
+        setApiUnavailable(true);
+        
+        // If we have cached data, keep showing it with a warning
+        if (dataLenRef.current > 0) {
+          toast.warning('API Geo-Blocked', {
+            description: 'Exchange APIs are blocked in your region. Showing cached data. Consider using a VPN.',
+            duration: 10000,
+          });
+          return; // Keep existing data
+        }
+        
+        throw new Error('All exchanges are geo-blocked in your region. Please use a VPN or try a different network.');
+      }
+
+      // 🔥 NEW: Handle empty data with better error messages
+      if (json.data.length === 0 && json.meta) {
+        if ((json.meta as any).apiUnavailable || (json.meta as any).error) {
+          setApiUnavailable(true);
+          
+          // If we have cached data, keep it
+          if (dataLenRef.current > 0) {
+            toast.warning('API Temporarily Unavailable', {
+              description: 'Exchange APIs are experiencing issues. Showing cached data.',
+              duration: 8000,
+            });
+            return; // Keep existing data
+          }
+          
+          throw new Error((json.meta as any).error || 'Exchange APIs are temporarily unavailable');
+        }
+      }
+
       // 503 with data means partial result - still usable
       if (!res.ok && !(res.status === 503 && json.data?.length > 0)) {
         if (res.status === 503) {
@@ -3266,11 +3308,21 @@ export default function ScreenerDashboard() {
         throw new Error(`API error ${res.status}`);
       }
 
-      setData(json.data);
-      dataLenRef.current = json.data.length;
-      setMeta(json.meta);
-      setError(null);
+      // 🔥 NEW: Only update data if we actually received data
+      if (json.data.length > 0) {
+        setData(json.data);
+        dataLenRef.current = json.data.length;
+        setMeta(json.meta);
+        setError(null);
+        setGeoBlocked(false);
+        setApiUnavailable(false);
+      } else if (dataLenRef.current === 0) {
+        // No cached data and no new data - show error
+        throw new Error('No data available. Please check your network connection.');
+      }
+      
       setLoading(false);
+      setInitialLoad(false); // 🔥 NEW: Mark initial load complete
       const now = Date.now();
       setLastSuccessfulFetchAt(now);
       setStaleSince(null);
@@ -3347,11 +3399,23 @@ export default function ScreenerDashboard() {
         // Show an error so the user knows why the table is empty.
         if (dataLenRef.current === 0) {
           setError('Connection timed out - server is slow or unreachable. Tap to retry.');
+          setInitialLoad(false); // 🔥 NEW: Mark initial load complete even on error
         }
         return;
       }
+      
+      // 🔥 NEW: Better error handling - keep cached data if available
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      
       if (dataLenRef.current === 0) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+        setError(errorMessage);
+        setInitialLoad(false); // 🔥 NEW: Mark initial load complete even on error
+      } else {
+        // We have cached data, just show a toast
+        toast.error('Update Failed', {
+          description: errorMessage + '. Showing cached data.',
+          duration: 5000,
+        });
       }
 
       const now = Date.now();
@@ -3905,6 +3969,124 @@ export default function ScreenerDashboard() {
 
   return (
     <div className="w-full px-0 lg:px-8 pt-0 lg:pt-4 pb-32 lg:py-6">
+      {/* ── Loading State (Initial Load) ── */}
+      {initialLoad && loading && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
+          <div className="text-center space-y-6 max-w-md px-6">
+            <div className="relative w-24 h-24 mx-auto">
+              <div className="absolute inset-0 border-4 border-[#39FF14]/20 rounded-full animate-ping" />
+              <div className="absolute inset-0 border-4 border-t-[#39FF14] border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" />
+              <Activity className="absolute inset-0 m-auto text-[#39FF14]" size={32} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-black text-white uppercase tracking-wider">Loading Market Data</h3>
+              <p className="text-sm text-slate-400">
+                Fetching {pairCount} symbols from {exchange === 'binance' ? 'Binance' : exchange === 'bybit-linear' ? 'Bybit Perpetual' : 'Bybit Spot'}
+              </p>
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-600 mt-4">
+                <div className="w-2 h-2 bg-[#39FF14] rounded-full animate-pulse" />
+                <span>Connecting to institutional feed...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Geo-Block Error Screen ── */}
+      {geoBlocked && !loading && data.length === 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
+          <div className="text-center space-y-6 max-w-lg px-6">
+            <div className="relative w-24 h-24 mx-auto">
+              <div className="absolute inset-0 bg-rose-500/10 rounded-full" />
+              <Shield className="absolute inset-0 m-auto text-rose-400" size={48} />
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-2xl font-black text-rose-400 uppercase tracking-wider">Exchange APIs Blocked</h3>
+              <p className="text-base text-slate-300 leading-relaxed">
+                All exchange APIs are geo-restricted in your region. This is a network-level restriction imposed by the exchanges.
+              </p>
+              <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-4 space-y-2 text-left">
+                <p className="text-sm text-slate-400 font-bold">Possible Solutions:</p>
+                <ul className="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                  <li>Use a VPN to connect from a different region</li>
+                  <li>Try a different network connection</li>
+                  <li>Contact your network administrator</li>
+                  <li>Wait and try again later (temporary blocks may clear)</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setGeoBlocked(false);
+                  setApiUnavailable(false);
+                  fetchData();
+                }}
+                className="mt-4 px-6 py-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 rounded-xl text-rose-400 font-black uppercase tracking-wider transition-all"
+              >
+                Retry Connection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── API Unavailable Error Screen ── */}
+      {apiUnavailable && !geoBlocked && !loading && data.length === 0 && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
+          <div className="text-center space-y-6 max-w-lg px-6">
+            <div className="relative w-24 h-24 mx-auto">
+              <div className="absolute inset-0 bg-amber-500/10 rounded-full" />
+              <AlertTriangle className="absolute inset-0 m-auto text-amber-400" size={48} />
+            </div>
+            <div className="space-y-3">
+              <h3 className="text-2xl font-black text-amber-400 uppercase tracking-wider">Exchange APIs Unavailable</h3>
+              <p className="text-base text-slate-300 leading-relaxed">
+                The exchange APIs are temporarily experiencing issues. This is usually a temporary condition.
+              </p>
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-2 text-left">
+                <p className="text-sm text-slate-400 font-bold">What's Happening:</p>
+                <ul className="text-sm text-slate-500 space-y-1 list-disc list-inside">
+                  <li>Exchange servers may be under maintenance</li>
+                  <li>High traffic causing temporary outages</li>
+                  <li>Network connectivity issues</li>
+                  <li>Rate limits exceeded (will auto-recover)</li>
+                </ul>
+              </div>
+              <button
+                onClick={() => {
+                  setApiUnavailable(false);
+                  fetchData();
+                }}
+                className="mt-4 px-6 py-3 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-xl text-amber-400 font-black uppercase tracking-wider transition-all"
+              >
+                Retry Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exchange Switching Loading Overlay ── */}
+      {refreshing && !initialLoad && data.length > 0 && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
+          <div className="bg-[#0A0F1B]/95 backdrop-blur-xl border border-[#39FF14]/20 rounded-2xl px-6 py-4 shadow-[0_0_30px_rgba(57,255,20,0.15)]">
+            <div className="flex items-center gap-3">
+              <RefreshCcw className="text-[#39FF14] animate-spin" size={20} />
+              <div className="space-y-1">
+                <p className="text-sm font-black text-white uppercase tracking-wider">
+                  {meta?.calibrating ? 'Calibrating Indicators...' : `Refreshing ${exchange === 'binance' ? 'Binance' : exchange === 'bybit-linear' ? 'Bybit Perpetual' : 'Bybit Spot'}`}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {meta?.indicatorCoveragePct !== undefined ? `${meta.indicatorCoveragePct}% indicators ready` : 'Fetching market data...'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Connection Status Indicator (Always Visible in Header) ── */}
+      {/* This will be integrated into the existing header health indicator */}
+
       {/* ── Sticky Institutional Command Center (4-Row Architecture) ── */}
       {showHeader && (
         <header className="sticky top-0 z-[40] mb-4 lg:mb-6 rounded-none lg:rounded-b-3xl border-b border-x-0 lg:border-x border-white/10 bg-[#080F1B]/95 backdrop-blur-3xl px-3 py-2 sm:px-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-300">

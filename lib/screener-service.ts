@@ -1745,14 +1745,32 @@ export async function getScreenerData(
     }
   }
 
-  // All exchanges failed - clear the blocked set periodically (in case of transient issues)
-  // and return empty with diagnostic info
+  // All exchanges failed - try to return any cached data first before giving up
   setTimeout(() => {
     geoBlockedExchanges.clear();
     preferredExchange = null;
   }, 300_000); // Reset every 5 minutes
 
-  console.error(`[screener] ❌ All exchanges failed. Data unavailable.`);
+  console.error(`[screener] ❌ All exchanges failed. Attempting cached fallback...`);
+  
+  // 🔥 NEW: Try to return cached data from any exchange before returning empty
+  const anyCached = Array.from(resultCache.values())
+    .sort((a, b) => b.value.ts - a.value.ts)[0];
+
+  if (anyCached && Date.now() - anyCached.value.ts < 300_000) { // 5 min stale cache acceptable
+    console.warn('[screener] ⚠️ Using stale cache due to API failures');
+    return {
+      ...anyCached.value.data,
+      meta: {
+        ...anyCached.value.data.meta,
+        calibrating: true,
+        apiUnavailable: true,
+        geoBlocked: true,
+        error: 'All exchanges unavailable. Showing cached data. Check network or try VPN.',
+      }
+    };
+  }
+
   return {
     data: [],
     meta: {
@@ -1770,6 +1788,9 @@ export async function getScreenerData(
       fetchedAt: Date.now(),
       smartMode: smartMode,
       refreshCap: 0,
+      apiUnavailable: true,
+      geoBlocked: true,
+      error: 'All exchanges unavailable. Check network or try VPN.',
     },
   };
 }
