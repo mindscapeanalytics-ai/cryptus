@@ -1057,11 +1057,14 @@ function buildEntry(
     // This reduces the duration of "ticker-only" dots/dashes on cold start.
     const klineCountThreshold = 50; 
     if (validKlines.length < klineCountThreshold) {
+      console.warn(`[screener] ${sym}: Insufficient klines (${validKlines.length}/${klineCountThreshold}), returning ticker-only entry`);
       if (validKlines.length > 0 && ticker) {
         return buildTickerOnlyEntry(sym, ticker, nowTs);
       }
       return null;
     }
+
+    console.log(`[screener] ${sym}: Processing ${validKlines.length} valid klines`);
 
     const closes1m = validKlines.map((k) => parseFloat(k[4]));
     const highs1m = validKlines.map((k) => parseFloat(k[2]));
@@ -1080,12 +1083,14 @@ function buildEntry(
     const agg5m = aggregateKlines(validKlines, 5, aggCache);
     const closes5m = agg5m.map((c) => c.close);
     const rsi5m = closes5m.length >= r5mP + 1 ? calculateRsi(closes5m, r5mP) : null;
+    console.log(`[screener] ${sym}: 5m aggregation: ${closes5m.length} candles (need ${r5mP + 1} for RSI), rsi5m=${rsi5m}`);
 
     const agg15m = aggregateKlines(validKlines, 15, aggCache);
     const closes15m = agg15m.map((c) => c.close);
     const highs15m = agg15m.map((c) => c.high);
     const lows15m = agg15m.map((c) => c.low);
     const rsi15m = closes15m.length >= r15mP + 1 ? calculateRsi(closes15m, r15mP) : null;
+    console.log(`[screener] ${sym}: 15m aggregation: ${closes15m.length} candles (need ${r15mP + 1} for RSI), rsi15m=${rsi15m}`);
 
     let rsi1h: number | null = null;
     let closes1h: number[] = [];
@@ -1272,13 +1277,30 @@ function buildEntry(
 
     const lastKline1m = validKlines[validKlines.length - 1];
     const open1m = lastKline1m ? parseFloat(lastKline1m[1]) : null;
+    const close1m = lastKline1m ? parseFloat(lastKline1m[4]) : null;
+    const high1m = lastKline1m ? parseFloat(lastKline1m[2]) : null;
+    const low1m = lastKline1m ? parseFloat(lastKline1m[3]) : null;
     const volStart1m = lastKline1m ? parseFloat(lastKline1m[5]) : null;
+
+    // Calculate current candle metrics for volatility indicators
+    const curCandleSize = (high1m !== null && low1m !== null) ? Math.abs(high1m - low1m) : null;
+    const curCandleVol = volStart1m;
+    const candleDirection = (close1m !== null && open1m !== null) 
+      ? (close1m > open1m ? 'bullish' : close1m < open1m ? 'bearish' : 'neutral')
+      : null;
+
+    // Calculate long candle flag
+    const longCandle = curCandleSize !== null && entry_partial.avgBarSize1m !== null && entry_partial.avgBarSize1m > 0
+      ? (curCandleSize / entry_partial.avgBarSize1m) >= (config?.longCandleThreshold ?? 2.0)
+      : false;
+
+    console.log(`[screener] ${sym}: curCandleSize=${curCandleSize}, avgBarSize1m=${entry_partial.avgBarSize1m}, longCandle=${longCandle}`);
 
     return {
       ...entry_partial,
-      curCandleSize: null,
-      curCandleVol: null,
-      candleDirection: null,
+      curCandleSize,
+      curCandleVol,
+      candleDirection,
       marketState: ticker?.marketState || 'REGULAR',
       rsiState1m,
       rsiState5m,
@@ -1297,7 +1319,7 @@ function buildEntry(
       market: getMarketType(sym),
       open1m,
       volStart1m,
-      longCandle: false,
+      longCandle,
       historicalCloses: closes15m,
       vwapPriceBaseline: vwap,
       momentumPriceBaseline: (closes15m.length >= 11) ? closes15m[closes15m.length - 11] : null,
@@ -1324,6 +1346,9 @@ function runRefresh(
   if (existing) return existing;
 
   const work = (async (): Promise<ScreenerResponse> => {
+    // ── CRITICAL: Define getCacheKey at the VERY TOP to avoid TDZ errors ──
+    const getCacheKey = (sym: string) => `${sym}:${rsiPeriod}:${exchange}`;
+    
     const start = Date.now();
     const nowTs = Date.now();
     debugLog(`[screener] runRefresh(${symbolCount}, smart=${smartMode}, exchange=${exchange}) starting...`);
@@ -1389,11 +1414,6 @@ function runRefresh(
 
     // Merge: search matches first, then top symbols, then ALL Yahoo symbols to ensure no gaps
     const symbols = [...new Set([...searchMatches, ...topSymbols, ...YAHOO_SYMBOLS])];
-
-    // ── Shared L2 Keys (Removed Instance Isolation) ──
-    // Removing createInstanceCacheKey allows different server instances to reuse 
-    // each other's RSI results, massively reducing API cost and warm-up time.
-    const getCacheKey = (sym: string) => `${sym}:${rsiPeriod}:${exchange}`;
 
     // ── Redis L2 Hybrid Hydration ──
     // Before checking what needs refresh, pull missing data from Redis L2
@@ -1574,8 +1594,10 @@ function runRefresh(
         const klines1m = res1m.value;
         const klines1h = res1h?.status === 'fulfilled' ? res1h.value : null;
 
+        console.log(`[screener] ${sym}: Fetched ${klines1m?.length || 0} 1m klines, ${klines1h?.length || 0} 1h klines`);
+
         if (!klines1m || klines1m.length === 0) {
-          debugWarn(`[screener] ${sym}: kline fetch returned empty`);
+          console.warn(`[screener] ${sym}: kline fetch returned empty array`);
         } else {
           const prevEntry = indicatorCache.get(getCacheKey(sym))?.entry;
           const entry = buildEntry(
@@ -1589,14 +1611,21 @@ function runRefresh(
             coinConfigs.get(sym),
           );
           if (entry) {
+            console.log(`[screener] ${sym}: Successfully built entry with indicators - rsi1m=${entry.rsi1m}, rsi5m=${entry.rsi5m}, rsi15m=${entry.rsi15m}, rsi1h=${entry.rsi1h}`);
             entries.push(entry);
             const cacheObj = { entry: entry, ts: nowTs };
             indicatorCache.set(getCacheKey(sym), cacheObj);
             // Async background push to Redis L2
             void redisService.setJson(`cache:ind:${getCacheKey(sym)}`, cacheObj, 60); // 1 min shared TTL
             continue;
+          } else {
+            console.warn(`[screener] ${sym}: buildEntry returned null despite having ${klines1m.length} klines`);
           }
         }
+      } else if (res1m?.status === 'rejected') {
+        console.error(`[screener] ${sym}: 1m kline fetch rejected - ${res1m.reason instanceof Error ? res1m.reason.message : String(res1m.reason)}`);
+      } else {
+        console.warn(`[screener] ${sym}: No 1m kline result available`);
       }
 
       const cached = indicatorCache.get(getCacheKey(sym));

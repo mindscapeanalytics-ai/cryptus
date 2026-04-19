@@ -3178,7 +3178,7 @@ export default function ScreenerDashboard() {
     }
   }, [pairCount, refreshInterval]);
 
-  // ── Fetch data ──
+  // ── Fetch data (Optimized for smooth background updates) ──
   const fetchData = useCallback(async (background = false) => {
     if (background && backoffUntilRef.current && Date.now() < backoffUntilRef.current) {
       return;
@@ -3191,17 +3191,18 @@ export default function ScreenerDashboard() {
 
     fetchingRef.current = true;
 
-    // Show spinner for all fetches except initial load
+    // Only show spinner for initial load, not for background refreshes
     const isInitial = !background && dataLenRef.current === 0;
-    if (!isInitial) setRefreshing(true);
+    if (isInitial) setRefreshing(true);
+    // Background refreshes are completely silent - no UI disruption
 
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
     const requestStartedAt = Date.now();
     try {
       if (!background) {
         setError(null);
-        setGeoBlocked(false); // 🔥 NEW: Reset geo-block flag
-        setApiUnavailable(false); // 🔥 NEW: Reset API unavailable flag
+        setGeoBlocked(false);
+        setApiUnavailable(false);
       }
       const timeoutMs = pairCount >= 800 ? 60_000 : pairCount >= 500 ? 55_000 : pairCount >= 300 ? 40_000 : 25_000;
       timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
@@ -3308,14 +3309,17 @@ export default function ScreenerDashboard() {
         throw new Error(`API error ${res.status}`);
       }
 
-      // 🔥 NEW: Only update data if we actually received data
+      // 🔥 OPTIMIZED: Smooth data updates using requestAnimationFrame to prevent UI freezes
       if (json.data.length > 0) {
-        setData(json.data);
-        dataLenRef.current = json.data.length;
-        setMeta(json.meta);
-        setError(null);
-        setGeoBlocked(false);
-        setApiUnavailable(false);
+        // Use requestAnimationFrame to batch DOM updates and prevent jank
+        requestAnimationFrame(() => {
+          setData(json.data);
+          dataLenRef.current = json.data.length;
+          setMeta(json.meta);
+          setError(null);
+          setGeoBlocked(false);
+          setApiUnavailable(false);
+        });
       } else if (dataLenRef.current === 0) {
         // No cached data and no new data - show error
         throw new Error('No data available. Please check your network connection.');
@@ -3980,9 +3984,6 @@ export default function ScreenerDashboard() {
             </div>
             <div className="space-y-2">
               <h3 className="text-xl font-black text-white uppercase tracking-wider">Loading Market Data</h3>
-              <p className="text-sm text-slate-400">
-                Fetching {pairCount} symbols from {exchange === 'binance' ? 'Binance' : exchange === 'bybit-linear' ? 'Bybit Perpetual' : 'Bybit Spot'}
-              </p>
               <div className="flex items-center justify-center gap-2 text-xs text-slate-600 mt-4">
                 <div className="w-2 h-2 bg-[#39FF14] rounded-full animate-pulse" />
                 <span>Connecting to institutional feed...</span>
@@ -4065,24 +4066,9 @@ export default function ScreenerDashboard() {
         </div>
       )}
 
-      {/* ── Exchange Switching Loading Overlay ── */}
-      {refreshing && !initialLoad && data.length > 0 && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[90] pointer-events-none">
-          <div className="bg-[#0A0F1B]/95 backdrop-blur-xl border border-[#39FF14]/20 rounded-2xl px-6 py-4 shadow-[0_0_30px_rgba(57,255,20,0.15)]">
-            <div className="flex items-center gap-3">
-              <RefreshCcw className="text-[#39FF14] animate-spin" size={20} />
-              <div className="space-y-1">
-                <p className="text-sm font-black text-white uppercase tracking-wider">
-                  {meta?.calibrating ? 'Calibrating Indicators...' : `Refreshing ${exchange === 'binance' ? 'Binance' : exchange === 'bybit-linear' ? 'Bybit Perpetual' : 'Bybit Spot'}`}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {meta?.indicatorCoveragePct !== undefined ? `${meta.indicatorCoveragePct}% indicators ready` : 'Fetching market data...'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Silent Background Refresh (No Visible Overlay) ── */}
+      {/* Refresh happens silently in the background without disrupting the user experience */}
+      {/* Status is shown only in the subtle header indicator */}
 
       {/* ── Connection Status Indicator (Always Visible in Header) ── */}
       {/* This will be integrated into the existing header health indicator */}
