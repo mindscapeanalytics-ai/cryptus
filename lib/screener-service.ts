@@ -496,32 +496,60 @@ async function fetchBybitApiWithRetry<T>(
         headers: FETCH_HEADERS,
         cache: 'no-store' as RequestCache,
       });
+      
+      // Permanent geo-block - fail fast
       if (res.status === 403 || res.status === 451) {
-        // Permanent geo-block - retrying other endpoints won't help, fail fast
         debugWarn(`[bybit] ${label} permanently geo-blocked (${res.status}). Failing fast.`);
         throw new Error(`${label}: geo-blocked (${res.status})`);
       }
+      
+      // Rate limit - exponential backoff
       if (res.status === 429) {
-        const wait = Math.min(2000 * (attempt + 1), 8000);
+        const retryAfter = res.headers.get('Retry-After');
+        const wait = retryAfter 
+          ? parseInt(retryAfter, 10) * 1000 
+          : Math.min(2000 * (attempt + 1), 8000);
+        debugLog(`[bybit] ${label}: Rate limited (429), waiting ${wait}ms before retry ${attempt + 1}/${retries}`);
         await new Promise((r) => setTimeout(r, wait));
         continue;
       }
 
-      // Bybit specific rate limit headers
+      // Bybit specific rate limit headers - proactive throttling
       const ratelimitRemain = res.headers.get('X-Bapi-Limit-Status');
-      if (ratelimitRemain && parseInt(ratelimitRemain, 10) < 10) {
-        await new Promise(r => setTimeout(r, 1000));
+      const ratelimitReset = res.headers.get('X-Bapi-Limit-Reset-Timestamp');
+      
+      if (ratelimitRemain) {
+        const remaining = parseInt(ratelimitRemain, 10);
+        if (remaining < 10) {
+          debugLog(`[bybit] ${label}: Low rate limit (${remaining} remaining), throttling...`);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        if (remaining < 5) {
+          debugWarn(`[bybit] ${label}: CRITICAL rate limit (${remaining} remaining), aggressive throttling...`);
+          await new Promise(r => setTimeout(r, 3000));
+        }
       }
 
       if (!res.ok) throw new Error(`${label}: HTTP ${res.status}`);
-      return res.json();
+      
+      const data = await res.json();
+      
+      // Bybit API returns errors in response body even with 200 status
+      if (data.retCode && data.retCode !== 0) {
+        throw new Error(`${label}: Bybit API error ${data.retCode}: ${data.retMsg || 'Unknown error'}`);
+      }
+      
+      return data;
     } catch (err) {
       lastError = err;
       if (attempt === retries) {
         debugWarn(`[bybit] ${label}: all ${retries + 1} attempts failed:`, err instanceof Error ? err.message : String(err));
         throw err;
       }
-      await new Promise((r) => setTimeout(r, Math.min(500 * Math.pow(2, attempt), 8000) + Math.random() * 500));
+      // Exponential backoff with jitter
+      const backoff = Math.min(500 * Math.pow(2, attempt), 8000);
+      const jitter = Math.random() * 500;
+      await new Promise((r) => setTimeout(r, backoff + jitter));
     }
   }
   throw lastError ?? new Error(`${label}: exhausted retries`);
@@ -783,12 +811,29 @@ async function fetchYahooKlines(symbol: string, interval: string = '1m'): Promis
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSym}?interval=${interval}&range=${range}`;
 
   try {
+    debugLog(`[yahoo] Fetching ${interval} klines for ${symbol} (${yahooSym})`);
     const res = await fetch(url, { headers: FETCH_HEADERS, signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`Yahoo HTTP ${res.status}`);
+    if (!res.ok) {
+      debugWarn(`[yahoo] HTTP ${res.status} for ${symbol}`);
+      throw new Error(`Yahoo HTTP ${res.status}`);
+    }
     const json = await res.json();
+    
+    if (!json.chart || !json.chart.result || json.chart.result.length === 0) {
+      debugWarn(`[yahoo] No chart data for ${symbol}`);
+      return [];
+    }
+    
     const result = json.chart.result[0];
     const quote = result.indicators.quote[0];
     const timestamps = result.timestamp;
+
+    if (!timestamps || timestamps.length === 0) {
+      debugWarn(`[yahoo] No timestamps for ${symbol}`);
+      return [];
+    }
+
+    debugLog(`[yahoo] ${symbol}: Received ${timestamps.length} candles`);
 
     // Filter out bars with null close to prevent NaN in RSI calculations
     const klines: BinanceKline[] = [];
@@ -813,9 +858,12 @@ async function fetchYahooKlines(symbol: string, interval: string = '1m'): Promis
         "0", 0, "0", "0", "0"
       ] as BinanceKline);
     }
+    
+    debugLog(`[yahoo] ${symbol}: Converted ${klines.length} valid candles`);
     return klines;
   } catch (err) {
-    debugWarn(`[yahoo] fetch failed for ${symbol}:`, err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    debugWarn(`[yahoo] fetch failed for ${symbol}:`, errMsg);
     return [];
   }
 }
@@ -882,14 +930,25 @@ async function fetchBybitKlines(symbol: string, interval: string, exchange: stri
     // 'bybit' = spot, 'bybit-linear' = linear (perpetual)
     const category = exchange === 'bybit-linear' ? 'linear' : 'spot';
     const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    
+    debugLog(`[bybit] Fetching ${limit} ${interval}m klines for ${symbol} (${category})`);
+    
     const payload = await fetchBybitApiWithRetry<BybitKlineResponse>(url, `klines for ${symbol}`, FETCH_RETRY_COUNT, signal);
     const rows = payload.result?.list ?? [];
+
+    if (rows.length === 0) {
+      debugWarn(`[bybit] ${symbol}: API returned empty kline array`);
+      return [];
+    }
+
+    debugLog(`[bybit] ${symbol}: Received ${rows.length} klines, converting to Binance format...`);
 
     // Bybit returns newest first, reverse to match Binance (oldest first)
     rows.reverse();
 
-    return rows.map((row) => {
+    const converted = rows.map((row) => {
       const ts = parseInt(row[0], 10);
+      const intervalMs = interval === '60' ? 3600000 : 60000;
       return [
         ts,
         row[1], // open
@@ -897,13 +956,23 @@ async function fetchBybitKlines(symbol: string, interval: string, exchange: stri
         row[3], // low
         row[4], // close
         row[5], // volume
-        ts + (interval === '60' ? 3600000 : 60000) - 1, // closeTime
+        ts + intervalMs - 1, // closeTime
         row[6], // turnover
         0, "0", "0", "0"
       ] as BinanceKline;
     });
+
+    debugLog(`[bybit] ${symbol}: Successfully converted ${converted.length} klines`);
+    return converted;
   } catch (err) {
-    debugWarn(`[bybit] kline fetch failed for ${symbol}:`, err instanceof Error ? err.message : String(err));
+    const errMsg = err instanceof Error ? err.message : String(err);
+    debugWarn(`[bybit] kline fetch failed for ${symbol}:`, errMsg);
+    
+    // Check if it's a geo-block or rate limit
+    if (errMsg.includes('geo-blocked') || errMsg.includes('403') || errMsg.includes('451')) {
+      throw new Error(`SKIP_SYMBOL: ${symbol} geo-blocked on Bybit`);
+    }
+    
     throw err;
   }
 }
@@ -1053,9 +1122,10 @@ function buildEntry(
       return true;
     });
     // ── Data Sufficiency Guard ──
-    // Lowered to 50 klines to allow partial 1m/5m indicators while 15m/1h indicators warm up.
-    // This reduces the duration of "ticker-only" dots/dashes on cold start.
-    const klineCountThreshold = 50; 
+    // Lowered to 20 klines to allow progressive indicator display.
+    // 20 candles is enough for RSI(14) + 1 warmup period on 1m timeframe.
+    // This provides better UX than showing all dashes.
+    const klineCountThreshold = 20; 
     if (validKlines.length < klineCountThreshold) {
       console.warn(`[screener] ${sym}: Insufficient klines (${validKlines.length}/${klineCountThreshold}), returning ticker-only entry`);
       if (validKlines.length > 0 && ticker) {
@@ -1097,12 +1167,14 @@ function buildEntry(
     if (klines1h && klines1h.length >= r1hP + 1) {
       closes1h = klines1h.map((k) => parseFloat(k[4]));
       rsi1h = calculateRsi(closes1h, r1hP);
+      console.log(`[screener] ${sym}: 1h from direct fetch: ${closes1h.length} candles, rsi1h=${rsi1h}`);
     } else {
       const agg1h = aggregateKlines(validKlines, 60, aggCache);
       closes1h = agg1h.map((c) => c.close);
       if (closes1h.length >= r1hP + 1) {
         rsi1h = calculateRsi(closes1h, r1hP);
       }
+      console.log(`[screener] ${sym}: 1h from aggregation: ${closes1h.length} candles (need ${r1hP + 1} for RSI), rsi1h=${rsi1h}`);
     }
 
     // Dynamic/Custom RSI (User Defined Period)
@@ -1113,36 +1185,107 @@ function buildEntry(
     const ema21Val = latestEma(closes15m, 21);
     const emaCross = detectEmaCross(closes15m, 9, 21);
 
-    // MACD states (12, 26, 9)
-    const ema12Arr = calculateEma(closes15m, 12);
-    const ema26Arr = calculateEma(closes15m, 26);
-    const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
-    const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
-
+    // MACD states (12, 26, 9) - with intelligent fallback for insufficient data
+    // MACD needs 26+9=35 candles minimum. If 15m doesn't have enough, use 5m or 1m.
     let macdLineVal: number | null = null;
     let macdSignalVal: number | null = null;
     let macdHistogramVal: number | null = null;
     let macdSignalState: { ema: number } | null = null;
+    
+    // Try 15m first (preferred for accuracy)
+    if (closes15m.length >= 35) {
+      const ema12Arr = calculateEma(closes15m, 12);
+      const ema26Arr = calculateEma(closes15m, 26);
+      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
 
-    if (ema12 !== null && ema26 !== null) {
-      const offset = ema12Arr.length - ema26Arr.length;
-      const macdLineArr: number[] = [];
-      for (let i = 0; i < ema26Arr.length; i++) {
-        macdLineArr.push(ema12Arr[i + offset] - ema26Arr[i]);
-      }
-      const signalArr = calculateEma(macdLineArr, 9);
-      if (signalArr.length > 0) {
-        macdLineVal = macdLineArr[macdLineArr.length - 1];
-        macdSignalVal = signalArr[signalArr.length - 1];
-        if (macdLineVal !== null && macdSignalVal !== null) {
-          macdHistogramVal = macdLineVal - macdSignalVal;
-          macdSignalState = { ema: macdSignalVal };
+      if (ema12 !== null && ema26 !== null) {
+        const offset = ema12Arr.length - ema26Arr.length;
+        const macdLineArr: number[] = [];
+        for (let i = 0; i < ema26Arr.length; i++) {
+          macdLineArr.push(ema12Arr[i + offset] - ema26Arr[i]);
+        }
+        const signalArr = calculateEma(macdLineArr, 9);
+        if (signalArr.length > 0) {
+          macdLineVal = macdLineArr[macdLineArr.length - 1];
+          macdSignalVal = signalArr[signalArr.length - 1];
+          if (macdLineVal !== null && macdSignalVal !== null) {
+            macdHistogramVal = macdLineVal - macdSignalVal;
+            macdSignalState = { ema: macdSignalVal };
+          }
         }
       }
+      debugLog(`[screener] ${sym}: MACD from 15m data`);
+    } 
+    // Fallback to 5m if 15m insufficient
+    else if (closes5m.length >= 35) {
+      const ema12Arr = calculateEma(closes5m, 12);
+      const ema26Arr = calculateEma(closes5m, 26);
+      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
+
+      if (ema12 !== null && ema26 !== null) {
+        const offset = ema12Arr.length - ema26Arr.length;
+        const macdLineArr: number[] = [];
+        for (let i = 0; i < ema26Arr.length; i++) {
+          macdLineArr.push(ema12Arr[i + offset] - ema26Arr[i]);
+        }
+        const signalArr = calculateEma(macdLineArr, 9);
+        if (signalArr.length > 0) {
+          macdLineVal = macdLineArr[macdLineArr.length - 1];
+          macdSignalVal = signalArr[signalArr.length - 1];
+          if (macdLineVal !== null && macdSignalVal !== null) {
+            macdHistogramVal = macdLineVal - macdSignalVal;
+            macdSignalState = { ema: macdSignalVal };
+          }
+        }
+      }
+      debugLog(`[screener] ${sym}: MACD from 5m data (15m insufficient: ${closes15m.length} candles)`);
+    }
+    // Final fallback to 1m if both 15m and 5m insufficient
+    else if (closes1m.length >= 35) {
+      const ema12Arr = calculateEma(closes1m, 12);
+      const ema26Arr = calculateEma(closes1m, 26);
+      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
+
+      if (ema12 !== null && ema26 !== null) {
+        const offset = ema12Arr.length - ema26Arr.length;
+        const macdLineArr: number[] = [];
+        for (let i = 0; i < ema26Arr.length; i++) {
+          macdLineArr.push(ema12Arr[i + offset] - ema26Arr[i]);
+        }
+        const signalArr = calculateEma(macdLineArr, 9);
+        if (signalArr.length > 0) {
+          macdLineVal = macdLineArr[macdLineArr.length - 1];
+          macdSignalVal = signalArr[signalArr.length - 1];
+          if (macdLineVal !== null && macdSignalVal !== null) {
+            macdHistogramVal = macdLineVal - macdSignalVal;
+            macdSignalState = { ema: macdSignalVal };
+          }
+        }
+      }
+      debugLog(`[screener] ${sym}: MACD from 1m data (15m/5m insufficient: ${closes15m.length}/${closes5m.length} candles)`);
+    } else {
+      debugWarn(`[screener] ${sym}: Insufficient data for MACD (need 35 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
 
     const bb = calculateBollinger(closes15m);
-    const stochRsi = calculateStochRsi(closes15m);
+    
+    // Stoch RSI - with intelligent fallback
+    let stochRsi: { k: number; d: number } | null = null;
+    if (closes15m.length >= 50) {
+      stochRsi = calculateStochRsi(closes15m);
+      debugLog(`[screener] ${sym}: Stoch RSI from 15m data`);
+    } else if (closes5m.length >= 50) {
+      stochRsi = calculateStochRsi(closes5m);
+      debugLog(`[screener] ${sym}: Stoch RSI from 5m data (15m insufficient: ${closes15m.length} candles)`);
+    } else if (closes1m.length >= 50) {
+      stochRsi = calculateStochRsi(closes1m);
+      debugLog(`[screener] ${sym}: Stoch RSI from 1m data (15m/5m insufficient: ${closes15m.length}/${closes5m.length} candles)`);
+    } else {
+      debugWarn(`[screener] ${sym}: Insufficient data for Stoch RSI (need 50 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
+    }
 
     // VWAP Anchor: Anchored to the start of the current UTC day (Session VWAP)
     const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
@@ -1191,8 +1334,27 @@ function buildEntry(
     const momentum = calculateROC(closes15m, 10);
 
     // ATR & ADX (15m timeframe) - pro volatility + trend strength
-    const atr = calculateATR(highs15m, lows15m, closes15m);
-    const adx = calculateADX(highs15m, lows15m, closes15m);
+    // With intelligent fallback for insufficient data
+    let atr: number | null = null;
+    let adx: number | null = null;
+    
+    if (highs15m.length >= 14 && lows15m.length >= 14 && closes15m.length >= 14) {
+      atr = calculateATR(highs15m, lows15m, closes15m);
+      adx = calculateADX(highs15m, lows15m, closes15m);
+      debugLog(`[screener] ${sym}: ATR/ADX from 15m data`);
+    } else if (agg5m.length >= 14) {
+      const highs5m = agg5m.map((c) => c.high);
+      const lows5m = agg5m.map((c) => c.low);
+      atr = calculateATR(highs5m, lows5m, closes5m);
+      adx = calculateADX(highs5m, lows5m, closes5m);
+      debugLog(`[screener] ${sym}: ATR/ADX from 5m data (15m insufficient: ${closes15m.length} candles)`);
+    } else if (highs1m.length >= 14 && lows1m.length >= 14 && closes1m.length >= 14) {
+      atr = calculateATR(highs1m, lows1m, closes1m);
+      adx = calculateADX(highs1m, lows1m, closes1m);
+      debugLog(`[screener] ${sym}: ATR/ADX from 1m data (15m/5m insufficient)`);
+    } else {
+      debugWarn(`[screener] ${sym}: Insufficient data for ATR/ADX (need 14 candles)`);
+    }
 
     const confluenceResult = calculateConfluence({
       rsi1m, rsi5m, rsi15m, rsi1h,
@@ -1295,6 +1457,18 @@ function buildEntry(
       : false;
 
     console.log(`[screener] ${sym}: curCandleSize=${curCandleSize}, avgBarSize1m=${entry_partial.avgBarSize1m}, longCandle=${longCandle}`);
+
+    // ── Final Indicator Summary ──
+    console.log(`[screener] ${sym}: ✅ Entry built successfully:`, {
+      rsi: { rsi1m, rsi5m, rsi15m, rsi1h },
+      ema: { ema9: ema9Val, ema21: ema21Val, cross: emaCross },
+      macd: { line: macdLineVal, signal: macdSignalVal, hist: macdHistogramVal },
+      bb: { upper: bb?.upper, middle: bb?.middle, lower: bb?.lower, position: bb?.position },
+      stoch: { k: stochRsi?.k, d: stochRsi?.d },
+      other: { vwap, vwapDiff, atr, adx, momentum },
+      candle: { curCandleSize, curCandleVol, candleDirection, longCandle },
+      strategy: { score: strategy.score, signal: strategy.signal, label: strategy.label },
+    });
 
     return {
       ...entry_partial,

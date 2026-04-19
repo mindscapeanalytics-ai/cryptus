@@ -52,7 +52,7 @@ export interface ScreenerEntry {
   avgVolume1m: number | null;
   curCandleSize: number | null;
   curCandleVol: number | null;
-  candleDirection: 'bullish' | 'bearish' | null;
+  candleDirection: 'bullish' | 'bearish' | 'neutral' | null;
   // ── New: Dynamic/Custom RSI ──
   rsiCustom: number | null;
   rsiStateCustom: { avgGain: number; avgLoss: number; lastClose: number } | null;
@@ -107,6 +107,9 @@ export interface ScreenerResponse {
     apiWeight?: number;
     syncMode?: 'LEADER' | 'SHARED';
     lastGlobalRefresh?: number;
+    apiUnavailable?: boolean;
+    geoBlocked?: boolean;
+    error?: string;
   };
 }
 
