@@ -104,6 +104,8 @@ export interface ScreenerResponse {
     smartMode: boolean;
     refreshCap: number;
     apiWeight?: number;
+    syncMode?: 'LEADER' | 'SHARED';
+    lastGlobalRefresh?: number;
   };
 }
 

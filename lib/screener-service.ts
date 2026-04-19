@@ -350,6 +350,7 @@ function buildMeta(
   fetchedAt = Date.now(),
   smartMode = false,
   refreshCap = 0,
+  syncMode: 'LEADER' | 'SHARED' = 'LEADER'
 ): ScreenerResponse['meta'] {
   const hasIndicators = (e: ScreenerEntry) => (
     e.rsi1m !== null || e.rsi5m !== null || e.rsi15m !== null || e.macdHistogram !== null
@@ -374,6 +375,8 @@ function buildMeta(
     smartMode,
     refreshCap,
     apiWeight: globalWeight,
+    syncMode,
+    lastGlobalRefresh: fetchedAt,
   };
 }
 
@@ -1325,21 +1328,48 @@ function runRefresh(
     debugLog(`[screener] runRefresh(${symbolCount}, smart=${smartMode}, exchange=${exchange}) starting...`);
 
     // ── Distributed Locking Layer ──
-    // Prevent multiple server instances from hitting Binance simultaneously for the same configuration
     const lockKey = `refresh:${symbolCount}:${smartMode}:${rsiPeriod}:${exchange}`;
-    const hasLock = await redisService.acquireLock(lockKey, 20); // 20s lock
+    const aggResultKey = `agg:${symbolCount}:${smartMode}:${rsiPeriod}:${exchange}`;
+    
+    // Attempt to acquire Leader lock. Leader performs computations; Followers fetch Leader's work.
+    const hasLock = await redisService.acquireLock(lockKey, 30);
+    
     if (!hasLock) {
-      debugLog(`[screener] Lock held by another instance for ${lockKey}. Hydrating from L2 to ensure liveness.`);
-      // Even without the lock, try to hydrate from Redis to get the state from the locking instance
-      const symbolsToPreWarm = [...new Set([...(search ? await searchSymbols(search, exchange) : []), ...await getTopSymbols(symbolCount, exchange), ...YAHOO_SYMBOLS])];
-      const redisResults = await Promise.all(symbolsToPreWarm.slice(0, 100).map(s => redisService.getJson<any>(`cache:ind:${getCacheKey(s)}`)));
-      redisResults.forEach((val, idx) => {
-        if (val && val.entry && val.ts) {
-          indicatorCache.set(getCacheKey(symbolsToPreWarm[idx]), val);
+      debugLog(`[screener] 🛡️ Shared L3 Sync: Waiting for Leader result for ${lockKey}.`);
+      
+      const fetchAndOverlay = async () => {
+        const l3 = await redisService.getJson<ScreenerResponse>(`cache:${aggResultKey}`);
+        if (l3 && l3.data.length > 0) {
+          // Metadata Intelligence: Mark as shared and update compute latency to current
+          l3.meta.syncMode = 'SHARED';
+          l3.meta.computeTimeMs = Date.now() - start;
+          
+          // CRITICAL PEFORMANCE OVERLAY: Shared indicators are 10-20s old.
+          // We overlay with this instance's freshest ticker prices for sub-second liveness.
+          const freshTickers = await fetchTickers(exchange);
+          l3.data = l3.data.map(entry => withTickerOverlay(entry, freshTickers.get(entry.symbol), Date.now()));
+          
+          debugLog(`[screener] ✅ L3 Hydration with live overlay success for ${lockKey}.`);
+          return l3;
         }
-      });
-      const cachedResult = fromCachedResult(symbolCount, smartMode, rsiPeriod, exchange);
-      if (cachedResult) return cachedResult;
+        return null;
+      };
+
+      const sharedResult = await fetchAndOverlay();
+      if (sharedResult) return sharedResult;
+
+      // Lock held but no data yet? Wait 2.5s for leader to finish then retry.
+      await new Promise(r => setTimeout(r, 2500));
+      const retryResult = await fetchAndOverlay();
+      if (retryResult) return retryResult;
+
+      // Absolute fallback: local memory cache (prevents 503 errors if Redis lags)
+      const local = fromCachedResult(symbolCount, smartMode, rsiPeriod, exchange);
+      if (local) {
+        local.meta.syncMode = 'SHARED';
+        return local;
+      }
+      debugLog(`[screener] ⚠️ Shared L3 missing. Scaling cycle forced.`);
     }
 
     // 1. Get top symbols + ticker data + custom configs in parallel
@@ -1362,8 +1392,8 @@ function runRefresh(
     const symbolsMissingLocal = symbols.filter(s => !indicatorCache.has(getCacheKey(s)));
     if (symbolsMissingLocal.length > 0) {
       debugLog(`[screener] L1 cache miss for ${symbolsMissingLocal.length} symbols, checking Redis L2...`);
-      // We fetch in small batches to avoid huge Redis payloads
-      const batchSize = 100;
+      // Highly conservative batching (20 keys) to stay within Upstash connection/latency limits
+      const batchSize = 20;
       for (let i = 0; i < symbolsMissingLocal.length; i += batchSize) {
         const batch = symbolsMissingLocal.slice(i, i + batchSize);
         const redisResults = await Promise.all(batch.map(s => redisService.getJson<any>(`cache:ind:${getCacheKey(s)}`)));
@@ -1372,6 +1402,8 @@ function runRefresh(
             indicatorCache.set(getCacheKey(batch[idx]), val);
           }
         });
+        // Small yield to let event loop breathe during heavy hydration
+        await new Promise(r => setTimeout(r, 10));
       }
     }
 
@@ -1608,12 +1640,17 @@ function runRefresh(
 
     // Cache the result if there is useful data; keep stale cache on total outage.
     if (response.data.length > 0) {
-      resultCache.set(makeCacheKey(symbolCount, smartMode, rsiPeriod, exchange), {
+      const cacheKey = makeCacheKey(symbolCount, smartMode, rsiPeriod, exchange);
+      resultCache.set(cacheKey, {
         data: response,
         count: symbolCount,
         smartMode,
         ts: Date.now(),
       });
+      // ── Push finalized result to Redis L3 for cross-instance hydration ──
+      const aggResultKey = `agg:${symbolCount}:${smartMode}:${rsiPeriod}:${exchange}`;
+      const clone = JSON.parse(JSON.stringify(response)); // Strip any non-serializable properties
+      void redisService.setJson(`cache:${aggResultKey}`, clone, 45); // 45s shared visibility
       return response;
     }
 
