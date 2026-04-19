@@ -1191,13 +1191,15 @@ function buildEntry(
     let macdSignalVal: number | null = null;
     let macdHistogramVal: number | null = null;
     let macdSignalState: { ema: number } | null = null;
+    let ema12: number | null = null; // ✅ Function-scoped for return statement access
+    let ema26: number | null = null; // ✅ Function-scoped for return statement access
     
     // Try 15m first (preferred for accuracy)
     if (closes15m.length >= 35) {
       const ema12Arr = calculateEma(closes15m, 12);
       const ema26Arr = calculateEma(closes15m, 26);
-      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
-      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
+      ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
 
       if (ema12 !== null && ema26 !== null) {
         const offset = ema12Arr.length - ema26Arr.length;
@@ -1221,8 +1223,8 @@ function buildEntry(
     else if (closes5m.length >= 35) {
       const ema12Arr = calculateEma(closes5m, 12);
       const ema26Arr = calculateEma(closes5m, 26);
-      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
-      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
+      ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
 
       if (ema12 !== null && ema26 !== null) {
         const offset = ema12Arr.length - ema26Arr.length;
@@ -1246,8 +1248,8 @@ function buildEntry(
     else if (closes1m.length >= 35) {
       const ema12Arr = calculateEma(closes1m, 12);
       const ema26Arr = calculateEma(closes1m, 26);
-      const ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
-      const ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
+      ema12 = ema12Arr.length > 0 ? ema12Arr[ema12Arr.length - 1] : null;
+      ema26 = ema26Arr.length > 0 ? ema26Arr[ema26Arr.length - 1] : null;
 
       if (ema12 !== null && ema26 !== null) {
         const offset = ema12Arr.length - ema26Arr.length;
@@ -1269,6 +1271,11 @@ function buildEntry(
     } else {
       debugWarn(`[screener] ${sym}: Insufficient data for MACD (need 35 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
+    
+    // Additional diagnostic: Log if MACD calculation failed despite having data
+    if (macdHistogramVal === null && (closes1m.length >= 35 || closes5m.length >= 35 || closes15m.length >= 35)) {
+      debugWarn(`[screener] ${sym}: MACD calculation returned null despite sufficient candles - check EMA calculation`);
+    }
 
     const bb = calculateBollinger(closes15m);
     
@@ -1286,6 +1293,11 @@ function buildEntry(
     } else {
       debugWarn(`[screener] ${sym}: Insufficient data for Stoch RSI (need 50 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
+    
+    // Additional diagnostic: Log if Stoch RSI calculation failed despite having data
+    if (stochRsi === null && (closes1m.length >= 50 || closes5m.length >= 50 || closes15m.length >= 50)) {
+      debugWarn(`[screener] ${sym}: Stoch RSI calculation returned null despite sufficient candles - check RSI calculation`);
+    }
 
     // VWAP Anchor: Anchored to the start of the current UTC day (Session VWAP)
     const todayUtcMs = new Date().setUTCHours(0, 0, 0, 0);
@@ -1297,13 +1309,24 @@ function buildEntry(
       }
     }
 
-    // Stability Guard: If the day just started (less than 10 mins of data), 
-    // fallback to a rolling 4-hour VWAP to ensure the indicator shows data immediately.
-    if (validKlines.length - vwapStart < 10 && validKlines.length >= 240) {
-      vwapStart = validKlines.length - 240;
-    } else if (validKlines.length - vwapStart < 10) {
-      // If we don't even have 4 hours, just use all available data
-      vwapStart = 0;
+    // Multi-tier Stability Guard: Cascade through fallback windows to ensure VWAP always shows data
+    // 4h → 2h → 1h → all available data
+    let vwapWindow = 'UTC_DAY';
+    if (validKlines.length - vwapStart < 10) {
+      if (validKlines.length >= 240) {
+        vwapStart = validKlines.length - 240;
+        vwapWindow = '4H_ROLLING';
+      } else if (validKlines.length >= 120) {
+        vwapStart = validKlines.length - 120;
+        vwapWindow = '2H_ROLLING';
+      } else if (validKlines.length >= 60) {
+        vwapStart = validKlines.length - 60;
+        vwapWindow = '1H_ROLLING';
+      } else {
+        vwapStart = 0;
+        vwapWindow = 'ALL_AVAILABLE';
+      }
+      debugLog(`[screener] ${sym}: VWAP fallback to ${vwapWindow} (${validKlines.length - vwapStart} candles)`);
     }
 
     const vwap = calculateVwap(
@@ -1334,26 +1357,31 @@ function buildEntry(
     const momentum = calculateROC(closes15m, 10);
 
     // ATR & ADX (15m timeframe) - pro volatility + trend strength
-    // With intelligent fallback for insufficient data
+    // With intelligent fallback for insufficient data: 15m → 5m → 1m
     let atr: number | null = null;
     let adx: number | null = null;
+    let adxTimeframe = '15m';
     
     if (highs15m.length >= 14 && lows15m.length >= 14 && closes15m.length >= 14) {
       atr = calculateATR(highs15m, lows15m, closes15m);
       adx = calculateADX(highs15m, lows15m, closes15m);
-      debugLog(`[screener] ${sym}: ATR/ADX from 15m data`);
     } else if (agg5m.length >= 14) {
+      adxTimeframe = '5m';
       const highs5m = agg5m.map((c) => c.high);
       const lows5m = agg5m.map((c) => c.low);
       atr = calculateATR(highs5m, lows5m, closes5m);
       adx = calculateADX(highs5m, lows5m, closes5m);
-      debugLog(`[screener] ${sym}: ATR/ADX from 5m data (15m insufficient: ${closes15m.length} candles)`);
     } else if (highs1m.length >= 14 && lows1m.length >= 14 && closes1m.length >= 14) {
+      adxTimeframe = '1m';
       atr = calculateATR(highs1m, lows1m, closes1m);
       adx = calculateADX(highs1m, lows1m, closes1m);
-      debugLog(`[screener] ${sym}: ATR/ADX from 1m data (15m/5m insufficient)`);
     } else {
-      debugWarn(`[screener] ${sym}: Insufficient data for ATR/ADX (need 14 candles)`);
+      debugWarn(`[screener] ${sym}: Insufficient data for ATR/ADX (need 14 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
+    }
+    
+    if (atr !== null || adx !== null) {
+      const candleCount = adxTimeframe === '15m' ? closes15m.length : adxTimeframe === '5m' ? closes5m.length : closes1m.length;
+      debugLog(`[screener] ${sym}: ATR/ADX from ${adxTimeframe} data (${candleCount} candles)`);
     }
 
     const confluenceResult = calculateConfluence({
@@ -1458,8 +1486,22 @@ function buildEntry(
 
     console.log(`[screener] ${sym}: curCandleSize=${curCandleSize}, avgBarSize1m=${entry_partial.avgBarSize1m}, longCandle=${longCandle}`);
 
-    // ── Final Indicator Summary ──
-    console.log(`[screener] ${sym}: ✅ Entry built successfully:`, {
+    // ── Final Indicator Summary with Coverage Metrics ──
+    const indicatorCoverage = {
+      rsi: [rsi1m, rsi5m, rsi15m, rsi1h].filter(v => v !== null).length,
+      ema: [ema9Val, ema21Val].filter(v => v !== null).length,
+      macd: macdHistogramVal !== null ? 1 : 0,
+      bb: bb !== null ? 1 : 0,
+      stoch: stochRsi !== null ? 1 : 0,
+      vwap: vwap !== null ? 1 : 0,
+      atr: atr !== null ? 1 : 0,
+      adx: adx !== null ? 1 : 0,
+    };
+    const totalIndicators = Object.values(indicatorCoverage).reduce((a, b) => a + b, 0);
+    const maxIndicators = 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1; // 12 total
+    const coveragePercent = Math.round((totalIndicators / maxIndicators) * 100);
+    
+    console.log(`[screener] ${sym}: ✅ Entry built successfully (${coveragePercent}% indicator coverage):`, {
       rsi: { rsi1m, rsi5m, rsi15m, rsi1h },
       ema: { ema9: ema9Val, ema21: ema21Val, cross: emaCross },
       macd: { line: macdLineVal, signal: macdSignalVal, hist: macdHistogramVal },
@@ -1468,6 +1510,7 @@ function buildEntry(
       other: { vwap, vwapDiff, atr, adx, momentum },
       candle: { curCandleSize, curCandleVol, candleDirection, longCandle },
       strategy: { score: strategy.score, signal: strategy.signal, label: strategy.label },
+      coverage: indicatorCoverage,
     });
 
     return {
