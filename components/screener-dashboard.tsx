@@ -2205,9 +2205,11 @@ export default function ScreenerDashboard() {
   const [smartMode, setSmartMode] = useState(smartModeDefault);
   const [showHeader, setShowHeader] = useState(true);
   // Disable heavy animations for large lists OR when user prefers reduced motion
-  const prefersReducedMotion = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+  // Use useState with lazy init to avoid TDZ issues in minified bundle
+  const [prefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
   const useAnimations = !prefersReducedMotion && pairCount <= 300;
   const [rsiPeriod, setRsiPeriod] = useState(14);
   const [countdown, setCountdown] = useState(30);
