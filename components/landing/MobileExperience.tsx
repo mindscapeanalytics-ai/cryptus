@@ -57,7 +57,7 @@ export function MobileExperience() {
           {/* Narrative (Right Side) */}
           <div className="space-y-12">
             <div className="space-y-6">
-              <h2 className="text-4xl sm:text-7xl font-black text-white tracking-tighter uppercase italic leading-[0.9]">
+              <h2 className="text-4xl sm:text-7xl font-black text-white tracking-tighter uppercase leading-[0.9]">
                 Parametric <br />
                 <span className="text-[#39FF14]">Edge Control.</span>
               </h2>

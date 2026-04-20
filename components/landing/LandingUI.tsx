@@ -229,7 +229,7 @@ export function PlanCard({
       )}
 
       <div className="mb-8">
-        <h4 className={cn("text-[10px] font-black uppercase tracking-[0.4em] mb-2", highlight ? "text-[#39FF14]" : "text-slate-500")}>
+        <h4 className={cn("text-[10px] font-black uppercase tracking-[0.5em] mb-2", highlight ? "text-[#39FF14]" : "text-slate-500")}>
           {tier}
         </h4>
         <div className="flex items-baseline gap-1">
@@ -295,7 +295,7 @@ export function PersonaCard({ icon, role, needs, impact }: { icon: React.ReactNo
       </p>
       <div className="pt-6 border-t border-white/5">
         <span className="text-[10px] font-black uppercase tracking-widest text-[#39FF14]">IMPACT:</span>
-        <p className="mt-1 text-xs text-white/80 font-bold italic">"{impact}"</p>
+        <p className="mt-1 text-xs text-white/80 font-bold">"{impact}"</p>
       </div>
     </motion.div>
   );
@@ -388,12 +388,12 @@ export function ProjectStep({ title, subtitle, desc, active = false }: { title: 
         : "bg-white/[0.02] border-white/5 opacity-60 flex-shrink"
     )}>
       <div className="flex flex-col">
-        <span className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", active ? "text-[#39FF14]" : "text-slate-500")}>
+        <span className={cn("text-[10px] font-black uppercase tracking-[0.5em] mb-1", active ? "text-[#39FF14]" : "text-slate-500")}>
           {subtitle}
         </span>
         <h4 className="text-xl font-black text-white tracking-tight">{title}</h4>
       </div>
-      <p className="text-xs text-slate-400 leading-relaxed italic">{desc}</p>
+      <p className="text-xs text-slate-400 leading-relaxed">{desc}</p>
     </div>
   );
 }

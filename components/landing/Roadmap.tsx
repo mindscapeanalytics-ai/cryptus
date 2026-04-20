@@ -17,7 +17,7 @@ export function Roadmap() {
         <div className="text-left mb-20 max-w-3xl">
           <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-[0.9] mb-4">
             Project 2026: <br />
-            <span className="text-slate-500 italic">The Autonomous Edge.</span>
+            <span className="text-slate-500">The Autonomous Edge.</span>
           </h2>
         </div>
 

@@ -37,7 +37,7 @@ export function Services() {
         <div className="text-left mb-16 sm:mb-24 space-y-4">
           <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-[0.9]">
             Build More <br />
-            <span className="text-slate-500 italic">Than a Scanner.</span>
+            <span className="text-slate-500">Than a Scanner.</span>
           </h2>
           <p className="text-slate-400 text-sm sm:text-base font-medium max-w-2xl">
             Powered by Mindscape Analytics: Turn RSIQ Pro into your growth engine with productized SaaS engineering and managed infrastructure.

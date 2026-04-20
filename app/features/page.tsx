@@ -33,9 +33,9 @@ export default function FeaturesPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 text-center">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#39FF14]/30 bg-[#39FF14]/5 mb-8">
               <Star size={14} className="text-[#39FF14] fill-[#39FF14]" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-[#39FF14]">The Sovereign Trading Standard</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#39FF14]">The Sovereign Trading Standard</span>
             </div>
-            <h1 className="text-5xl sm:text-7xl md:text-8xl font-black text-white tracking-tighter uppercase italic leading-[0.85]">
+            <h1 className="text-5xl sm:text-7xl md:text-8xl font-black text-white tracking-tighter uppercase leading-[0.85]">
               Beyond <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">Raw Data.</span>
             </h1>
@@ -66,7 +66,7 @@ export default function FeaturesPage() {
         {/* ─── Final CTA ─── */}
         <section className="py-24 sm:py-32 bg-white relative overflow-hidden text-black">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10 text-center">
-             <h2 className="text-4xl sm:text-6xl font-black tracking-tighter uppercase italic leading-none mb-8">
+             <h2 className="text-4xl sm:text-6xl font-black tracking-tighter uppercase leading-none mb-8">
                 Ready to reclaim your <br />
                 <span className="text-blue-600">Cognitive Edge?</span>
              </h2>

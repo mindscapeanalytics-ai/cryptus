@@ -13,7 +13,7 @@ export function IntelligenceHub() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         <div className="text-center mb-24">
           <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14] mb-4">Situational Awareness</h2>
-          <p className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase italic leading-[0.9]">
+          <p className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-[0.9]">
             Global Market <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">Surveillance.</span>
           </p>
         </div>

@@ -57,9 +57,16 @@ export function Footer() {
           <div className="pt-8 opacity-20 flex flex-col items-center gap-3 sm:gap-4">
             <span className="text-base sm:text-xl font-black text-white">MINDSCAPE ANALYTICS LLC</span>
             <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 hover:[&_a]:text-[#39FF14] [&_a]:transition-colors">
-              <Link href="/legal/terms">Terms</Link>
-              <span className="text-white/20">•</span>
-              <Link href="/legal/privacy">Privacy</Link>
+            <Link
+              href="/support"
+              className="text-[11px] font-black tracking-widest text-slate-400 uppercase hover:text-[#39FF14]"
+            >
+              Support
+            </Link>
+            <span className="text-white/20">•</span>
+            <Link href="/legal/terms">Terms</Link>
+            <span className="text-white/20">•</span>
+            <Link href="/legal/privacy">Privacy</Link>
             </div>
             <p className="max-w-2xl text-center text-[9px] text-slate-500 uppercase tracking-wider font-bold leading-relaxed mt-4 px-4 border border-white/5 bg-white/[0.01] rounded-xl p-4">
               <strong>Risk Disclaimer:</strong> RSIQ Pro is an analytical aggregation tool and does not provide financial advice. Trading inherently involves extreme risk, and you may lose some or all of your initial investment. Past performance of any system, methodology, or indicator is not indicative of future results.

@@ -109,8 +109,8 @@ function formatTimeAgo(ts: number): string {
 
 function getRsiColor(rsi: number | null): string {
   if (rsi === null) return 'text-slate-600';
-  if (rsi >= 75) return 'text-[#FF4B5C] drop-shadow-[0_0_10px_rgba(255,75,92,0.4)] font-black italic'; // Extreme OB
-  if (rsi <= 25) return 'text-[#39FF14] drop-shadow-[0_0_10px_rgba(57,255,20,0.4)] font-black italic'; // Extreme OS
+  if (rsi >= 75) return 'text-[#FF4B5C] drop-shadow-[0_0_10px_rgba(255,75,92,0.4)] font-black'; // Extreme OB
+  if (rsi <= 25) return 'text-[#39FF14] drop-shadow-[0_0_10px_rgba(57,255,20,0.4)] font-black'; // Extreme OS
   if (rsi >= 70) return 'text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.2)] font-bold';
   if (rsi <= 30) return 'text-[#39FF14] drop-shadow-[0_0_8px_rgba(57,255,20,0.2)] font-bold';
   if (rsi >= 60) return 'text-[#FF4B5C]/80 font-bold';
@@ -235,7 +235,7 @@ const IndicatorCell = memo(function IndicatorCell({
       <span className={cn(
         "relative",
         hasIntensity && "drop-shadow-[0_0_8px_currentColor]",
-        showSyncing && "text-slate-700 font-normal italic"
+        showSyncing && "text-slate-700 font-normal"
       )}>
         {showSyncing ? '...' : formatted}
       </span>
@@ -1147,11 +1147,13 @@ const ScreenerRow = memo(function ScreenerRow({
         <td className={cn("px-3 py-3 text-center", COL_WIDTHS.funding)}>
           <FundingRateCellWithTooltip 
             data={fundingRate ? {
+              symbol: entry.symbol,
               rate: fundingRate.rate,
               annualized: fundingRate.annualized,
               markPrice: display.price,
               indexPrice: display.price,
-              nextFundingTime: Date.now() + 8 * 60 * 60 * 1000 // 8 hours from now
+              nextFundingTime: Date.now() + 8 * 60 * 60 * 1000, // 8 hours from now
+              updatedAt: entry.updatedAt || Date.now()
             } : undefined}
             compact={true}
             showTooltip={true}
@@ -1163,11 +1165,13 @@ const ScreenerRow = memo(function ScreenerRow({
         <td className={cn("px-3 py-3 text-center", COL_WIDTHS.flow)}>
           <OrderFlowIndicator 
             data={orderFlowData ? {
+              symbol: entry.symbol,
               pressure: orderFlowData.pressure as any,
               ratio: orderFlowData.ratio,
               buyVolume1m: orderFlowData.buyVolume1m,
               sellVolume1m: orderFlowData.sellVolume1m,
-              tradeCount1m: 0
+              tradeCount1m: 0,
+              updatedAt: entry.updatedAt || Date.now()
             } : undefined}
             compact={true}
             showTooltip={true}
@@ -1285,7 +1289,7 @@ function EditableRsiCell({
       )}
     >
       <div className="flex flex-col items-end leading-none">
-        <span className={cn(isSyncing && rsi === null && "text-slate-800 font-normal italic")}>
+        <span className={cn(isSyncing && rsi === null && "text-slate-800 font-normal")}>
           {isSyncing && rsi === null ? "..." : formatRsi(rsi)}
         </span>
         <span className="text-[7px] text-slate-600 font-black opacity-0 group-hover/cell:opacity-100 transition-opacity">P:{currentPeriod}</span>
@@ -1837,7 +1841,7 @@ const ScreenerCard = memo(function ScreenerCard({
         className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-4 px-3 mx-2"
       >
         {activeIndicators.length === 0 ? (
-          <div className="flex-1 flex justify-center italic text-[8px] text-slate-700 uppercase font-black tracking-widest">No Indicators Selected</div>
+          <div className="flex-1 flex justify-center text-[8px] text-slate-700 uppercase font-black tracking-widest">No Indicators Selected</div>
         ) : (
           activeIndicators.map(col => {
             const val = display[col.id as keyof typeof display];
@@ -4838,6 +4842,7 @@ export default function ScreenerDashboard() {
                 </Link>
 
                 <div className="flex items-center gap-1.5 h-full">
+                  {/* Mobile Live Status */}
                   <div className="flex items-center bg-black/40 border border-white/5 rounded-xl px-2.5 h-full shadow-inner">
                     <motion.div
                       animate={{
@@ -4860,13 +4865,21 @@ export default function ScreenerDashboard() {
                     </span>
                   </div>
 
-                  {/* Mobile Compilation Badge */}
-                  <div className="flex items-center gap-1.5 px-2 bg-black/40 border border-[#39FF14]/10 rounded-xl h-full ml-1">
-                    <span className="text-[#39FF14] text-[8px]">✓</span>
-                    <span className="text-slate-500 text-[6px] font-black uppercase tracking-widest whitespace-nowrap">
-                      ENG <span className="text-[#39FF14]/80">COMP</span>
-                    </span>
-                  </div>
+                  {/* Alert bell with count */}
+                  <button
+                    onClick={() => { setShowAlertPanel(true); }}
+                    className={cn(
+                      "relative w-10 h-full flex items-center justify-center rounded-xl border transition-all active:scale-90",
+                      alerts.length > 0 ? "bg-[#FF4B5C]/10 border-[#FF4B5C]/20 text-[#FF4B5C]" : "bg-white/5 border-white/10 text-slate-500"
+                    )}
+                  >
+                    <Bell size={15} className={alerts.length > 0 ? "animate-pulse" : ""} />
+                    {alerts.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#FF4B5C] rounded-full border-2 border-[#090F1A] text-[7px] font-black text-white flex items-center justify-center">
+                        {alerts.length > 9 ? '9+' : alerts.length}
+                      </span>
+                    )}
+                  </button>
 
                   <button
                     onClick={() => setShowMobileMenu(true)}
@@ -5294,8 +5307,8 @@ export default function ScreenerDashboard() {
         </div>
       )}
       {!isMobile && (
-        <footer className="mt-16 py-10 border-t border-white/10 relative z-10">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 px-4 opacity-60 hover:opacity-100 transition-opacity duration-500">
+        <footer className="mt-auto py-8 border-t border-white/5 bg-[#05080F]/50 backdrop-blur-sm relative z-10 w-full">
+          <div className="w-full flex flex-col md:flex-row items-center justify-between gap-8 px-6 sm:px-10 opacity-60 hover:opacity-100 transition-opacity duration-500">
             {/* Left side: Brand + Critical Stats */}
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-10 gap-y-4">
               <Link href="/" className="group flex items-center gap-3">
@@ -5599,6 +5612,97 @@ export default function ScreenerDashboard() {
                   </div>
                 </div>
 
+                {/* Section: Exchange Selector */}
+                <div className="space-y-3">
+                  <span className="text-[8px] font-black uppercase tracking-[0.3em] text-[#39FF14]/70">Data Source</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'binance', label: 'Binance', short: 'BIN' },
+                      { id: 'bybit', label: 'Bybit Spot', short: 'BYB' },
+                      { id: 'bybit-linear', label: 'Bybit Perp', short: 'PRP' },
+                    ].map((ex) => (
+                      <button
+                        key={ex.id}
+                        onClick={() => { setExchange(ex.id); setShowMobileMenu(false); }}
+                        className={cn(
+                          "py-2.5 rounded-lg flex flex-col items-center gap-1 transition-all border",
+                          exchange === ex.id
+                            ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]"
+                            : "bg-white/5 border-white/5 text-slate-500"
+                        )}
+                      >
+                        <span className="text-[10px] font-black uppercase tracking-widest">{ex.short}</span>
+                        <span className="text-[7px] font-bold text-slate-600 uppercase">{ex.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: Pair Count */}
+                <div className="space-y-3">
+                  <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-600">Pair Count</span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[100, 300, 500].map(cnt => (
+                      <button
+                        key={cnt}
+                        onClick={() => { handlePairCountChange(cnt); setShowMobileMenu(false); }}
+                        className={cn(
+                          "py-2.5 rounded-lg text-[10px] font-black transition-all border",
+                          pairCount === cnt
+                            ? "bg-white text-black border-white"
+                            : "bg-white/5 border-white/5 text-slate-500"
+                        )}
+                      >
+                        {cnt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section: RSI Period */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-600">RSI Period</span>
+                    <span className="text-[10px] font-black text-[#39FF14] tabular-nums">{rsiPeriod}</span>
+                  </div>
+                  <div className="flex items-center gap-3 px-1">
+                    <span className="text-[8px] text-slate-600 font-mono">2</span>
+                    <input
+                      type="range"
+                      min="2"
+                      max="50"
+                      value={rsiPeriod}
+                      onChange={(e) => setRsiPeriod(Number(e.target.value))}
+                      className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#39FF14]"
+                    />
+                    <span className="text-[8px] text-slate-600 font-mono">50</span>
+                  </div>
+                </div>
+
+                {/* Section: Bulk Actions */}
+                <div className="space-y-3">
+                  <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-600">Bulk Operations</span>
+                  <button
+                    onClick={() => { toggleBulkMode(); setShowMobileMenu(false); }}
+                    className={cn(
+                      "w-full flex items-center justify-between p-3 rounded-lg transition-all border",
+                      bulkMode
+                        ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]"
+                        : "bg-white/5 border-white/5 text-slate-300"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      {bulkMode ? <CheckSquare size={18} /> : <Square size={18} />}
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        {bulkMode ? `Bulk Mode (${selectedSymbols.size} selected)` : 'Bulk Alert Config'}
+                      </span>
+                    </div>
+                    <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded", bulkMode ? "bg-[#39FF14]/10 text-[#39FF14]" : "bg-slate-800 text-slate-500")}>
+                      {bulkMode ? "ON" : "OFF"}
+                    </span>
+                  </button>
+                </div>
+
                 {/* Section: System Configuration */}
                 <div className="space-y-3 pb-2">
                   <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-600">System Parameters</span>
@@ -5610,13 +5714,22 @@ export default function ScreenerDashboard() {
                       </div>
                       <span className="text-[8px] opacity-40 font-mono">COLUMNS</span>
                     </button>
-                    <button onClick={() => { setAlertsEnabled(!alertsEnabled); setShowMobileMenu(false); }} className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all group">
+                    <button onClick={() => { setAlertsEnabled(!alertsEnabled); }} className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all group">
                       <div className="flex items-center gap-4">
-                        {alertsEnabled ? <Bell size={18} className="text-amber-500" /> : <BellOff size={18} className="text-slate-600" />}
-                        <span className="text-[10px] font-black uppercase tracking-widest">Terminal Notifications</span>
+                        {alertsEnabled ? <Zap size={18} className="text-[#39FF14]" /> : <ZapOff size={18} className="text-slate-600" />}
+                        <span className="text-[10px] font-black uppercase tracking-widest">Global Alerts</span>
                       </div>
                       <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded", alertsEnabled ? "bg-[#39FF14]/10 text-[#39FF14]" : "bg-slate-800 text-slate-500")}>
                         {alertsEnabled ? "ON" : "OFF"}
+                      </span>
+                    </button>
+                    <button onClick={() => { setSoundEnabled(!soundEnabled); }} className="w-full flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 active:bg-amber-500/10 transition-all group">
+                      <div className="flex items-center gap-4">
+                        {soundEnabled ? <Bell size={18} className="text-amber-500" /> : <BellOff size={18} className="text-slate-600" />}
+                        <span className="text-[10px] font-black uppercase tracking-widest">Alert Sound</span>
+                      </div>
+                      <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded", soundEnabled ? "bg-amber-500/10 text-amber-400" : "bg-slate-800 text-slate-500")}>
+                        {soundEnabled ? "ON" : "OFF"}
                       </span>
                     </button>
                     <button onClick={() => { fetchData(true); setShowMobileMenu(false); }} className="w-full flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 active:bg-blue-500/10 transition-all group">
@@ -5625,6 +5738,61 @@ export default function ScreenerDashboard() {
                         <span className="text-[10px] font-black uppercase tracking-widest">Re-Sync Intelligence</span>
                       </div>
                       <span className="text-[8px] opacity-40 font-mono">{countdown}S</span>
+                    </button>
+                    {/* Alert History */}
+                    <button
+                      onClick={() => { setShowAlertPanel(true); setShowMobileMenu(false); }}
+                      className="w-full flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 active:bg-[#39FF14]/10 transition-all group"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <Bell size={18} className={alerts.length > 0 ? "text-amber-500" : "text-slate-600"} />
+                          {alerts.length > 0 && (
+                            <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#FF4B5C]" />
+                          )}
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest">Alert History</span>
+                      </div>
+                      {alerts.length > 0 && (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[#FF4B5C]/10 text-[#FF4B5C]">
+                          {alerts.length}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section: Account */}
+                <div className="space-y-3 pb-2">
+                  <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-600">Account</span>
+                  <div className="flex flex-col gap-1.5">
+                    {session && (
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/5">
+                        <div className="w-8 h-8 rounded-full bg-[#39FF14]/10 border border-[#39FF14]/20 flex items-center justify-center shrink-0">
+                          <UserIcon size={14} className="text-[#39FF14]" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-[9px] font-black text-white truncate">{session.user?.name || 'User'}</span>
+                          <span className="text-[7px] text-slate-600 truncate">{session.user?.email}</span>
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { router.push('/account'); setShowMobileMenu(false); }}
+                      className="w-full flex items-center gap-4 p-3 rounded-lg bg-white/5 border border-white/5 text-slate-300 active:bg-white/10 transition-all"
+                    >
+                      <UserIcon size={18} className="text-slate-500" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">My Account</span>
+                    </button>
+                    <button
+                      onClick={handleSignOut}
+                      disabled={isLoggingOut}
+                      className="w-full flex items-center gap-4 p-3 rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-400 active:bg-rose-500/10 transition-all"
+                    >
+                      <LogOut size={18} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        {isLoggingOut ? 'Signing out...' : 'Sign Out'}
+                      </span>
                     </button>
                   </div>
                 </div>

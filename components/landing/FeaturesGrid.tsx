@@ -9,7 +9,7 @@ export function FeaturesGrid() {
     <section id="features" className="py-16 sm:py-24 md:py-32 bg-white/[0.02] border-t border-white/5 px-4 sm:px-6">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-12 sm:mb-20 md:mb-24 space-y-3 sm:space-y-4">
-          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.4em] sm:tracking-[0.5em] text-[#39FF14]">RSI & MACD Crypto Scanner</h2>
+          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14]">RSI & MACD Crypto Scanner</h2>
           <h3 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tighter">Everything for <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">Professional Trading.</span></h3>
         </div>
 

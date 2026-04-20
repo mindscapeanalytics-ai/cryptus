@@ -66,7 +66,7 @@ function LogicFunnel() {
   return (
     <div className="relative flex flex-col items-center py-12">
       <div className="text-center mb-8">
-        <span className="text-[10px] font-black text-[#39FF14] uppercase tracking-[0.4em]">Integrated Intelligence</span>
+        <span className="text-[10px] font-black text-[#39FF14] uppercase tracking-[0.5em]">Integrated Intelligence</span>
         <h3 className="text-xl font-black text-white tracking-tight mt-1">Unified Strategy Score</h3>
       </div>
 
@@ -116,7 +116,7 @@ export function LogicSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
         <div className="text-center mb-24">
           <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14] mb-4">Signal Architecture</h2>
-          <p className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase italic leading-[0.9]">
+          <p className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-[0.9]">
             The 59-Second <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">Alpha Lead.</span>
           </p>
           <p className="mt-6 text-slate-400 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
@@ -129,7 +129,7 @@ export function LogicSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 sm:gap-24 items-center mt-32">
           <div className="space-y-12">
             <div className="space-y-4">
-              <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tight uppercase">Deep Signal Confluence: <br /><span className="text-slate-500 italic">The Logic Layer</span></h3>
+              <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tight uppercase">Deep Signal Confluence: <br /><span className="text-slate-500">The Logic Layer</span></h3>
               <p className="text-slate-400 text-sm leading-relaxed max-w-md">
                 Our Neural Engine syncs technicals across all timeframes to identify institutional-grade setups. 2.4 Billion daily ticks processed into a single verified score.
               </p>

@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const publicPrefixes = ["/login", "/register", "/about", "/services", "/subscription"];
+  const publicPrefixes = ["/login", "/register", "/about", "/services", "/subscription", "/support", "/features", "/legal", "/pricing"];
   const isPublicRoute =
     pathname === "/" ||
     publicPrefixes.some((prefix) => pathname.startsWith(prefix));

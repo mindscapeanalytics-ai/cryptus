@@ -45,8 +45,8 @@ export function ProfitGap() {
       
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="text-center mb-16 sm:mb-24 space-y-4">
-          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.6em] text-slate-500">Diagnostic Matrix</h2>
-          <p className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase italic">
+          <h2 className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.5em] text-slate-500">Diagnostic Matrix</h2>
+          <p className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase">
             Legacy Friction vs. <span className="text-[#39FF14]">Modern Speed.</span>
           </p>
         </div>

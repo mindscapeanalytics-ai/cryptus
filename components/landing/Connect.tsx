@@ -21,7 +21,7 @@ export function Connect() {
       <div className="max-w-7xl mx-auto rounded-3xl border border-white/10 bg-[#0a0f1a] p-6 sm:p-8 md:p-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#39FF14]">Mindscape Analytics Connection</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-[#39FF14]">Mindscape Analytics Connection</p>
             <h3 className="mt-3 text-2xl sm:text-3xl font-black text-white tracking-tight">Lead Pipeline Links</h3>
             <p className="mt-3 text-sm text-slate-400">Direct channels for SaaS builds, automation projects, managed cloud, and AI deployment engagements.</p>
           </div>

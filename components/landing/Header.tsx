@@ -14,7 +14,7 @@ interface LandingHeaderProps {
 
 export function LandingHeader({ session, mobileMenuOpen, setMobileMenuOpen }: LandingHeaderProps) {
   return (
-    <nav className="fixed top-3 sm:top-4 w-full z-[100] border-b border-white/5 bg-[#05080F]/95 backdrop-blur-2xl">
+    <nav className="fixed top-0 w-full z-[100] border-b border-white/5 bg-[#05080F]/95 backdrop-blur-2xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center gap-2 sm:gap-3">
@@ -42,6 +42,7 @@ export function LandingHeader({ session, mobileMenuOpen, setMobileMenuOpen }: La
           <a href="#mobile" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Mobile</a>
           <Link href="/services" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Services</Link>
           <Link href="/about" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">About</Link>
+          <Link href="/support" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Support</Link>
           <a href="#connect" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Connect</a>
         </div>
 
@@ -82,6 +83,7 @@ export function LandingHeader({ session, mobileMenuOpen, setMobileMenuOpen }: La
               <a href="#mobile" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">Mobile</a>
               <Link href="/services" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">Services</Link>
               <Link href="/about" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">About</Link>
+              <Link href="/support" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">Support</Link>
               <a href="#connect" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-[#39FF14] hover:bg-white/5 transition-all">Connect</a>
               <div className="my-2 border-t border-white/5" />
               <Link href={session ? "/terminal" : "/login"} onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white hover:bg-white/5 transition-all">

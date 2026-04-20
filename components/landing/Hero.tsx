@@ -36,7 +36,7 @@ export function Hero({ session }: HeroProps) {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#39FF14] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-[#39FF14]"></span>
             </span>
-            <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-[0.1em] sm:tracking-[0.25em] text-[#39FF14] text-center px-1">Enterprise Engine Active - 500+ Live Symbols (Crypto, Forex, Metals, Stocks)</span>
+            <span className="text-[8px] sm:text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14] text-center px-1">Enterprise Engine Active - 500+ Live Symbols</span>
           </motion.div>
 
           <div className="flex flex-col items-center">
@@ -49,7 +49,7 @@ export function Hero({ session }: HeroProps) {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">TERMINAL.</span>
             </motion.h1>
 
-            <h2 className="text-[9px] sm:text-xs md:text-sm font-black uppercase tracking-[0.2em] sm:tracking-[0.6em] text-[#39FF14] mb-6 sm:mb-10 text-center px-4">Institutional Speed for Professional Signal Execution</h2>
+            <h2 className="text-[9px] sm:text-xs md:text-sm font-black uppercase tracking-[0.5em] text-[#39FF14] mb-6 sm:mb-10 text-center px-4">Institutional Speed for Professional Signal Execution</h2>
           </div>
 
           <motion.p
@@ -133,7 +133,7 @@ export function Hero({ session }: HeroProps) {
         <div className="absolute inset-0 bg-gradient-to-r from-[#05080F] via-transparent to-[#05080F] z-10 pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-8 md:gap-20">
           <div className="flex-shrink-0 flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Connectivity Hub</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500">Connectivity Hub</span>
             <span className="text-sm font-black text-white uppercase tracking-widest mt-1">Global Exchanges</span>
           </div>
           <div className="flex-1 overflow-hidden relative h-10 flex items-center">

@@ -87,7 +87,7 @@ export function TerminalPreview() {
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-500 text-[#39FF14]">
                 <TrendingUp size={120} />
               </div>
-              <h4 className="text-[11px] font-black uppercase tracking-widest text-[#39FF14] mb-4">Liquidation Flux V4</h4>
+              <h4 className="text-[11px] font-black uppercase tracking-[0.5em] text-[#39FF14] mb-4">Liquidation Flux V4</h4>
               <p className="text-2xl font-black text-white tracking-tight leading-tight">Intercept institutional margin exhaustion.</p>
               <div className="mt-8 relative h-32 w-full">
                 <Image src="/images/system_images/Signal_naratives.png" alt="Signal Narration" fill className="object-contain" />
@@ -104,7 +104,7 @@ export function TerminalPreview() {
               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500 text-[#39FF14]">
                 <ShieldCheck size={120} />
               </div>
-              <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-4">Portfolio Armor</h4>
+              <h4 className="text-[11px] font-black uppercase tracking-[0.5em] text-slate-400 mb-4">Portfolio Armor</h4>
               <p className="text-2xl font-black text-white tracking-tight leading-tight">Neural HHI risk scoring built-in.</p>
               <div className="mt-8 relative h-32 w-full">
                 <Image src="/images/system_images/portfolio_risk.png" alt="Portfolio Risk" fill className="object-contain" />
