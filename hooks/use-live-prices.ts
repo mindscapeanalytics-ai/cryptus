@@ -546,6 +546,8 @@ export function useLivePrices(symbols: Set<string>, throttleMs: number = 300) {
 
     // Periodic flush: ensures accumulated ticks reach React state even when
     // the WebSocket goes quiet between batches (e.g. low-volatility periods).
+    // CRITICAL: Synchronized with worker's max flush interval (100ms) to reduce stuttering
+    // This alignment creates a consistent update rhythm and eliminates perceived freezes
     const flushTimer = setInterval(() => {
       if (!mountedRef.current || pendingBatch.size === 0) return;
       const now = Date.now();
@@ -555,7 +557,7 @@ export function useLivePrices(symbols: Set<string>, throttleMs: number = 300) {
         lastUpdate = now;
         pendingBatch.clear();
       }
-    }, 80);
+    }, 100); // Increased from 80ms to 100ms to match worker's maximum interval
 
     const handleWorkerMessage = (e: MessageEvent) => {
       if (!mountedRef.current) return;

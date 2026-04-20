@@ -15,7 +15,7 @@ const RECONNECT_BASE_DELAY = 2000;
 const RECONNECT_MAX_DELAY = 30000;
 const HEARTBEAT_MS = 30000;
 const ZOMBIE_WATCHDOG_MS = 30000;   // check every 30s
-const ZOMBIE_THRESHOLD_MS = 60000;  // force reconnect if no data for 60s
+const ZOMBIE_THRESHOLD_MS = 15000;  // force reconnect if no data for 15s (reduced from 60s for faster dead connection detection)
 const BYBIT_SPOT_REST_POLL_MS = 2000;  // Task 2.7: REST poll interval for stale Bybit Spot symbols
 const BYBIT_SPOT_STALE_THRESHOLD_MS = 5000; // Symbol is stale if no WS update for 5s
 
@@ -1004,9 +1004,11 @@ function handleMessage(e, port = null) {
       const now = Date.now();
       const silenceMs = now - lastDataReceived;
       
-      // PWA CRITICAL: Lower threshold to 3s. PWA containers can background
-      // WebSockets almost instantly; 10s was too lenient and left the UI stale.
-      if (silenceMs > 3000) {
+      // PWA CRITICAL: Lower threshold to 1.5s for faster recovery.
+      // PWA containers can background WebSockets almost instantly.
+      // 3s was too lenient and left the UI feeling frozen after app switching.
+      // 1.5s provides aggressive recovery while avoiding false positives.
+      if (silenceMs > 1500) {
         console.log(`[worker] Health check on resume (silence: ${Math.round(silenceMs/1000)}s)`);
         activeAdapters.forEach((adapter, name) => {
           // Force reconnect if socket is closed, closing, OR stuck in CONNECTING
@@ -1528,8 +1530,11 @@ function computeWorkerStrategyScore(params) {
 }
 
 // ── Task 2.3: Staleness Detection ────────────────────────────────
-const STALE_THRESHOLD_MS = 60000; // 60 seconds
-const STALENESS_CHECK_INTERVAL_MS = 10000; // check every 10 seconds
+// CRITICAL: Reduced thresholds for better UX in live dashboard
+// 15s staleness threshold triggers REST fallback faster
+// 5s check interval provides more responsive detection
+const STALE_THRESHOLD_MS = 15000; // 15 seconds (reduced from 60s for better UX)
+const STALENESS_CHECK_INTERVAL_MS = 5000; // check every 5 seconds (reduced from 10s)
 
 /**
  * Iterates latestTickerState and marks symbols as stale if they haven't
@@ -1584,14 +1589,16 @@ function startFlushing(interval) {
       tickerBuffer.clear();
     }
 
-    // Adaptive Flushing Logic (2026 Optimization)
+    // Adaptive Flushing Logic (2026 Optimization - PWA Tuned)
     // Faster flushes (50ms) during high volatility/large buffers.
-    // Slower flushes (300ms) during idle periods to save battery/CPU.
+    // Moderate flushes (100ms max) during idle periods for smooth UX.
+    // CRITICAL: 300ms was too slow and caused perceived "freezes"
+    // The 100ms maximum provides smooth updates while still saving battery
     const currentSize = tickerBuffer.size;
-    let nextInterval = 300; 
+    let nextInterval = 100; // Reduced from 300ms to eliminate perceived freezes
     if (currentSize > 100) nextInterval = 50; 
-    else if (currentSize > 40) nextInterval = 100;
-    else if (currentSize > 15) nextInterval = 200;
+    else if (currentSize > 40) nextInterval = 75; // Reduced from 100ms for smoother mid-volatility
+    else if (currentSize > 15) nextInterval = 100; // Reduced from 200ms for consistent rhythm
 
     flushInterval = setTimeout(performFlush, nextInterval);
   };

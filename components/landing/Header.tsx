@@ -36,7 +36,7 @@ export function LandingHeader({ session, mobileMenuOpen, setMobileMenuOpen }: La
 
         {/* Desktop Nav Links */}
         <div className="hidden md:flex items-center gap-8 mr-auto ml-16">
-          <a href="#features" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Features</a>
+          <Link href="/features" className="text-[10px] font-black uppercase tracking-widest text-[#39FF14] hover:text-white transition-colors">Features</Link>
           <a href="#logic" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">The Logic</a>
           <a href="#pricing" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Pricing</a>
           <a href="#mobile" className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-[#39FF14] transition-colors">Mobile</a>

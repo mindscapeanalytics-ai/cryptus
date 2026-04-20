@@ -330,3 +330,71 @@ export function StatBox({ value, label, highlight = false }: { value: string; la
   );
 }
 
+/* ─── Institutional Primitives ────────────────── */
+
+export function GridBackground({ className }: { className?: string }) {
+  return (
+    <div className={cn("absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none z-0", className)} />
+  );
+}
+
+export function OutcomeLabel({ text, type }: { text: string; type: 'retail' | 'alpha' }) {
+  return (
+    <div className={cn(
+      "w-full py-4 px-6 text-[11px] font-black uppercase tracking-[0.2em]",
+      type === 'retail' ? "bg-red-500/20 text-red-500 border-t border-red-500/30" : "bg-[#39FF14]/20 text-[#39FF14] border-t border-[#39FF14]/30"
+    )}>
+      Outcome: {text}
+    </div>
+  );
+}
+
+export function SignalPreview({ type, title, subtitle, bullets }: { type: 'buy' | 'sell'; title: string; subtitle: string; bullets: string[] }) {
+  return (
+    <div className="p-6 rounded-2xl bg-[#0a0f1a] border border-white/10 shadow-2xl relative overflow-hidden group">
+      <div className={cn(
+        "absolute left-0 top-0 bottom-0 w-1",
+        type === 'buy' ? "bg-[#39FF14]" : "bg-red-500"
+      )} />
+      <div className="flex items-center gap-3 mb-4">
+        <div className={cn(
+          "w-3 h-3 rounded-full animate-pulse",
+          type === 'buy' ? "bg-[#39FF14]" : "bg-red-500"
+        )} />
+        <span className={cn(
+          "text-[11px] font-black uppercase tracking-widest",
+          type === 'buy' ? "text-[#39FF14]" : "text-red-500"
+        )}>{title}</span>
+        <span className="text-slate-400 text-[11px] font-medium">{subtitle}</span>
+      </div>
+      <ul className="space-y-2">
+        {bullets.map((b, i) => (
+          <li key={i} className="flex items-center gap-2 text-[10px] text-slate-300 font-medium">
+            <div className="w-1 h-1 rounded-full bg-slate-600" />
+            {b}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function ProjectStep({ title, subtitle, desc, active = false }: { title: string; subtitle: string; desc: string; active?: boolean }) {
+  return (
+    <div className={cn(
+      "p-8 rounded-3xl border transition-all duration-500 flex flex-col gap-4",
+      active 
+        ? "bg-[#39FF14]/[0.05] border-[#39FF14]/30 shadow-[0_0_50px_rgba(57,255,20,0.05)] scale-105" 
+        : "bg-white/[0.02] border-white/5 opacity-60 flex-shrink"
+    )}>
+      <div className="flex flex-col">
+        <span className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", active ? "text-[#39FF14]" : "text-slate-500")}>
+          {subtitle}
+        </span>
+        <h4 className="text-xl font-black text-white tracking-tight">{title}</h4>
+      </div>
+      <p className="text-xs text-slate-400 leading-relaxed italic">{desc}</p>
+    </div>
+  );
+}
+

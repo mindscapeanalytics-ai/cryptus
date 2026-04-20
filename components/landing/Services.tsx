@@ -1,54 +1,90 @@
 "use client";
 
 import React from 'react';
-import { Bot, Code2, Globe, Database } from 'lucide-react';
-import { LeadServiceCard } from './LandingUI';
+import { GridBackground } from './LandingUI';
+import { cn } from '@/lib/utils';
+import { ArrowUpRight } from 'lucide-react';
 
-// Using constants from app/page.tsx or defined locally if needed
-const MINDSCAPE_LINKS = {
-  aiEmployee: "https://mindscapeanalytics.com/services/ai-employee",
-  saasEngineering: "https://mindscapeanalytics.com/services/saas-engineering",
-  globalInfrastructure: "https://mindscapeanalytics.com/services/global-infrastructure",
-  automationSystems: "https://mindscapeanalytics.com/services/automation-systems"
-};
+const SERVICES = [
+  {
+    title: "AI Agents & Voice",
+    desc: "Automate lead qualification and trading community management 24/7.",
+    pos: "tl"
+  },
+  {
+    title: "SaaS Engineering",
+    desc: "High-performance Next.js builds, enterprise auth, and multi-tenant architecture.",
+    pos: "tr"
+  },
+  {
+    title: "Cloud & Data Ops",
+    desc: "Global, low-latency node clusters engineered for high-frequency analytical workloads.",
+    pos: "bl"
+  },
+  {
+    title: "Custom Automation",
+    desc: "Algorithmic trading systems and webhook integrations.",
+    pos: "br"
+  }
+];
 
 export function Services() {
   return (
-    <section id="services" className="py-20 sm:py-32 md:py-36 px-4 sm:px-6 border-t border-white/5 bg-[#060b14]">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12 sm:mb-16">
-          <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.45em] text-[#39FF14]">Mindscape Services</p>
-          <h2 className="mt-4 text-3xl sm:text-5xl font-black text-white tracking-tight">Build <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#39FF14] to-emerald-400">More Than A Scanner</span></h2>
-          <p className="mt-4 text-sm sm:text-base text-slate-400 max-w-3xl mx-auto">
-            Turn RSIQ Pro into your growth engine with productized AI automation, SaaS engineering, and managed infrastructure from Mindscape Analytics.
+    <section id="services" className="py-24 sm:py-32 md:py-48 bg-[#05080F] border-t border-white/5 relative overflow-hidden">
+      <GridBackground className="opacity-10" />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+        <div className="text-left mb-16 sm:mb-24 space-y-4">
+          <h2 className="text-4xl sm:text-6xl font-black text-white tracking-tighter uppercase leading-[0.9]">
+            Build More <br />
+            <span className="text-slate-500 italic">Than a Scanner.</span>
+          </h2>
+          <p className="text-slate-400 text-sm sm:text-base font-medium max-w-2xl">
+            Powered by Mindscape Analytics: Turn RSIQ Pro into your growth engine with productized SaaS engineering and managed infrastructure.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6">
-          <LeadServiceCard
-            icon={<Bot size={22} />}
-            title="AI Employee"
-            desc="Deploy custom AI agents that manage your trading communities, handle customer support, and automate documentation 24/7."
-            href={MINDSCAPE_LINKS.aiEmployee}
-          />
-          <LeadServiceCard
-            icon={<Code2 size={22} />}
-            title="SaaS Engineering"
-            desc="Scale your trading tools into enterprise-grade SaaS platforms. High-performance backends, clean UI, and secure billing."
-            href={MINDSCAPE_LINKS.saasEngineering}
-          />
-          <LeadServiceCard
-            icon={<Globe size={22} />}
-            title="Infrastructure"
-            desc="Global, low-latency node clusters and database architecture designed for high-frequency analytical workloads."
-            href={MINDSCAPE_LINKS.globalInfrastructure}
-          />
-          <LeadServiceCard
-            icon={<Database size={22} />}
-            title="Automation"
-            desc="Custom algorithmic trading systems, webhook integrations, and automated signal delivery pipelines."
-            href={MINDSCAPE_LINKS.automationSystems}
-          />
+        <div className="relative group">
+          {/* Central Crossing Lines */}
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10 -translate-y-1/2" />
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/10 -translate-x-1/2 hidden md:block" />
+          
+          {/* Central Engine Node */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden md:flex flex-col items-center">
+            <div className="w-12 h-12 rounded-full bg-[#05080F] border-4 border-slate-800 flex items-center justify-center">
+              <div className="w-4 h-4 rounded-full bg-slate-500 animate-pulse" />
+            </div>
+            <div className="mt-4 px-4 py-1.5 rounded-full bg-slate-100 text-slate-900 text-[11px] font-black uppercase tracking-widest whitespace-nowrap shadow-2xl">
+              RSIQ Pro Engine
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-16 md:gap-y-0 relative">
+            {SERVICES.map((s, i) => (
+              <div 
+                key={i} 
+                className={cn(
+                  "p-8 sm:p-12 md:p-16 flex flex-col group/service transition-all duration-500",
+                  // Vertical and Horizontal padding adjustments for the quadrant look
+                  s.pos === 'tl' && "md:border-r md:border-b border-transparent",
+                  s.pos === 'tr' && "md:border-b border-transparent",
+                  s.pos === 'bl' && "md:border-r border-transparent"
+                )}
+              >
+                <div className="flex-1">
+                  <h3 className="text-2xl sm:text-3xl font-black text-white tracking-tight uppercase mb-4 group-hover/service:text-[#39FF14] transition-colors">{s.title}</h3>
+                  <p className="text-slate-400 text-sm sm:text-base leading-relaxed max-w-sm">{s.desc}</p>
+                </div>
+                <a 
+                  href="https://mindscapeanalytics.com" 
+                  target="_blank" 
+                  className="mt-12 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover/service:text-white transition-all"
+                >
+                  Explore Ecosystem <ArrowUpRight size={14} className="group-hover/service:translate-x-0.5 group-hover/service:-translate-y-0.5 transition-transform" />
+                </a>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

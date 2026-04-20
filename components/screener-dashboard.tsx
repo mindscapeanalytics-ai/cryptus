@@ -465,6 +465,82 @@ function MarketBadge({ market }: { market: ScreenerEntry['market'] }) {
   );
 }
 
+// ─── Live Status Indicator (PWA Performance Monitor) ──────────────
+const LiveStatusIndicator = memo(function LiveStatusIndicator({ 
+  lastUpdate,
+  isConnected 
+}: { 
+  lastUpdate: number;
+  isConnected: boolean;
+}) {
+  const [now, setNow] = useState(Date.now());
+  
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  
+  if (!isConnected) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800/30 border border-slate-700/40">
+        <div className="w-2 h-2 rounded-full bg-slate-700" />
+        <span className="text-slate-600 text-[9px] uppercase tracking-wider">OFFLINE</span>
+      </div>
+    );
+  }
+  
+  const ageMs = now - lastUpdate;
+  const ageSec = Math.floor(ageMs / 1000);
+  
+  let color = 'text-[#39FF14]'; // Green
+  let bgColor = 'bg-[#39FF14]/10';
+  let borderColor = 'border-[#39FF14]/30';
+  let dotColor = 'bg-[#39FF14]';
+  let status = 'LIVE';
+  let shouldPulse = true;
+  
+  if (ageMs > 3000) {
+    color = 'text-red-500';
+    bgColor = 'bg-red-500/10';
+    borderColor = 'border-red-500/30';
+    dotColor = 'bg-red-500';
+    status = 'STALE';
+    shouldPulse = false;
+  } else if (ageMs > 1000) {
+    color = 'text-yellow-500';
+    bgColor = 'bg-yellow-500/10';
+    borderColor = 'border-yellow-500/30';
+    dotColor = 'bg-yellow-500';
+    status = 'SLOW';
+    shouldPulse = true;
+  }
+  
+  return (
+    <div 
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold border transition-all duration-300",
+        bgColor,
+        borderColor
+      )}
+      title={`Last update: ${ageSec}s ago`}
+    >
+      <div className={cn(
+        "w-2 h-2 rounded-full transition-all duration-300",
+        dotColor,
+        shouldPulse && "animate-pulse shadow-[0_0_8px_currentColor]"
+      )} />
+      <span className={cn("text-[9px] uppercase tracking-wider font-black", color)}>
+        {status}
+      </span>
+      {ageMs > 1000 && (
+        <span className="text-slate-500 text-[8px] font-bold">
+          ({ageSec}s)
+        </span>
+      )}
+    </div>
+  );
+});
+
 
 // ─── Screener Row (Memoized) ───────────────────────────────────
 
@@ -2107,6 +2183,10 @@ export default function ScreenerDashboard() {
   const [coinConfigs, setCoinConfigs] = useState<Record<string, any>>({});
   const coinConfigsRef = useRef<Record<string, any>>({});
   const [selectedCoinForConfig, setSelectedCoinForConfig] = useState<string | null>(null);
+  
+  // ── PWA Performance Monitoring ──
+  const [lastGlobalUpdate, setLastGlobalUpdate] = useState(Date.now());
+  
   const fetchingRef = useRef(false);
   const activeFetchControllerRef = useRef<AbortController | null>(null);
   const fetchTokenRef = useRef(0);
@@ -2476,6 +2556,13 @@ export default function ScreenerDashboard() {
     updateSymbols,
     postToWorker
   } = useLivePrices(symbolSet, liveThrottleMs);
+
+  // ── PWA Performance: Track last price update for live status indicator ──
+  useEffect(() => {
+    if (livePrices.size > 0) {
+      setLastGlobalUpdate(Date.now());
+    }
+  }, [livePrices]);
 
   const syncStates = useCallback((p: any) => {
     baseSyncStates({
@@ -4378,6 +4465,8 @@ export default function ScreenerDashboard() {
                     </button>
                   ))}
                 </div>
+                <div className="h-4 w-px bg-white/10" />
+                <LiveStatusIndicator lastUpdate={lastGlobalUpdate} isConnected={isConnected} />
               </div>
 
               <div className="relative flex-1 max-w-[480px] h-full">
