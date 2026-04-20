@@ -19,6 +19,7 @@ import { TrialIndicator } from './trial-indicator';
 import { GlobalWinRateBadge } from './global-win-rate-badge';
 import { WinRateBadge } from './win-rate-badge';
 import { SignalNarrationModal } from './signal-narration-modal';
+import { QuietHoursSection } from './quiet-hours-section';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -29,6 +30,8 @@ import { useAlertEngine } from '@/hooks/use-alert-engine';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { useDerivativesIntel } from '@/hooks/use-derivatives-intel';
 import { DerivativesPanel, OrderFlowBar } from '@/components/derivatives-panel';
+import { FundingRateCellWithTooltip } from '@/components/funding-rate-cell';
+import { OrderFlowIndicator } from '@/components/order-flow-indicator';
 import { CorrelationHeatmap } from '@/components/correlation-heatmap';
 import { PortfolioScannerPanel } from '@/components/portfolio-scanner-panel';
 import { approximateRsi, approximateEma, calculateRsiWithState } from '@/lib/rsi';
@@ -1041,29 +1044,34 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
 
       {visibleCols.has('fundingRate') && (
-        <IndicatorCell 
-          value={fundingRate?.rate || null} 
-          formatted={fundingRate ? `${(fundingRate.rate * 100).toFixed(4)}%` : '-'} 
-          colorClass={fundingRate ? (fundingRate.rate > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]") : "text-slate-700"} 
-          widthClass={COL_WIDTHS.funding} 
-          intensity={true}
-          title={fundingRate ? `Annualized: ${fundingRate.annualized.toFixed(0)}% APR` : undefined}
-        />
+        <td className={cn("px-3 py-3 text-center", COL_WIDTHS.funding)}>
+          <FundingRateCellWithTooltip 
+            data={fundingRate ? {
+              rate: fundingRate.rate,
+              annualized: fundingRate.annualized,
+              markPrice: display.price,
+              indexPrice: display.price,
+              nextFundingTime: Date.now() + 8 * 60 * 60 * 1000 // 8 hours from now
+            } : undefined}
+            compact={true}
+            showTooltip={true}
+          />
+        </td>
       )}
 
       {visibleCols.has('orderFlow') && (
-        <td className={cn("px-3 py-3 text-right", COL_WIDTHS.flow)}>
-          {orderFlowData ? (
-            <div className="flex items-center justify-end gap-1.5">
-              <div className="w-10 h-1.5 rounded-full bg-slate-800 overflow-hidden flex shrink-0 border border-white/5">
-                <div className="h-full bg-[#39FF14]/70 transition-all duration-700" style={{ width: `${orderFlowData.ratio * 100}%` }} />
-                <div className="h-full bg-[#FF4B5C]/70 transition-all duration-700" style={{ width: `${(1 - orderFlowData.ratio) * 100}%` }} />
-              </div>
-              <span className={cn("text-[9px] font-black tabular-nums font-mono", orderFlowData.ratio > 0.5 ? "text-[#39FF14]" : "text-[#FF4B5C]")}>
-                {(orderFlowData.ratio * 100).toFixed(0)}%
-              </span>
-            </div>
-          ) : <span className="text-slate-800">-</span>}
+        <td className={cn("px-3 py-3 text-center", COL_WIDTHS.flow)}>
+          <OrderFlowIndicator 
+            data={orderFlowData ? {
+              pressure: orderFlowData.pressure as any,
+              ratio: orderFlowData.ratio,
+              buyVolume1m: orderFlowData.buyVolume1m,
+              sellVolume1m: orderFlowData.sellVolume1m,
+              tradeCount1m: 0
+            } : undefined}
+            compact={true}
+            showTooltip={true}
+          />
         </td>
       )}
 
@@ -5622,68 +5630,15 @@ function CoinSettingsModal({
             </div>
 
             {/* Task 15.2: Quiet Hours Configuration */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/5 border border-purple-500/20 group">
-                <div className="flex flex-col">
-                  <span className="text-[8px] font-black text-purple-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Clock size={11} />
-                    Quiet Hours
-                  </span>
-                  <span className="text-[7px] text-slate-500 font-bold uppercase mt-0.5 leading-tight pr-4">
-                    Suppress low/medium priority alerts
-                  </span>
-                </div>
-                <button
-                  onClick={() => setConfig({ ...config, quietHoursEnabled: !config.quietHoursEnabled })}
-                  disabled={loading}
-                  className={cn(
-                    "w-9 h-4.5 rounded-full p-0.5 transition-all flex items-center",
-                    config.quietHoursEnabled ? "bg-purple-500" : "bg-slate-800"
-                  )}
-                >
-                  <div className={cn(
-                    "w-3.5 h-3.5 rounded-full bg-white transition-all shadow-sm",
-                    config.quietHoursEnabled ? "translate-x-4.5" : "translate-x-0"
-                  )} />
-                </button>
-              </div>
-
-              {config.quietHoursEnabled && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="grid grid-cols-2 gap-2"
-                >
-                  <div className="space-y-1.5">
-                    <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">Start (24h)</span>
-                    <select
-                      value={config.quietHoursStart}
-                      onChange={(e) => setConfig({ ...config, quietHoursStart: parseInt(e.target.value) })}
-                      disabled={loading}
-                      className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500/30 transition-all disabled:opacity-50"
-                    >
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider ml-0.5">End (24h)</span>
-                    <select
-                      value={config.quietHoursEnd}
-                      onChange={(e) => setConfig({ ...config, quietHoursEnd: parseInt(e.target.value) })}
-                      disabled={loading}
-                      className="w-full bg-slate-950/50 border border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-purple-500/30 transition-all disabled:opacity-50"
-                    >
-                      {Array.from({ length: 24 }, (_, i) => (
-                        <option key={i} value={i}>{i.toString().padStart(2, '0')}:00</option>
-                      ))}
-                    </select>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+            <QuietHoursSection
+              enabled={config.quietHoursEnabled}
+              startHour={config.quietHoursStart}
+              endHour={config.quietHoursEnd}
+              onEnabledChange={(enabled) => setConfig({ ...config, quietHoursEnabled: enabled })}
+              onStartHourChange={(hour) => setConfig({ ...config, quietHoursStart: hour })}
+              onEndHourChange={(hour) => setConfig({ ...config, quietHoursEnd: hour })}
+              disabled={loading}
+            />
 
             <div className="h-px bg-white/5" />
 
