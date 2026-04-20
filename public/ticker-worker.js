@@ -770,26 +770,33 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
       const isInverted = obT < osT;
 
       const NEAR_BUFFER = 0.3; // Allow "near" reach alerts
+
+      // ── Hysteresis: prevent rapid zone flipping ──
+      // Standard mode (OB=70, OS=30): oversold when RSI < 30, overbought when RSI > 70
+      // Inverted mode (OB=30, OS=70): oversold when RSI > 70, overbought when RSI < 30
       if (previousZone === 'OVERSOLD') {
-        zone = isInverted
-          ? (tf.rsi < osT - hysteresis ? 'NEUTRAL' : 'OVERSOLD')
-          : (tf.rsi > osT + hysteresis ? 'NEUTRAL' : 'OVERSOLD');
-      } else if (previousZone === 'OVERBOUGHT') {
-        zone = isInverted
-          ? (tf.rsi > obT + hysteresis ? 'NEUTRAL' : 'OVERBOUGHT')
-          : (tf.rsi < obT - hysteresis ? 'NEUTRAL' : 'OVERBOUGHT');
-      } else {
         if (isInverted) {
-          // If already OVERSOLD, stay OVERSOLD until RSI drops below (osT - hysteresis)
-          if (previousZone === 'OVERSOLD' && tf.rsi >= osT - hysteresis) zone = 'OVERSOLD';
-          else if (previousZone === 'OVERBOUGHT' && tf.rsi <= obT + hysteresis) zone = 'OVERBOUGHT';
-          else if (tf.rsi >= osT) zone = 'OVERSOLD';
+          // Inverted: stay OVERSOLD until RSI drops below (osT - hysteresis)
+          zone = tf.rsi < osT - hysteresis ? 'NEUTRAL' : 'OVERSOLD';
+        } else {
+          // Standard: stay OVERSOLD until RSI rises above (osT + hysteresis)
+          zone = tf.rsi > osT + hysteresis ? 'NEUTRAL' : 'OVERSOLD';
+        }
+      } else if (previousZone === 'OVERBOUGHT') {
+        if (isInverted) {
+          // Inverted: stay OVERBOUGHT until RSI rises above (obT + hysteresis)
+          zone = tf.rsi > obT + hysteresis ? 'NEUTRAL' : 'OVERBOUGHT';
+        } else {
+          // Standard: stay OVERBOUGHT until RSI drops below (obT - hysteresis)
+          zone = tf.rsi < obT - hysteresis ? 'NEUTRAL' : 'OVERBOUGHT';
+        }
+      } else {
+        // NEUTRAL or first-seen: determine zone from current RSI
+        if (isInverted) {
+          if (tf.rsi >= osT) zone = 'OVERSOLD';
           else if (tf.rsi <= obT) zone = 'OVERBOUGHT';
         } else {
-          // If already OVERSOLD, stay OVERSOLD until RSI rises above (osT + hysteresis)
-          if (previousZone === 'OVERSOLD' && tf.rsi <= osT + hysteresis) zone = 'OVERSOLD';
-          else if (previousZone === 'OVERBOUGHT' && tf.rsi >= obT - hysteresis) zone = 'OVERBOUGHT';
-          else if (tf.rsi <= osT) zone = 'OVERSOLD';
+          if (tf.rsi <= osT) zone = 'OVERSOLD';
           else if (tf.rsi >= obT) zone = 'OVERBOUGHT';
         }
       }
@@ -917,6 +924,14 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
 
   // ── Update UI Buffer (Prioritize Active Exchange) ──
   if (exchangeName === currentExchangeName || !tickerBuffer.has(t.s)) {
+    // Backpressure guard: if buffer grows beyond 1000 entries, flush immediately
+    // to prevent unbounded memory growth when the UI is slow to consume.
+    if (tickerBuffer.size >= 1000) {
+      const payload = Array.from(tickerBuffer.entries());
+      broadcast({ type: 'TICKS', payload });
+      persistToDB(payload);
+      tickerBuffer.clear();
+    }
     // Task 2.1: Expose isStale flag - false on every live update (staleness check sets it later)
     const tickerEntry = latestTickerState.get(trackingKey);
     const isStale = tickerEntry ? (Date.now() - tickerEntry.lastUpdate > 60000) : false;

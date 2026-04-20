@@ -90,9 +90,10 @@ export function calculateMacd(
   slowPeriod = 26,
   signalPeriod = 9,
 ): MacdResult | null {
-  // Stability check: MACD needs ~3-4x the slow period for a stable signal line.
-  // Slow=26, Signal=9 => roughly 35 bars.
-  if (closes.length < slowPeriod + signalPeriod) return null;
+  // Stability check: MACD needs at least slowPeriod + signalPeriod bars for a valid signal line.
+  // We use 2x the slow period as a practical minimum for a stable, non-noisy signal.
+  // (26*2 = 52 bars minimum — avoids the "signal line still forming" problem)
+  if (closes.length < slowPeriod * 2) return null;
 
   const emaFast = calculateEma(closes, fastPeriod);
   const emaSlow = calculateEma(closes, slowPeriod);
@@ -124,7 +125,7 @@ export function calculateMacdWithState(
   slowPeriod = 26,
   signalPeriod = 9,
 ): { fastState: { ema: number }; slowState: { ema: number }; signalState: { ema: number }; histogram: number } | null {
-  if (closes.length < slowPeriod + signalPeriod) return null;
+  if (closes.length < slowPeriod * 2) return null;
 
   const emaFast = calculateEma(closes, fastPeriod);
   const emaSlow = calculateEma(closes, slowPeriod);
@@ -407,6 +408,9 @@ function findSwingHighs(data: number[], tolerance = 3): number[] {
  * Detect bullish or bearish RSI divergence.
  * Bullish: price makes lower lows while RSI makes higher lows (potential reversal up).
  * Bearish: price makes higher highs while RSI makes lower highs (potential reversal down).
+ *
+ * Tolerance is dynamic: wider for volatile assets (crypto), tighter for stable ones (forex).
+ * This prevents false positives on high-volatility assets and missed signals on low-volatility ones.
  */
 export function detectRsiDivergence(
   closes: number[],
@@ -420,8 +424,15 @@ export function detectRsiDivergence(
   const rsiWindow = fullRsi.slice(-lookback);
   if (rsiWindow.length < lookback) return 'none';
 
+  // Dynamic tolerance: based on price volatility (std dev of recent returns)
+  // Low volatility (Forex/Metals) → tolerance=2, High volatility (Crypto) → tolerance=4
+  const recentReturns = priceWindow.slice(1).map((p, i) => Math.abs(p - priceWindow[i]) / priceWindow[i]);
+  const avgReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+  // Scale: 0.1% avg return → tolerance=2, 1%+ avg return → tolerance=5
+  const tolerance = Math.max(2, Math.min(5, Math.round(avgReturn * 400)));
+
   // Bullish divergence: lower price lows + higher RSI lows
-  const priceLows = findSwingLows(priceWindow, 3);
+  const priceLows = findSwingLows(priceWindow, tolerance);
   if (priceLows.length >= 2) {
     const prev = priceLows[priceLows.length - 2];
     const curr = priceLows[priceLows.length - 1];
@@ -431,7 +442,7 @@ export function detectRsiDivergence(
   }
 
   // Bearish divergence: higher price highs + lower RSI highs
-  const priceHighs = findSwingHighs(priceWindow, 3);
+  const priceHighs = findSwingHighs(priceWindow, tolerance);
   if (priceHighs.length >= 2) {
     const prev = priceHighs[priceHighs.length - 2];
     const curr = priceHighs[priceHighs.length - 1];
@@ -710,10 +721,11 @@ export function computeStrategyScore(params: {
     else if (scaledMomentum < -2) reasons.push('Strong downward momentum');
   }
 
-  // Final validation guard: if we have fewer than 3 significant factors, 
-  // do not issue a Strong signal. This prevents "lucky" single-indicator signals.
+  // Final validation guard: if we have fewer than 2.5 significant factors, 
+  // do not issue a Strong signal. This prevents "lucky" single-indicator signals
+  // while still allowing strong divergence signals (weight 2.0) to fire.
   let normalized = factors > 0 ? score / factors : 0;
-  if (factors < 3 && Math.abs(normalized) > 50) {
+  if (factors < 2.5 && Math.abs(normalized) > 50) {
     normalized = normalized * 0.7; // Dampen low-confidence signals
   }
   normalized = Number.isFinite(normalized) ? Math.round(Math.max(-100, Math.min(100, normalized))) : 0;

@@ -156,6 +156,18 @@ export async function GET(request: Request) {
       }
     }
 
+    // ── Data Sanitization: ensure numeric fields are finite ──
+    // Prevents NaN/Infinity from reaching the worker and corrupting RSI state
+    for (const entry of result.data) {
+      if (!Number.isFinite(entry.price) || entry.price <= 0) entry.price = 0;
+      if (!Number.isFinite(entry.change24h)) entry.change24h = 0;
+      if (!Number.isFinite(entry.volume24h)) entry.volume24h = 0;
+      if (entry.rsi1m !== null && !Number.isFinite(entry.rsi1m)) entry.rsi1m = null;
+      if (entry.rsi5m !== null && !Number.isFinite(entry.rsi5m)) entry.rsi5m = null;
+      if (entry.rsi15m !== null && !Number.isFinite(entry.rsi15m)) entry.rsi15m = null;
+      if (entry.rsi1h !== null && !Number.isFinite(entry.rsi1h)) entry.rsi1h = null;
+    }
+
     return NextResponse.json(result, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',

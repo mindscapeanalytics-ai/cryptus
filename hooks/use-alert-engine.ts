@@ -243,24 +243,51 @@ export function useAlertEngine(
   }, [soundEnabled]);
 
   const logAlert = useCallback(async (alert: Omit<Alert, 'id' | 'createdAt'>) => {
-    try {
-      const res = await fetch('/api/alerts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify(alert),
-      });
-      if (res.ok) {
-        const saved = await res.json();
-        const normalized = {
-          ...saved,
-          createdAt: typeof saved.createdAt === 'string' ? new Date(saved.createdAt).getTime() : saved.createdAt
-        };
-        setAlerts(prev => [normalized, ...prev].slice(0, 50));
+    // Optimistic UI update: add to local state immediately so the user sees it
+    // even if the API call fails. The server will deduplicate via cooldown.
+    const optimisticAlert: Alert = {
+      ...alert,
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      createdAt: Date.now(),
+    };
+    setAlerts(prev => [optimisticAlert, ...prev].slice(0, 50));
+
+    // Attempt to persist to server with one retry on network failure
+    const attempt = async (retryCount = 0): Promise<void> => {
+      try {
+        const res = await fetch('/api/alerts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify(alert),
+        });
+        if (res.ok) {
+          const saved = await res.json();
+          if (saved.skipped) return; // Server-side cooldown dedup — keep optimistic entry
+          const normalized: Alert = {
+            ...saved,
+            createdAt: typeof saved.createdAt === 'string' ? new Date(saved.createdAt).getTime() : saved.createdAt,
+          };
+          // Replace the optimistic entry with the server-confirmed one
+          setAlerts(prev => prev.map(a => a.id === optimisticAlert.id ? normalized : a));
+        } else if (res.status >= 500 && retryCount === 0) {
+          // Server error — retry once after 2s
+          await new Promise(r => setTimeout(r, 2000));
+          return attempt(1);
+        }
+        // 4xx errors (auth, entitlement) — don't retry, keep optimistic entry
+      } catch (e) {
+        if (retryCount === 0) {
+          // Network error — retry once after 3s
+          await new Promise(r => setTimeout(r, 3000));
+          return attempt(1);
+        }
+        // Second failure — keep optimistic entry, log silently
+        console.warn('[alerts] Failed to persist alert after retry:', e);
       }
-    } catch (e) {
-      console.error('[alerts] Failed to log alert:', e);
-    }
+    };
+
+    attempt();
   }, []);
 
   const triggerNativeNotification = useCallback((title: string, body: string) => {

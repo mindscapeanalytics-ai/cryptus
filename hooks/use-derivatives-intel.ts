@@ -135,6 +135,8 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
 
         case 'LIQUIDATION': {
           const liq = payload as LiquidationEvent;
+          // Guard: skip invalid events
+          if (!liq.symbol || !liq.valueUsd || liq.valueUsd <= 0 || !liq.price || liq.price <= 0) break;
           setLiquidations(prev => {
             const next = [...prev, liq];
             return next.length > 200 ? next.slice(-200) : next;
@@ -163,6 +165,8 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
 
         case 'WHALE_TRADE': {
           const whale = payload as WhaleTradeEvent;
+          // Guard: skip invalid events
+          if (!whale.symbol || !whale.valueUsd || whale.valueUsd <= 0 || !whale.price || whale.price <= 0) break;
           setWhaleAlerts(prev => {
             const next = [...prev, whale];
             return next.length > 50 ? next.slice(-50) : next;
