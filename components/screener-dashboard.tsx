@@ -174,9 +174,12 @@ const SortHeader = memo(function SortHeader({
   label: string; sortKey: SortKey; currentKey: SortKey; currentDir: SortDir; onSort: (k: SortKey) => void; align?: 'left' | 'right' | 'center'; widthClass?: string; stickyOffset?: number;
 }) {
   const isActive = currentKey === sortKey;
+  const ariaSort = isActive ? (currentDir === 'asc' ? 'ascending' : 'descending') : 'none';
   return (
     <th
       onClick={() => onSort(sortKey)}
+      aria-sort={ariaSort}
+      role="columnheader"
       style={stickyOffset !== undefined ? { left: stickyOffset } : {}}
       className={cn(
         "px-3 py-3 text-[10px] font-bold uppercase text-slate-500 cursor-pointer select-none transition-colors",
@@ -1079,10 +1082,25 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
 
       {visibleCols.has('divergence') && (
-        <td className="px-3 py-4 text-right text-[10px] font-black uppercase whitespace-nowrap">
-          {(entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bullish' ? <span className="text-[#39FF14] drop-shadow-[0_0_8px_rgba(57,255,20,0.3)] animate-pulse">Bull Div</span> :
-            (entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bearish' ? <span className="text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.3)] animate-pulse">Bear Div</span> :
-              <span className="text-slate-800">-</span>}
+        <td className={cn("px-3 py-4 text-right text-[10px] font-black uppercase whitespace-nowrap overflow-hidden", COL_WIDTHS.divergence)}>
+          {(() => {
+            // Show RSI crossover if available, otherwise show divergence
+            const crossover = display.rsiCrossover;
+            const divergence = entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence;
+            if (crossover === 'bullish_reversal') {
+              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="RSI Bullish Reversal — crossed back above oversold">↑ Rev</span>;
+            }
+            if (crossover === 'bearish_reversal') {
+              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="RSI Bearish Reversal — crossed back below overbought">↓ Rev</span>;
+            }
+            if (divergence === 'bullish') {
+              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="Bullish Divergence — price lower low, RSI higher low">Bull Div</span>;
+            }
+            if (divergence === 'bearish') {
+              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="Bearish Divergence — price higher high, RSI lower high">Bear Div</span>;
+            }
+            return <span className="text-slate-800">-</span>;
+          })()}
         </td>
       )}
 
@@ -1452,7 +1470,7 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: false },
   { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: false },
   { id: 'confluence', label: 'Confluence', group: 'Intelligence', defaultVisible: true },
-  { id: 'divergence', label: 'Divergence', group: 'Intelligence', defaultVisible: true },
+  { id: 'divergence', label: 'Div / Rev', group: 'Intelligence', defaultVisible: true },
   { id: 'momentum', label: 'Momentum', group: 'Intelligence', defaultVisible: false },
   { id: 'atr', label: 'ATR', group: 'Volatility', defaultVisible: false },
   { id: 'adx', label: 'ADX', group: 'Volatility', defaultVisible: false },
@@ -2184,7 +2202,11 @@ export default function ScreenerDashboard() {
   const [entitlements, setEntitlements] = useState<DashboardEntitlements>(DEFAULT_ENTITLEMENTS);
   const [smartMode, setSmartMode] = useState(smartModeDefault);
   const [showHeader, setShowHeader] = useState(true);
-  const useAnimations = pairCount <= 600; // Disable heavy layout animations for large lists
+  // Disable heavy animations for large lists OR when user prefers reduced motion
+  const prefersReducedMotion = typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
+  const useAnimations = !prefersReducedMotion && pairCount <= 300;
   const [rsiPeriod, setRsiPeriod] = useState(14);
   const [countdown, setCountdown] = useState(30);
   const [refreshing, setRefreshing] = useState(false);
@@ -4572,7 +4594,7 @@ export default function ScreenerDashboard() {
                     </div>
 
                     {/* Pro Health Tooltip */}
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-2 bg-[#0A0E17] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover/health:opacity-100 transition-opacity pointer-events-none z-[100]">
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 p-2 bg-[#0A0E17] border border-white/10 rounded-xl shadow-2xl opacity-0 group-hover/health:opacity-100 transition-opacity pointer-events-none z-[100]">
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <span className="text-[7px] font-black text-slate-500 uppercase">Price Engine</span>
@@ -4588,6 +4610,14 @@ export default function ScreenerDashboard() {
                             {audioState === 'running' ? 'Active' : audioState === 'suspended' ? 'Blocked' : 'Idle'}
                           </span>
                         </div>
+                        {processedData.length > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-[7px] font-black text-slate-500 uppercase">Indicator Coverage</span>
+                            <span className={cn("text-[7px] font-bold tabular-nums", indicatorReadyCount / processedData.length >= 0.8 ? "text-[#39FF14]" : "text-amber-500")}>
+                              {indicatorReadyCount}/{processedData.length} ({Math.round(indicatorReadyCount / processedData.length * 100)}%)
+                            </span>
+                          </div>
+                        )}
                         <div className="pt-1 border-t border-white/5">
                           <p className="text-[6px] text-slate-600 leading-tight">Institutional-grade monitoring ensures zero-gap data liveness across all derivatives streams.</p>
                         </div>
@@ -4600,11 +4630,12 @@ export default function ScreenerDashboard() {
                   </button>
                 </div>
 
-                {/* Compilation Success Badge (Institutional Aesthetic) */}
-                <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-[#39FF14]/20 rounded-lg shadow-[0_0_15px_rgba(57,255,20,0.05)] ml-1">
-                  <span className="text-[#39FF14] text-[10px] leading-none animate-pulse">✓</span>
-                  <span className="text-slate-200 text-[8px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
-                    Engine <span className="text-[#39FF14]">Compiled</span> In 4.1s <span className="text-slate-600">(2004 Nodes)</span>
+                {/* Live Engine Status Badge */}
+                <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-white/[0.06] rounded-lg ml-1">
+                  <span className={cn("text-[10px] leading-none", isConnected ? "text-[#39FF14]" : "text-slate-600")}>✓</span>
+                  <span className="text-slate-400 text-[8px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
+                    Engine <span className={isConnected ? "text-[#39FF14]" : "text-slate-600"}>{isConnected ? "Live" : "Offline"}</span>
+                    {data.length > 0 && <span className="text-slate-600 ml-1">({data.length} pairs)</span>}
                   </span>
                 </div>
 
@@ -5077,6 +5108,27 @@ export default function ScreenerDashboard() {
 
       <CorrelationHeatmap open={showCorrelation} onClose={() => setShowCorrelation(false)} data={processedData} />
       <PortfolioScannerPanel open={showPortfolio} onClose={() => setShowPortfolio(false)} data={processedData} />
+
+      {/* Indicator Coverage Warning — shown when < 50% of symbols have indicators ready */}
+      {!loading && processedData.length > 0 && indicatorReadyCount / processedData.length < 0.5 && (
+        <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Activity size={13} className="text-amber-400 shrink-0" />
+            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">Indicators Warming Up</span>
+            <span className="text-[10px] text-slate-400">
+              {indicatorReadyCount}/{processedData.length} symbols ready ({Math.round(indicatorReadyCount / processedData.length * 100)}%)
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round(indicatorReadyCount / processedData.length * 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {(error || staleSince || (backoffUntil && backoffUntil > Date.now())) && (
