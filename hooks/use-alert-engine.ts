@@ -220,7 +220,8 @@ export function useAlertEngine(
         gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
         osc.connect(gain); gain.connect(ctx.destination);
         osc.start(start); osc.stop(start + dur);
-        setTimeout(() => { osc.disconnect(); gain.disconnect(); }, (dur + 0.5) * 1000);
+        // Clean up nodes immediately after they finish to prevent memory accumulation
+        osc.onended = () => { osc.disconnect(); gain.disconnect(); };
       };
 
       const now = ctx.currentTime;
@@ -389,8 +390,15 @@ export function useAlertEngine(
             zoneState.current.set(stateKey, currentZone);
           });
 
-          // Strategy Shift
+          // Strategy Shift — only compute if explicitly enabled for this symbol
           if (config?.alertOnStrategyShift) {
+            // Debounce: only evaluate strategy once per 500ms per symbol to avoid CPU spikes
+            const stratKey = `${symbol}-STRAT-EVAL`;
+            const lastEval = lastTriggered.current.get(stratKey) || 0;
+            const now2 = Date.now();
+            if (now2 - lastEval < 500) return; // Skip if evaluated recently
+            lastTriggered.current.set(stratKey, now2);
+
             const liveStrategy = computeStrategyScore({ ...entry, price: live.price, enabledIndicators: enabledIndicatorsRef.current });
             const sKey = `${symbol}-STRAT`;
             const prevS = zoneState.current.get(sKey);

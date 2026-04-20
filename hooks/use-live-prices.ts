@@ -62,6 +62,9 @@ class PriceTickEngine extends EventTarget {
   private exchange: string = 'binance';
   private isMasterTab: boolean = false;
   private heartbeatInterval: any = null;
+  // Stored so they can be removed on stop() — prevents listener accumulation
+  private handleVisibility: (() => void) | null = null;
+  private handleOnline: (() => void) | null = null;
 
   constructor() {
     super();
@@ -125,7 +128,7 @@ class PriceTickEngine extends EventTarget {
       } else {
         const w = new Worker(workerUrl);
         this.worker = w;
-        this.port = null; // DedicatedWorker doesn't have a port, we use the worker itself
+        this.port = null;
         console.log('[PriceEngine] Connected via Dedicated Worker (PWA Fallback)');
       }
     } catch (e) {
@@ -147,16 +150,12 @@ class PriceTickEngine extends EventTarget {
         });
         this.dispatchEvent(new CustomEvent('ticks', { detail: batch }));
       } else if (type === 'ALERT_TRIGGERED') {
-        // Only broadcast to UI if we are the Master Tab to avoid double sounds
         if (this.isMasterTab) {
           this.dispatchEvent(new CustomEvent('alert', { detail: payload }));
         }
       } else if (type === 'PRIORITY_SYNC') {
         this.dispatchEvent(new CustomEvent('priority-sync', { detail: payload }));
       } else if (type === 'RECALIBRATE_REQUEST') {
-        // Task: Drift Guard Recalibration (2026 Strategy)
-        // When worker detects mathematical drift, we force a re-fetch of the 
-        // accurate server-side indicators to reset the Wilder smoothing baseline.
         console.log('[PriceEngine] Worker requested recalibration. Refreshing seeds...');
         this.triggerRecalibration();
       }
@@ -166,21 +165,19 @@ class PriceTickEngine extends EventTarget {
       type: 'START',
       payload: {
         symbols: Array.from(this.symbols),
-        flushInterval: 100, // Reduced from 300 to 100 for PWA smoothness
+        flushInterval: 100,
         exchange: this.exchange
       }
     });
 
     // ── Visibility Wake-up Logic ──
+    // Store handlers so they can be removed on stop()
     if (typeof document !== 'undefined') {
-      const handleVisibility = () => {
+      this.handleVisibility = () => {
         const visible = document.visibilityState === 'visible';
         if (visible) {
           console.log('[PriceEngine] App visible, signaling worker to resume...');
           this.postToWorker({ type: 'RESUME' });
-          // PWA CRITICAL: Force an immediate warm-up flush from cached prices
-          // When the app was backgrounded, React state may be stale even though
-          // the worker kept receiving ticks. Push the latest state immediately.
           const warmBatch = new Map<string, LiveTick>();
           this.prices.forEach((tick, sym) => {
             warmBatch.set(sym, tick);
@@ -192,21 +189,17 @@ class PriceTickEngine extends EventTarget {
         }
         this.postToWorker({ type: 'VISIBILITY_CHANGE', payload: { visible } });
       };
-
-      document.addEventListener('visibilitychange', handleVisibility);
-      // Send initial state
-      handleVisibility();
+      document.addEventListener('visibilitychange', this.handleVisibility);
+      this.handleVisibility();
     }
 
     // ── Network Recovery Logic (PWA Critical) ──
-    // When PWA loses network silently, WebSocket dies but no error fires.
-    // On network restore, force-reconnect the worker.
     if (typeof window !== 'undefined') {
-      const handleOnline = () => {
+      this.handleOnline = () => {
         console.log('[PriceEngine] Network restored, force-resuming worker...');
         this.postToWorker({ type: 'RESUME' });
       };
-      window.addEventListener('online', handleOnline);
+      window.addEventListener('online', this.handleOnline);
     }
 
     this.startVirtualPolling();
@@ -460,6 +453,15 @@ class PriceTickEngine extends EventTarget {
     if (this.virtualPollInterval) {
       clearInterval(this.virtualPollInterval);
       this.virtualPollInterval = null;
+    }
+    // Remove global event listeners to prevent accumulation
+    if (this.handleVisibility && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.handleVisibility);
+      this.handleVisibility = null;
+    }
+    if (this.handleOnline && typeof window !== 'undefined') {
+      window.removeEventListener('online', this.handleOnline);
+      this.handleOnline = null;
     }
     if (this.worker) {
       this.postToWorker({ type: 'STOP' });

@@ -287,16 +287,40 @@ const PriceCell = memo(function PriceCell({
 }: {
   price: number; lastChange: number; stickyOffset: number; market?: string;
 }) {
+  // Flash animation: briefly highlight the cell when price changes direction
+  const prevPriceRef = useRef(price);
+  const [flashDir, setFlashDir] = useState<'up' | 'down' | null>(null);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (price === prevPriceRef.current) return;
+    const dir = price > prevPriceRef.current ? 'up' : 'down';
+    prevPriceRef.current = price;
+    setFlashDir(dir);
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => setFlashDir(null), 600);
+    return () => { if (flashTimerRef.current) clearTimeout(flashTimerRef.current); };
+  }, [price]);
+
+  const dirColor = lastChange > 0 ? 'text-[#39FF14]' : lastChange < 0 ? 'text-[#FF4B5C]' : 'text-slate-100';
+
   return (
     <td
       style={{ left: stickyOffset }}
-      className={cn("sticky z-10 px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px] bg-[#0A0F1B]/95 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.5)]", COL_WIDTHS.price)}
+      className={cn(
+        "sticky z-10 px-3 py-4 text-right tabular-nums font-bold font-mono text-[13px] bg-[#0A0F1B]/95 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.5)] transition-colors duration-150",
+        flashDir === 'up' && "bg-[#39FF14]/[0.06]",
+        flashDir === 'down' && "bg-[#FF4B5C]/[0.06]",
+        COL_WIDTHS.price
+      )}
     >
-      <span className={cn(
-        lastChange > 0 ? "text-[#39FF14]" : lastChange < 0 ? "text-[#FF4B5C]" : "text-slate-100"
-      )}>
-        ${formatPrice(price, market)}
-      </span>
+      <div className="flex items-center justify-end gap-1">
+        {flashDir === 'up' && <span className="text-[#39FF14] text-[9px] leading-none">▲</span>}
+        {flashDir === 'down' && <span className="text-[#FF4B5C] text-[9px] leading-none">▼</span>}
+        <span className={cn(dirColor, "transition-colors duration-150")}>
+          ${formatPrice(price, market)}
+        </span>
+      </div>
     </td>
   );
 });
@@ -1238,6 +1262,21 @@ function EditableRsiCell({
   const [val, setVal] = useState(currentConfig?.[field] ?? 14);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Flash animation when RSI crosses extreme thresholds
+  const prevRsiRef = useRef(rsi);
+  const [rsiFlash, setRsiFlash] = useState(false);
+  useEffect(() => {
+    if (rsi === null || prevRsiRef.current === rsi) return;
+    const prev = prevRsiRef.current;
+    prevRsiRef.current = rsi;
+    // Flash when entering extreme zones (≤25 or ≥75)
+    if ((rsi <= 25 || rsi >= 75) && (prev === null || (prev > 25 && prev < 75))) {
+      setRsiFlash(true);
+      const t = setTimeout(() => setRsiFlash(false), 800);
+      return () => clearTimeout(t);
+    }
+  }, [rsi]);
+
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
@@ -1281,15 +1320,20 @@ function EditableRsiCell({
     <td
       onClick={() => setEditing(true)}
       className={cn(
-        "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono cursor-pointer group/cell relative transition-all",
+        "px-3 py-3 text-right text-sm tabular-nums font-bold font-mono cursor-pointer group/cell relative transition-all duration-150",
         className,
         currentPeriod !== 14 ? "bg-[#39FF14]/[0.03]" : "hover:bg-white/[0.03]",
         getRsiColor(rsi),
-        isSyncing && rsi === null && "animate-pulse"
+        isSyncing && rsi === null && "animate-pulse",
+        rsiFlash && rsi !== null && rsi <= 25 && "bg-[#39FF14]/[0.12]",
+        rsiFlash && rsi !== null && rsi >= 75 && "bg-[#FF4B5C]/[0.12]",
       )}
     >
       <div className="flex flex-col items-end leading-none">
-        <span className={cn(isSyncing && rsi === null && "text-slate-800 font-normal")}>
+        <span className={cn(
+          isSyncing && rsi === null && "text-slate-800 font-normal",
+          rsiFlash && "scale-110 inline-block transition-transform"
+        )}>
           {isSyncing && rsi === null ? "..." : formatRsi(rsi)}
         </span>
         <span className="text-[7px] text-slate-600 font-black opacity-0 group-hover/cell:opacity-100 transition-opacity">P:{currentPeriod}</span>
@@ -2549,7 +2593,7 @@ export default function ScreenerDashboard() {
       'TRXUSDT', 'UNIUSDT', 'SUIUSDT', 'APTUSDT', 'OPUSDT'
     ]);
   }, [data, watchlist, search]);
-  const liveThrottleMs = pairCount <= 100 ? 80 : pairCount <= 300 ? 150 : 250;
+  const liveThrottleMs = pairCount <= 100 ? 50 : pairCount <= 300 ? 100 : 200;
   const {
     livePrices,
     isConnected,
@@ -2562,10 +2606,15 @@ export default function ScreenerDashboard() {
   } = useLivePrices(symbolSet, liveThrottleMs);
 
   // ── PWA Performance: Track last price update for live status indicator ──
+  // Use a ref to avoid triggering re-renders on every tick (every 100ms).
+  // Only update state at 1s intervals so the indicator stays accurate without causing storms.
+  const lastGlobalUpdateRef = useRef(Date.now());
   useEffect(() => {
-    if (livePrices.size > 0) {
-      setLastGlobalUpdate(Date.now());
-    }
+    if (livePrices.size === 0) return;
+    lastGlobalUpdateRef.current = Date.now();
+    // Throttle the state update to 1s so the LiveStatusIndicator doesn't cause re-renders
+    const id = setTimeout(() => setLastGlobalUpdate(lastGlobalUpdateRef.current), 1000);
+    return () => clearTimeout(id);
   }, [livePrices]);
 
   const syncStates = useCallback((p: any) => {
@@ -2607,6 +2656,9 @@ export default function ScreenerDashboard() {
   // ─── Hybrid Atomic Data ───
   // ProcessedData is the "base" data with non-live additions (like custom RSI values from the last API fetch).
   // It merges the SWR data (from API) with the Live WebSocket prices (from useLivePrices).
+  // livePrices is intentionally NOT in the dep array — live price merging happens per-row
+  // via useSymbolPrice() to avoid re-running this expensive memo on every 100ms tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const processedData = useMemo<ScreenerEntry[]>(() => {
     // ─── Phase 1: Institutional Intelligence Normalization ───
     // We prioritize the hardened backend stream (data).
@@ -2891,7 +2943,7 @@ export default function ScreenerDashboard() {
       return merged;
     });
   }, [
-    data, livePrices, rsiPeriod, marketData, activeAssetClass,
+    data, rsiPeriod, marketData, activeAssetClass,
     globalShowSignalTags, globalUseRsi, globalSignalThresholdMode,
     coinConfigs, globalThresholdsEnabled, globalOverbought, globalOversold,
     globalUseMacd, globalUseBb, globalUseStoch, globalUseEma, globalUseVwap,
@@ -4077,6 +4129,30 @@ export default function ScreenerDashboard() {
   );
 
   // ── Filtered & sorted data ──
+  // Auto-switch asset class when search finds a symbol in another class
+  // This must be a useEffect, NOT inside useMemo (calling setState in useMemo is a React anti-pattern)
+  useEffect(() => {
+    if (!search || search.length < 2) return;
+    const q = search.toUpperCase();
+    const itemsInCurrentTab = processedData.filter(e => {
+      const targetMarkets = ({ crypto: ['Crypto'], forex: ['Forex'], metals: ['Metal'], stocks: ['Index'] })[activeAssetClass] || ['Crypto'];
+      if (!targetMarkets.includes(e.market)) return false;
+      const alias = getSymbolAlias(e.symbol).toUpperCase();
+      return e.symbol.includes(q) || alias.includes(q);
+    });
+    if (itemsInCurrentTab.length === 0) {
+      const matchesOverall = processedData.find(e => {
+        const alias = getSymbolAlias(e.symbol).toUpperCase();
+        return e.symbol.includes(q) || alias.includes(q);
+      });
+      if (matchesOverall) {
+        const m = matchesOverall.market;
+        const targetClass = m === 'Crypto' ? 'crypto' : m === 'Forex' ? 'forex' : m === 'Metal' ? 'metals' : 'stocks';
+        if (targetClass !== activeAssetClass) setActiveAssetClass(targetClass);
+      }
+    }
+  }, [search, processedData, activeAssetClass]);
+
   const filtered = useMemo(() => {
     let items = processedData;
 
@@ -4092,43 +4168,16 @@ export default function ScreenerDashboard() {
       items = items.filter((e) => e.strategySignal === signalFilter);
     }
 
-    // Search filter & Auto-Switch (2026 UX Improvement)
+    // Search filter
     if (search) {
       const q = search.toUpperCase();
-
-      // Intelligent Auto-Switch: If searching for a symbol in another asset class, 
-      // check if it exists there and switch the tab if no results in current tab
-      const itemsInCurrentTab = items.filter((e) => {
-        const alias = getSymbolAlias(e.symbol).toUpperCase();
-        return e.symbol.includes(q) || alias.includes(q);
-      });
-
-      if (itemsInCurrentTab.length === 0) {
-        // Look for the symbol in other asset classes
-        const matchesOverall = processedData.filter((e) => {
-          const alias = getSymbolAlias(e.symbol).toUpperCase();
-          return e.symbol.includes(q) || alias.includes(q);
-        });
-
-        if (matchesOverall.length > 0) {
-          const targetMarket = matchesOverall[0].market;
-          const targetClass = targetMarket === 'Crypto' ? 'crypto'
-            : targetMarket === 'Forex' ? 'forex'
-              : targetMarket === 'Metal' ? 'metals'
-                : targetMarket === 'Index' ? 'stocks' : 'crypto';
-          if (targetClass !== activeAssetClass) {
-            setActiveAssetClass(targetClass);
-          }
-        }
-      }
-
       items = items.filter((e) => {
         const alias = getSymbolAlias(e.symbol).toUpperCase();
         return e.symbol.includes(q) || alias.includes(q);
       });
     }
 
-    // ── Asset Class Filter (The Fix for empty tabs) ──
+    // ── Asset Class Filter ──
     const marketMap: Record<string, string[]> = {
       crypto: ['Crypto'],
       forex: ['Forex'],
@@ -4138,10 +4187,9 @@ export default function ScreenerDashboard() {
     const targetMarkets = marketMap[activeAssetClass] || ['Crypto'];
     items = items.filter(e => targetMarkets.includes(e.market));
 
-    // Sort
+    // Sort — use stable snapshot of funding/orderFlow/smartMoney to avoid re-sort on every tick
     const dir = sortDir === 'asc' ? 1 : -1;
     items = [...items].sort((a, b) => {
-      // 0. Market Priority (Keep Metals & Indices at top by default)
       const marketPriority: Record<string, number> = { Metal: 3, Index: 2, Forex: 1, Crypto: 0 };
       const pA = marketPriority[a.market] || 0;
       const pB = marketPriority[b.market] || 0;

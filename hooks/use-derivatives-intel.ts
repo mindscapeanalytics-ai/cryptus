@@ -13,7 +13,7 @@
  *  - Lazy initialization - worker only starts when hook is first called
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { computeAllSmartMoney } from '@/lib/smart-money';
 import { notificationEngine } from '@/lib/notification-engine';
@@ -69,16 +69,29 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
   }, [enabled]);
 
   // Smart Money Pressure - computed from all the raw signals
-  const smartMoney = useMemo(() => {
-    if (!enabled || fundingRates.size === 0) return new Map<string, SmartMoneyPressure>();
+  // Debounced: only recompute at most once per 2 seconds to avoid CPU spikes
+  // from rapid liquidation/whale events
+  const smartMoneyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [smartMoney, setSmartMoney] = useState<Map<string, SmartMoneyPressure>>(new Map());
 
-    return computeAllSmartMoney(
-      Array.from(symbols),
-      fundingRates,
-      liquidations,
-      whaleAlerts,
-      orderFlow
-    );
+  useEffect(() => {
+    if (!enabled || fundingRates.size === 0) {
+      setSmartMoney(new Map());
+      return;
+    }
+    if (smartMoneyTimerRef.current) clearTimeout(smartMoneyTimerRef.current);
+    smartMoneyTimerRef.current = setTimeout(() => {
+      setSmartMoney(computeAllSmartMoney(
+        Array.from(symbols),
+        fundingRates,
+        liquidations,
+        whaleAlerts,
+        orderFlow
+      ));
+    }, 2000); // Recompute at most every 2s
+    return () => {
+      if (smartMoneyTimerRef.current) clearTimeout(smartMoneyTimerRef.current);
+    };
   }, [symbols, fundingRates, liquidations, whaleAlerts, orderFlow, enabled]);
 
   // ── Worker Lifecycle ──────────────────────────────────────────
