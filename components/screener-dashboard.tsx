@@ -45,6 +45,7 @@ import { useMarketData } from '@/hooks/use-market-data';
 import { toast } from 'sonner';
 import { notificationEngine } from '@/lib/notification-engine';
 import { getMarketType } from '@/lib/market-utils';
+import { getGlobalWinRate } from '@/lib/signal-tracker';
 
 // ─── Formatting helpers ────────────────────────────────────────
 
@@ -152,7 +153,7 @@ const COL_WIDTHS = {
   macd: "w-[95px] min-w-[95px]",
   bb: "w-[90px] min-w-[90px]",
   stoch: "w-[85px] min-w-[85px]",
-  signal: "w-[90px] min-w-[90px]",
+  signal: "w-[96px] min-w-[96px]",  // Increased from 90px to fit badge
   edit: "w-[50px] min-w-[50px]",
   confluence: "w-[95px] min-w-[95px]",
   divergence: "w-[90px] min-w-[90px]",
@@ -160,8 +161,8 @@ const COL_WIDTHS = {
   atr: "w-[80px] min-w-[80px]",
   adx: "w-[80px] min-w-[80px]",
   vwap: "w-[85px] min-w-[85px]",
-  funding: "w-[95px] min-w-[95px]",
-  flow: "w-[90px] min-w-[90px]",
+  funding: "w-[100px] min-w-[100px]",  // Increased from 95px to prevent overflow
+  flow: "w-[95px] min-w-[95px]",      // Increased from 90px to prevent overflow
   smart: "w-[90px] min-w-[90px]",
 };
 
@@ -326,44 +327,42 @@ const PriceCell = memo(function PriceCell({
 });
 
 function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
-  const config: Record<string, { bg: string; text: string; border: string; shadow: string; label: string; icon: string }> = {
+  const config: Record<string, { bg: string; text: string; border: string; dot: string; label: string }> = {
     oversold: {
-      bg: 'bg-[#39FF14]/20',
+      bg: 'bg-[#39FF14]/15',
       text: 'text-[#39FF14]',
-      border: 'border-[#39FF14]/60',
-      shadow: 'shadow-[0_0_15px_rgba(57,255,20,0.3)]',
+      border: 'border-[#39FF14]/50',
+      dot: 'bg-[#39FF14]',
       label: 'OVERSOLD',
-      icon: '🟢'
     },
     overbought: {
-      bg: 'bg-[#FF4B5C]/20',
+      bg: 'bg-[#FF4B5C]/15',
       text: 'text-[#FF4B5C]',
-      border: 'border-[#FF4B5C]/60',
-      shadow: 'shadow-[0_0_15px_rgba(255,75,92,0.3)]',
+      border: 'border-[#FF4B5C]/50',
+      dot: 'bg-[#FF4B5C]',
       label: 'OVERBOUGHT',
-      icon: '🔴'
     },
     neutral: {
-      bg: 'bg-slate-800/30',
+      bg: 'bg-slate-800/20',
       text: 'text-slate-500',
-      border: 'border-slate-700/40',
-      shadow: '',
+      border: 'border-slate-700/30',
+      dot: 'bg-slate-600',
       label: 'NEUTRAL',
-      icon: '⚪'
     },
   };
 
-  const style = config[signal];
-  
+  const style = config[signal] ?? config.neutral;
+  const isActive = signal !== 'neutral';
+
   return (
     <span className={cn(
-      "inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[90px]",
-      "text-[9px] font-black uppercase tracking-[0.12em] leading-none",
-      "rounded-lg border-2 transition-all duration-300",
-      style.bg, style.text, style.border, style.shadow,
-      signal !== 'neutral' && "animate-pulse"
+      "inline-flex items-center justify-center gap-1.5 px-2.5 py-1 w-[88px]",
+      "text-[8px] font-black uppercase tracking-[0.1em] leading-none whitespace-nowrap",
+      "rounded-lg border transition-colors duration-200",
+      style.bg, style.text, style.border,
     )}>
-      <span className="text-[10px]">{style.icon}</span>
+      {/* Pulsing dot instead of pulsing the whole badge — no layout shift */}
+      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot, isActive && "animate-pulse")} />
       <span>{style.label}</span>
     </span>
   );
@@ -433,31 +432,28 @@ function StrategyBadge({ signal, label, reasons, entry }: { signal: ScreenerEntr
     <>
       <span
         className={cn(
-          "inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-w-[100px]",
-          "text-[9px] font-black uppercase tracking-[0.12em] leading-none",
-          "rounded-lg border-2 transition-all duration-300",
+          "inline-flex items-center justify-center gap-1 px-2.5 py-1 w-[96px]",
+          "text-[8px] font-black uppercase tracking-[0.08em] leading-none whitespace-nowrap",
+          "rounded-lg border transition-colors duration-200",
           style.bg, style.text, style.border,
-          (narration || reasons?.length) && 'cursor-help hover:scale-105'
+          (narration || reasons?.length) && 'cursor-help'
         )}
         title={title}
         onClick={narration ? handleCopySignal : undefined}
       >
-        <span className="text-[10px]">{style.icon}</span>
-        <span>{label}</span>
+        <span className="text-[9px] shrink-0">{style.icon}</span>
+        <span className="truncate">{label}</span>
         {narration && (
-          <>
-            <LinkIcon size={9} className="opacity-60" />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowNarrationModal(true);
-              }}
-              className="ml-1 p-0.5 hover:bg-white/10 rounded transition-colors"
-              title="View detailed analysis"
-            >
-              <Info size={10} className="opacity-80 hover:opacity-100" />
-            </button>
-          </>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowNarrationModal(true);
+            }}
+            className="ml-0.5 shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+            title="View detailed analysis"
+          >
+            <Info size={9} />
+          </button>
         )}
       </span>
       
@@ -1168,7 +1164,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
 
       {visibleCols.has('fundingRate') && (
-        <td className={cn("px-3 py-3 text-center", COL_WIDTHS.funding)}>
+        <td className={cn("px-3 py-3 text-center overflow-hidden", COL_WIDTHS.funding)}>
           <FundingRateCellWithTooltip 
             data={fundingRate ? {
               symbol: entry.symbol,
@@ -1176,7 +1172,7 @@ const ScreenerRow = memo(function ScreenerRow({
               annualized: fundingRate.annualized,
               markPrice: display.price,
               indexPrice: display.price,
-              nextFundingTime: Date.now() + 8 * 60 * 60 * 1000, // 8 hours from now
+              nextFundingTime: Date.now() + 8 * 60 * 60 * 1000,
               updatedAt: entry.updatedAt || Date.now()
             } : undefined}
             compact={true}
@@ -1186,7 +1182,7 @@ const ScreenerRow = memo(function ScreenerRow({
       )}
 
       {visibleCols.has('orderFlow') && (
-        <td className={cn("px-3 py-3 text-center", COL_WIDTHS.flow)}>
+        <td className={cn("px-3 py-3 text-center overflow-hidden", COL_WIDTHS.flow)}>
           <OrderFlowIndicator 
             data={orderFlowData ? {
               symbol: entry.symbol,
@@ -1213,12 +1209,12 @@ const ScreenerRow = memo(function ScreenerRow({
         />
       )}
 
-      <td className={cn("px-3 py-3 text-right", COL_WIDTHS.signal)}>
+      <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
         <SignalBadge signal={display.signal.toLowerCase() as any} />
       </td>
 
       {visibleCols.has('strategy') && (
-        <td className={cn("px-3 py-3 text-right", COL_WIDTHS.signal)}>
+        <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
           <StrategyBadge signal={display.strategySignal} label={display.strategyLabel} reasons={display.strategyReasons} entry={entry} />
         </td>
       )}
@@ -2616,6 +2612,17 @@ export default function ScreenerDashboard() {
     const id = setTimeout(() => setLastGlobalUpdate(lastGlobalUpdateRef.current), 1000);
     return () => clearTimeout(id);
   }, [livePrices]);
+
+  // ── Win Rate Ribbon: read from localStorage at most every 30s ──
+  const [globalWinRate, setGlobalWinRate] = useState(() => getGlobalWinRate());
+  useEffect(() => {
+    const update = () => setGlobalWinRate(getGlobalWinRate());
+    update();
+    const id = setInterval(update, 30_000);
+    return () => clearInterval(id);
+  // getGlobalWinRate is a stable imported function — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const syncStates = useCallback((p: any) => {
     baseSyncStates({
@@ -5032,39 +5039,41 @@ export default function ScreenerDashboard() {
       </div>
 
       {/* ─── SIGNAL WIN RATE TRACKER™ RIBBON ─── */}
-      {(() => {
-        const wr = getGlobalWinRate();
-        if (wr.total < 3) return null;
-        return (
-          <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.04] bg-white/[0.015] backdrop-blur-sm">
-            <div className="flex items-center gap-1.5">
-              <ShieldCheck size={13} className="text-[#39FF14]/70" />
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Signal Accuracy</span>
-            </div>
-            <div className="flex items-center gap-4 ml-auto">
+      {globalWinRate.evaluated15m >= 3 && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.04] bg-white/[0.015] backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck size={13} className="text-[#39FF14]/70" />
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Signal Accuracy</span>
+          </div>
+          <div className="flex items-center gap-4 ml-auto">
+            {globalWinRate.evaluated5m > 0 && (
               <div className="flex items-center gap-1">
                 <span className="text-[8px] font-black uppercase tracking-wider text-slate-600">5m</span>
-                <span className={cn("text-[11px] font-black tabular-nums font-mono", wr.winRate5m >= 60 ? 'text-[#39FF14]' : wr.winRate5m >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
-                  {wr.winRate5m.toFixed(0)}%
+                <span className={cn("text-[11px] font-black tabular-nums font-mono", globalWinRate.winRate5m >= 60 ? 'text-[#39FF14]' : globalWinRate.winRate5m >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
+                  {globalWinRate.winRate5m.toFixed(0)}%
                 </span>
               </div>
+            )}
+            {globalWinRate.evaluated15m > 0 && (
               <div className="flex items-center gap-1">
                 <span className="text-[8px] font-black uppercase tracking-wider text-slate-600">15m</span>
-                <span className={cn("text-[11px] font-black tabular-nums font-mono", wr.winRate15m >= 60 ? 'text-[#39FF14]' : wr.winRate15m >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
-                  {wr.winRate15m.toFixed(0)}%
+                <span className={cn("text-[11px] font-black tabular-nums font-mono", globalWinRate.winRate15m >= 60 ? 'text-[#39FF14]' : globalWinRate.winRate15m >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
+                  {globalWinRate.winRate15m.toFixed(0)}%
                 </span>
               </div>
+            )}
+            {globalWinRate.evaluated1h > 0 && (
               <div className="flex items-center gap-1">
                 <span className="text-[8px] font-black uppercase tracking-wider text-slate-600">1h</span>
-                <span className={cn("text-[11px] font-black tabular-nums font-mono", wr.winRate1h >= 60 ? 'text-[#39FF14]' : wr.winRate1h >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
-                  {wr.winRate1h.toFixed(0)}%
+                <span className={cn("text-[11px] font-black tabular-nums font-mono", globalWinRate.winRate1h >= 60 ? 'text-[#39FF14]' : globalWinRate.winRate1h >= 45 ? 'text-amber-400' : 'text-[#FF4B5C]')}>
+                  {globalWinRate.winRate1h.toFixed(0)}%
                 </span>
               </div>
-              <span className="text-[7px] font-bold text-slate-700 tabular-nums">{wr.total} signals</span>
-            </div>
+            )}
+            <span className="text-[7px] font-bold text-slate-700 tabular-nums">{globalWinRate.total} signals</span>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       <CorrelationHeatmap open={showCorrelation} onClose={() => setShowCorrelation(false)} data={processedData} />
       <PortfolioScannerPanel open={showPortfolio} onClose={() => setShowPortfolio(false)} data={processedData} />
@@ -5205,7 +5214,8 @@ export default function ScreenerDashboard() {
         </div>
       ) : (
         <div className="rounded-3xl border border-white/5 bg-slate-900/40 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-8">
-          <div className="overflow-x-auto overflow-y-auto max-h-[min(850px,85vh)] custom-scrollbar">
+          {/* isolation: isolate creates a new stacking context so tooltips inside don't bleed outside */}
+          <div className="overflow-x-auto overflow-y-auto max-h-[min(850px,85vh)] custom-scrollbar" style={{ isolation: 'isolate' }}>
             <table className="w-full border-collapse">
               <thead className="sticky top-0 z-20 bg-[#0A0F1B]/95 border-b border-white/5">
                 <tr>

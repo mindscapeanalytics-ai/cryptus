@@ -3,14 +3,18 @@
  * Copyright © 2024-2026 Mindscape Analytics LLC. All rights reserved.
  *
  * Tracks signal outcomes over time to compute verifiable win rates.
- * This is a UNIQUE feature - no competitor shows signal accuracy metrics.
  *
  * How it works:
  *   1. When a signal fires (Strong Buy/Sell), we snapshot the price.
  *   2. After configurable time windows (5m, 15m, 1h), we check the outcome.
  *   3. We compute win/loss ratios and display them alongside signals.
  *
- * Storage: localStorage for client-side persistence, with optional API sync.
+ * Storage: localStorage for client-side persistence.
+ *
+ * Accuracy notes:
+ *   - Outcomes are evaluated at the FIRST price check AFTER the interval elapses.
+ *   - Win threshold is 0.3% to filter out noise (crypto volatility).
+ *   - Snapshots are capped at 500 to prevent localStorage bloat.
  */
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -21,15 +25,12 @@ export interface SignalSnapshot {
   signal: 'strong-buy' | 'strong-sell' | 'buy' | 'sell';
   entryPrice: number;
   timestamp: number;
-  /** Prices at check intervals (filled asynchronously) */
   outcome5m?: number | null;
   outcome15m?: number | null;
   outcome1h?: number | null;
-  /** Win/loss at each interval (calculated) */
   win5m?: boolean | null;
   win15m?: boolean | null;
   win1h?: boolean | null;
-  /** Whether all outcomes have been evaluated */
   settled: boolean;
 }
 
@@ -53,24 +54,34 @@ export interface WinRateStats {
 // ── Constants ─────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'rsiq-signal-tracker';
-const MAX_SNAPSHOTS = 500; // Keep last 500 signals
+const MAX_SNAPSHOTS = 500;
 const CHECK_INTERVALS = {
-  '5m': 5 * 60 * 1000,
+  '5m':  5  * 60 * 1000,
   '15m': 15 * 60 * 1000,
-  '1h': 60 * 60 * 1000,
+  '1h':  60 * 60 * 1000,
 } as const;
 
-// Win threshold: price moved in signal direction by at least 0.1%
-const WIN_THRESHOLD_PCT = 0.001;
+// Win threshold: price moved in signal direction by at least 0.3%
+// (0.1% was too tight — crypto noise easily exceeds that without a real signal)
+const WIN_THRESHOLD_PCT = 0.003;
 
-// ── Storage Helpers ───────────────────────────────────────────────
+// ── In-memory cache to avoid reading localStorage on every render ──
+let _cache: SignalSnapshot[] | null = null;
+let _cacheTs = 0;
+const CACHE_TTL = 5000; // Re-read localStorage at most every 5s
 
 function loadSnapshots(): SignalSnapshot[] {
   if (typeof window === 'undefined') return [];
+  const now = Date.now();
+  if (_cache && now - _cacheTs < CACHE_TTL) return _cache;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    _cache = raw ? JSON.parse(raw) : [];
+    _cacheTs = now;
+    return _cache!;
   } catch {
+    _cache = [];
+    _cacheTs = now;
     return [];
   }
 }
@@ -78,14 +89,17 @@ function loadSnapshots(): SignalSnapshot[] {
 function saveSnapshots(snapshots: SignalSnapshot[]): void {
   if (typeof window === 'undefined') return;
   try {
-    // Trim to max size, keeping most recent
     const trimmed = snapshots.slice(-MAX_SNAPSHOTS);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    // Invalidate cache so next read picks up the new data
+    _cache = trimmed;
+    _cacheTs = Date.now();
   } catch {
-    // Storage full - evict oldest 20%
     try {
       const evicted = snapshots.slice(Math.floor(snapshots.length * 0.2));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(evicted));
+      _cache = evicted;
+      _cacheTs = Date.now();
     } catch {
       // Silent fail
     }
@@ -96,32 +110,41 @@ function saveSnapshots(snapshots: SignalSnapshot[]): void {
 
 /**
  * Record a new signal snapshot when a strong signal fires.
+ * Deduplicates: won't record the same symbol+signal within 3 minutes.
  */
 export function recordSignal(
   symbol: string,
   signal: SignalSnapshot['signal'],
   entryPrice: number,
 ): string {
-  const id = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const snapshots = loadSnapshots();
+  const now = Date.now();
+
+  // Dedup: skip if same symbol+signal fired within last 3 minutes
+  const recent = snapshots.find(
+    s => s.symbol === symbol && s.signal === signal && now - s.timestamp < 3 * 60 * 1000
+  );
+  if (recent) return recent.id;
+
+  const id = `${symbol}-${now}-${Math.random().toString(36).slice(2, 6)}`;
   const snapshot: SignalSnapshot = {
     id,
     symbol,
     signal,
     entryPrice,
-    timestamp: Date.now(),
+    timestamp: now,
     settled: false,
   };
 
-  const snapshots = loadSnapshots();
   snapshots.push(snapshot);
   saveSnapshots(snapshots);
-
   return id;
 }
 
 /**
  * Check and update outcomes for all unsettled snapshots.
  * Call this periodically with current prices.
+ * Uses the price at the FIRST evaluation after the interval — accurate.
  */
 export function evaluateOutcomes(
   currentPrices: Map<string, number>,
@@ -142,7 +165,7 @@ export function evaluateOutcomes(
     const priceChange = (currentPrice - snap.entryPrice) / snap.entryPrice;
     let changed = false;
 
-    // Check 5m outcome
+    // 5m outcome — only set once, at the first check after 5m elapses
     if (snap.outcome5m === undefined && elapsed >= CHECK_INTERVALS['5m']) {
       snap.outcome5m = currentPrice;
       snap.win5m = isBullish
@@ -151,7 +174,7 @@ export function evaluateOutcomes(
       changed = true;
     }
 
-    // Check 15m outcome
+    // 15m outcome
     if (snap.outcome15m === undefined && elapsed >= CHECK_INTERVALS['15m']) {
       snap.outcome15m = currentPrice;
       snap.win15m = isBullish
@@ -160,7 +183,7 @@ export function evaluateOutcomes(
       changed = true;
     }
 
-    // Check 1h outcome
+    // 1h outcome
     if (snap.outcome1h === undefined && elapsed >= CHECK_INTERVALS['1h']) {
       snap.outcome1h = currentPrice;
       snap.win1h = isBullish
@@ -169,8 +192,12 @@ export function evaluateOutcomes(
       changed = true;
     }
 
-    // Mark as settled when all intervals are evaluated
-    if (snap.outcome5m !== undefined && snap.outcome15m !== undefined && snap.outcome1h !== undefined) {
+    // Settled when all intervals evaluated
+    if (
+      snap.outcome5m !== undefined &&
+      snap.outcome15m !== undefined &&
+      snap.outcome1h !== undefined
+    ) {
       snap.settled = true;
       settled++;
     }
@@ -184,6 +211,7 @@ export function evaluateOutcomes(
 
 /**
  * Compute win rate statistics for a specific symbol or all symbols.
+ * Uses the in-memory cache — safe to call frequently.
  */
 export function computeWinRateStats(symbol?: string): WinRateStats[] {
   const snapshots = loadSnapshots();
@@ -199,25 +227,27 @@ export function computeWinRateStats(symbol?: string): WinRateStats[] {
   const stats: WinRateStats[] = [];
 
   for (const [sym, signals] of symbolGroups) {
-    const evaluated5m = signals.filter(s => s.win5m !== undefined && s.win5m !== null);
+    const evaluated5m  = signals.filter(s => s.win5m  !== undefined && s.win5m  !== null);
     const evaluated15m = signals.filter(s => s.win15m !== undefined && s.win15m !== null);
-    const evaluated1h = signals.filter(s => s.win1h !== undefined && s.win1h !== null);
+    const evaluated1h  = signals.filter(s => s.win1h  !== undefined && s.win1h  !== null);
 
-    const wins5m = evaluated5m.filter(s => s.win5m).length;
+    const wins5m  = evaluated5m.filter(s => s.win5m).length;
     const wins15m = evaluated15m.filter(s => s.win15m).length;
-    const wins1h = evaluated1h.filter(s => s.win1h).length;
+    const wins1h  = evaluated1h.filter(s => s.win1h).length;
 
-    // Average returns
-    const avgReturn = (snaps: SignalSnapshot[], outcomeKey: 'outcome5m' | 'outcome15m' | 'outcome1h') => {
-      const valid = snaps.filter(s => s[outcomeKey] !== undefined && s[outcomeKey] !== null);
+    const avgReturn = (
+      snaps: SignalSnapshot[],
+      outcomeKey: 'outcome5m' | 'outcome15m' | 'outcome1h'
+    ) => {
+      const valid = snaps.filter(s => s[outcomeKey] != null);
       if (valid.length === 0) return 0;
-      const totalReturn = valid.reduce((sum, s) => {
+      const total = valid.reduce((sum, s) => {
         const outcome = s[outcomeKey] as number;
         const ret = (outcome - s.entryPrice) / s.entryPrice;
         const isBullish = s.signal === 'strong-buy' || s.signal === 'buy';
         return sum + (isBullish ? ret : -ret);
       }, 0);
-      return totalReturn / valid.length;
+      return total / valid.length;
     };
 
     stats.push({
@@ -225,16 +255,16 @@ export function computeWinRateStats(symbol?: string): WinRateStats[] {
       totalSignals: signals.length,
       wins5m,
       losses5m: evaluated5m.length - wins5m,
-      winRate5m: evaluated5m.length > 0 ? (wins5m / evaluated5m.length) * 100 : 0,
+      winRate5m:  evaluated5m.length  > 0 ? (wins5m  / evaluated5m.length)  * 100 : 0,
       wins15m,
       losses15m: evaluated15m.length - wins15m,
       winRate15m: evaluated15m.length > 0 ? (wins15m / evaluated15m.length) * 100 : 0,
       wins1h,
       losses1h: evaluated1h.length - wins1h,
-      winRate1h: evaluated1h.length > 0 ? (wins1h / evaluated1h.length) * 100 : 0,
-      avgReturn5m: avgReturn(signals, 'outcome5m') * 100,
+      winRate1h:  evaluated1h.length  > 0 ? (wins1h  / evaluated1h.length)  * 100 : 0,
+      avgReturn5m:  avgReturn(signals, 'outcome5m')  * 100,
       avgReturn15m: avgReturn(signals, 'outcome15m') * 100,
-      avgReturn1h: avgReturn(signals, 'outcome1h') * 100,
+      avgReturn1h:  avgReturn(signals, 'outcome1h')  * 100,
     });
   }
 
@@ -243,19 +273,31 @@ export function computeWinRateStats(symbol?: string): WinRateStats[] {
 
 /**
  * Get the global summary across all symbols.
+ * Uses the in-memory cache — safe to call on every render.
  */
-export function getGlobalWinRate(): { winRate5m: number; winRate15m: number; winRate1h: number; total: number } {
+export function getGlobalWinRate(): {
+  winRate5m: number;
+  winRate15m: number;
+  winRate1h: number;
+  total: number;
+  evaluated5m: number;
+  evaluated15m: number;
+  evaluated1h: number;
+} {
   const snapshots = loadSnapshots();
 
-  const e5 = snapshots.filter(s => s.win5m !== undefined && s.win5m !== null);
+  const e5  = snapshots.filter(s => s.win5m  !== undefined && s.win5m  !== null);
   const e15 = snapshots.filter(s => s.win15m !== undefined && s.win15m !== null);
-  const e1h = snapshots.filter(s => s.win1h !== undefined && s.win1h !== null);
+  const e1h = snapshots.filter(s => s.win1h  !== undefined && s.win1h  !== null);
 
   return {
-    winRate5m: e5.length > 0 ? (e5.filter(s => s.win5m).length / e5.length) * 100 : 0,
-    winRate15m: e15.length > 0 ? (e15.filter(s => s.win15m).length / e15.length) * 100 : 0,
-    winRate1h: e1h.length > 0 ? (e1h.filter(s => s.win1h).length / e1h.length) * 100 : 0,
+    winRate5m:  e5.length  > 0 ? (e5.filter(s => s.win5m).length   / e5.length)  * 100 : 0,
+    winRate15m: e15.length > 0 ? (e15.filter(s => s.win15m).length  / e15.length) * 100 : 0,
+    winRate1h:  e1h.length > 0 ? (e1h.filter(s => s.win1h).length   / e1h.length) * 100 : 0,
     total: snapshots.length,
+    evaluated5m:  e5.length,
+    evaluated15m: e15.length,
+    evaluated1h:  e1h.length,
   };
 }
 
@@ -265,4 +307,6 @@ export function getGlobalWinRate(): { winRate5m: number; winRate15m: number; win
 export function clearSignalTracker(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
+  _cache = [];
+  _cacheTs = Date.now();
 }

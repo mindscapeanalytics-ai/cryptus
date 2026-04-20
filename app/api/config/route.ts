@@ -112,6 +112,43 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── Input Validation: Clamp numeric fields to safe ranges ──
+    // Prevents invalid configs that break RSI logic (e.g. threshold=1000 or period=-1)
+    if (body.overboughtThreshold !== undefined) {
+      const v = Number(body.overboughtThreshold);
+      if (!Number.isFinite(v)) return NextResponse.json({ error: 'overboughtThreshold must be a number' }, { status: 400 });
+      body.overboughtThreshold = Math.min(100, Math.max(50, v)); // [50, 100]
+    }
+    if (body.oversoldThreshold !== undefined) {
+      const v = Number(body.oversoldThreshold);
+      if (!Number.isFinite(v)) return NextResponse.json({ error: 'oversoldThreshold must be a number' }, { status: 400 });
+      body.oversoldThreshold = Math.min(50, Math.max(0, v)); // [0, 50]
+    }
+    // RSI periods: [2, 50]
+    for (const field of ['rsi1mPeriod', 'rsi5mPeriod', 'rsi15mPeriod', 'rsi1hPeriod'] as const) {
+      if (body[field] !== undefined) {
+        const v = Number(body[field]);
+        if (!Number.isFinite(v)) return NextResponse.json({ error: `${field} must be a number` }, { status: 400 });
+        body[field] = Math.min(50, Math.max(2, Math.round(v)));
+      }
+    }
+    // Multiplier thresholds: [1, 20]
+    for (const field of ['longCandleThreshold', 'volumeSpikeThreshold'] as const) {
+      if (body[field] !== undefined) {
+        const v = Number(body[field]);
+        if (!Number.isFinite(v)) return NextResponse.json({ error: `${field} must be a number` }, { status: 400 });
+        body[field] = Math.min(20, Math.max(1, v));
+      }
+    }
+    // Quiet hours: [0, 23]
+    for (const field of ['quietHoursStart', 'quietHoursEnd'] as const) {
+      if (body[field] !== undefined) {
+        const v = Number(body[field]);
+        if (!Number.isFinite(v)) return NextResponse.json({ error: `${field} must be a number` }, { status: 400 });
+        body[field] = Math.min(23, Math.max(0, Math.round(v)));
+      }
+    }
+
     // Inject authenticated userId and current exchange
     const updated = await updateCoinConfig({
       ...body,

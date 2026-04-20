@@ -113,6 +113,9 @@ export function useAlertEngine(
     Object.keys(coinConfigs).forEach(s => {
       if (coinConfigs[s] !== coinConfigsRef.current[s]) {
         configLastUpdated.current.set(s, now);
+        // Clear BOTH zone states AND lastTriggered when config changes.
+        // Without clearing lastTriggered, the cooldown from the old config
+        // prevents the new config's alert from firing immediately.
         for (const [key] of zoneState.current) if (key.startsWith(`${s}-`)) zoneState.current.delete(key);
         for (const [key] of lastTriggered.current) if (key.startsWith(`${s}-`)) lastTriggered.current.delete(key);
       }
