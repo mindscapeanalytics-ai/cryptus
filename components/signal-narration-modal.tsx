@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { ChartModal } from './chart-modal';
 import { WinRateBadge } from './win-rate-badge';
 import type { SignalNarration } from '@/lib/signal-narration';
-import type { ScreenerEntry } from '@/lib/types';
+import type { ScreenerEntry, TradingStyle } from '@/lib/types';
 
 /**
  * Signal Narration Modal - Displays institutional-grade signal analysis
@@ -29,6 +29,7 @@ interface SignalNarrationModalProps {
   smartMoneyScore?: number;
   orderFlowData?: { ratio: number; pressure: string };
   fundingRate?: { rate: number; annualized: number };
+  tradingStyle?: TradingStyle;
 }
 
 export function SignalNarrationModal({
@@ -41,6 +42,7 @@ export function SignalNarrationModal({
   smartMoneyScore,
   orderFlowData,
   fundingRate,
+  tradingStyle = 'intraday',
 }: SignalNarrationModalProps) {
   const [copied, setCopied] = useState(false);
   const [isChartOpen, setIsChartOpen] = useState(false);
@@ -168,6 +170,9 @@ Powered by Mindscape Analytics Signal Narration Engine™
                       <div className={cn("px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter border", getConvictionBg(narration?.conviction || 0))}>
                         {narration?.conviction}% Conviction
                       </div>
+                      <div className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter border border-blue-500/30 bg-blue-500/10 text-blue-400">
+                        {tradingStyle}
+                      </div>
                     </div>
                     <h2 className="text-xl font-black text-white tracking-tight leading-none truncate max-w-md">
                       {narration?.headline || 'Analyzing Market Signals...'}
@@ -246,6 +251,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
                     { label: 'Price', val: `$${entry?.price?.toLocaleString() || '-'}`, color: 'text-white font-mono' },
                     { label: '24h Δ', val: `${(entry?.change24h || 0) >= 0 ? '+' : ''}${entry?.change24h?.toFixed(2)}%`, color: (entry?.change24h || 0) >= 0 ? 'text-[#39FF14]' : 'text-[#FF4B5C]' },
                     { label: 'RSI(15m)', val: entry?.rsi15m?.toFixed(1) || 'N/A', color: (entry?.rsi15m || 50) >= 70 ? 'text-[#FF4B5C]' : (entry?.rsi15m || 50) <= 30 ? 'text-[#39FF14]' : 'text-slate-300' },
+                    { label: 'Style', val: tradingStyle.toUpperCase(), color: 'text-blue-400 font-black tracking-tighter' },
                     { label: 'Bias', val: getBiasLabel(), color: 'text-white italic', dot: true },
                     { label: 'Win Rate', val: <WinRateBadge symbol={symbol} className="scale-75 origin-left" />, color: 'text-white' },
                   ].map((m, i) => (
@@ -326,12 +332,14 @@ Powered by Mindscape Analytics Signal Narration Engine™
                       <Gauge size={12} className="text-purple-400" />
                       RSI Spectrum
                     </h4>
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       {[
                         { tf: '1m', val: entry?.rsi1m },
                         { tf: '5m', val: entry?.rsi5m },
                         { tf: '15m', val: entry?.rsi15m },
                         { tf: '1h', val: entry?.rsi1h },
+                        { tf: '4h', val: entry?.rsi4h },
+                        { tf: '1d', val: entry?.rsi1d },
                       ].map(r => (
                         <div key={r.tf} className="flex flex-col items-center gap-1.5 p-2 rounded-lg bg-black/40 border border-white/5">
                           <span className="text-[8px] font-black text-slate-500">{r.tf}</span>

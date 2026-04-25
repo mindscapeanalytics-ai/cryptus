@@ -759,29 +759,28 @@ export function computeStrategyScore(params: {
   // 2026 fix: Price-relative scaling breaks on high/low priced assets.
   // ATR-normalized MACD measures histogram significance against actual volatility.
   if (params.macdHistogram != null && enabled.macd !== false) {
-    factors += 1.5;
-    const trendW = 1.5 * rw.trend;
+    const macdWeight = tw.macd * rw.trend;
+    factors += macdWeight;
+    
     // Use ATR for normalization if available, else fall back to price-relative
     let macdNorm: number;
     if (params.atr != null && params.atr > 0) {
       // Histogram as fraction of ATR — 1.0 = histogram equals one ATR (very strong)
       macdNorm = Math.abs(params.macdHistogram) / params.atr;
       macdNorm = Math.min(macdNorm * 80, 100); // Scale: 0.625 ATR → 50 points, 1.25 ATR → 100 points
-    } else {
-      // Fallback: percentage of price (legacy behavior, improved scaling)
-      const histogramWeight = tw.macd * trendW * sessionQuality;
-      const normHist = (params.macdHistogram / (params.atr || params.price * 0.005)) * 1000;
-      score += normHist * histogramWeight;
-      macdNorm = 0; // Prevent double add
-    }
-    if (macdNorm > 0) {
+      
       if (params.macdHistogram > 0) {
-        score += macdNorm * trendW;
+        score += macdNorm * macdWeight * sessionQuality;
         if (macdNorm > 40) reasons.push('MACD bullish momentum');
       } else {
-        score -= macdNorm * trendW;
+        score -= macdNorm * macdWeight * sessionQuality;
         if (macdNorm > 40) reasons.push('MACD bearish momentum');
       }
+    } else {
+      // Fallback: percentage of price (legacy behavior, improved scaling)
+      const histogramWeight = macdWeight * sessionQuality;
+      const normHist = (params.macdHistogram / (params.atr || params.price * 0.005)) * 1000;
+      score += normHist * histogramWeight;
     }
   }
 
@@ -827,9 +826,9 @@ export function computeStrategyScore(params: {
 
   // EMA cross — regime: trend weight
   if (params.emaCross !== 'none' && enabled.ema !== false) {
-    factors += 1.5;
-    const trendW = 1.5 * rw.trend * sessionQuality;
-    score += (params.emaCross === 'bullish' ? 60 : -60) * trendW;
+    const emaWeight = tw.ema * rw.trend * sessionQuality;
+    factors += tw.ema;
+    score += (params.emaCross === 'bullish' ? 60 : -60) * emaWeight;
     reasons.push(params.emaCross === 'bullish' ? 'Bullish EMA cross' : 'Bearish EMA cross');
   }
 
@@ -878,14 +877,15 @@ export function computeStrategyScore(params: {
     }
   }
 
-  // RSI divergence (Rebalanced: weight 2.0, score 75 — significant but not dominant)
+  // RSI divergence (Style-adaptive weighting)
   if (params.rsiDivergence && params.rsiDivergence !== 'none' && enabled.divergence !== false) {
-    factors += 2.0; 
+    const divWeight = tw.divergenceBonus;
+    factors += divWeight; 
     if (params.rsiDivergence === 'bullish') {
-      score += 75 * 2.0 * sessionQuality;
+      score += 75 * divWeight * sessionQuality;
       reasons.push('Bullish RSI Divergence');
     } else {
-      score -= 75 * 2.0;
+      score -= 75 * divWeight * sessionQuality;
       reasons.push('Bearish RSI Divergence');
     }
   }
@@ -988,11 +988,12 @@ export function computeStrategyScore(params: {
   }
 
   // ── HIDDEN DIVERGENCE (Continuation) ────────────────────────────
-  // Lower weight than regular divergence (1.5 vs 2.0) — continuation, not reversal
-  // Hidden divergence — regime: momentum weight; volatility-scaled for asset class
+  // Lower weight than regular divergence — continuation, not reversal
+  // Regime: momentum weight; volatility-scaled for asset class
   if (params.hiddenDivergence && params.hiddenDivergence !== 'none' && enabled.divergence !== false) {
-    factors += 1.5;
-    const hiddenW = 1.5 * rw.momentum;
+    const hiddenDivWeight = tw.divergenceBonus * 0.75;
+    factors += hiddenDivWeight;
+    const hiddenW = hiddenDivWeight * rw.momentum;
     if (params.hiddenDivergence === 'hidden-bullish') {
       score += 20 * volatilityMultiplier * hiddenW;
       reasons.push('📊 Hidden bullish divergence (trend continuation)');

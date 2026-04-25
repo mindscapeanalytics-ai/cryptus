@@ -17,6 +17,8 @@ export interface LiveTick {
   rsi5m?: number;
   rsi15m?: number;
   rsi1h?: number;
+  rsi4h?: number;
+  rsi1d?: number;
   rsiCustom?: number;
   ema9?: number;
   ema21?: number;
@@ -46,6 +48,14 @@ export interface LiveTick {
   avgBarSize1m?: number;
   avgVolume1m?: number;
   candleDirection?: 'bullish' | 'bearish';
+  obvTrend?: 'bullish' | 'bearish' | 'none';
+  williamsR?: number;
+  hiddenDivergence?: 'hidden-bullish' | 'hidden-bearish' | 'none';
+  regime?: {
+    regime: 'trending' | 'ranging' | 'volatile' | 'breakout';
+    confidence: number;
+    details: string;
+  };
 }
 
 /**

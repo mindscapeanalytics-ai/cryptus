@@ -14,7 +14,7 @@
  */
 
 import type { ScreenerEntry, TradingStyle } from './types';
-import { RSI_ZONES } from './defaults';
+import { RSI_ZONES, TF_WEIGHTS } from './defaults';
 
 // ── Output Types ─────────────────────────────────────────────────
 
@@ -88,41 +88,31 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
     { label: '1d',  val: entry.rsi1d },
   ].filter(r => r.val !== null);
 
-  const oversoldCount     = rsiValues.filter(r => r.val !== null && r.val <= zones.os).length;
-  const overboughtCount   = rsiValues.filter(r => r.val !== null && r.val >= zones.ob).length;
-  const deepOversoldCount = rsiValues.filter(r => r.val !== null && r.val <= zones.deepOS).length;
-  const deepOverboughtCount = rsiValues.filter(r => r.val !== null && r.val >= zones.deepOB).length;
+  const tw = TF_WEIGHTS[tradingStyle] || TF_WEIGHTS.intraday;
 
-  if (deepOversoldCount >= 2) {
-    reasons.push(`📉 RSI deeply oversold across ${deepOversoldCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val <= zones.deepOS).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')}) — ${market === 'Metal' ? 'commodity demand zone' : 'strong reversal setup'}`);
-    bullishPoints += deepOversoldCount * 15;
-    totalPoints += deepOversoldCount * 15;
-    pillars.momentum = true;
-  } else if (oversoldCount >= 2) {
-    reasons.push(`📉 RSI oversold across ${oversoldCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val <= zones.os).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')})`);
-    bullishPoints += oversoldCount * 12;
-    totalPoints += oversoldCount * 12;
-    pillars.momentum = true;
-  } else if (deepOverboughtCount >= 2) {
-    reasons.push(`📈 RSI deeply overbought across ${deepOverboughtCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val >= zones.deepOB).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')}) — ${market === 'Metal' ? 'commodity supply zone' : 'reversal risk elevated'}`);
-    bearishPoints += deepOverboughtCount * 15;
-    totalPoints += deepOverboughtCount * 15;
-    pillars.momentum = true;
-  } else if (overboughtCount >= 2) {
-    reasons.push(`📈 RSI overbought across ${overboughtCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val >= zones.ob).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')})`);
-    bearishPoints += overboughtCount * 12;
-    totalPoints += overboughtCount * 12;
-    pillars.momentum = true;
-  } else if (entry.rsiCustom !== null) {
-    const zone = rsiZone(entry.rsiCustom, market);
+  // Use style-based weighting for all timeframes
+  rsiValues.forEach(r => {
+    const v = r.val;
+    if (v === null || v === undefined) return;
+
+    const weight = (tw as any)[`rsi${r.label}`] || 0;
+    if (weight === 0) return;
+
+    const zone = rsiZone(v, market);
     if (zone) {
-      const isBullish = entry.rsiCustom <= zones.os + 10;
-      reasons.push(`${isBullish ? '📉' : '📈'} RSI(14) is ${zone} at ${formatNum(entry.rsiCustom)}`);
-      if (isBullish) bullishPoints += 10; else bearishPoints += 10;
-      totalPoints += 10;
+      const isDeep = v <= zones.deepOS || v >= zones.deepOB;
+      const isBullish = v <= zones.os + 10;
+      const pts = (isDeep ? 15 : 10) * weight;
+      
+      if (isBullish) bullishPoints += pts; else bearishPoints += pts;
+      totalPoints += pts;
       pillars.momentum = true;
+      
+      if (isDeep || v <= zones.os || v >= zones.ob) {
+        reasons.push(`${isBullish ? '📉' : '📈'} RSI(${r.label}) is ${zone} at ${formatNum(v)}`);
+      }
     }
-  }
+  });
 
 
   // ── 2. EMA Cross ──
@@ -579,6 +569,7 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   const styleExplanation =
     tradingStyle === 'scalping' ? 'weighted for ultra-fast 1m/5m momentum & volatility' :
     tradingStyle === 'swing' ? 'weighted for 4h/1d macro trend stability' :
+    tradingStyle === 'position' ? 'weighted for maximum 1d/Weekly macro cycle preservation' :
     'balanced for 15m/1h intraday market structure';
 
   reasons.unshift(`🛡️ Strategy Mode: ${styleLabel} — Indicators are ${styleExplanation}`);

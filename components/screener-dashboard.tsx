@@ -683,6 +683,10 @@ const ScreenerRow = memo(function ScreenerRow({
     if (entry.rsiStateCustom && entry.rsiPeriodAtCreation === rsiPeriod) {
       rsiCustom = approximateRsi(entry.rsiStateCustom, tick.price, rsiPeriod);
     }
+    let rsi4h = entry.rsi4h;
+    let rsi1d = entry.rsi1d;
+    if (entry.rsiState4h) rsi4h = approximateRsi(entry.rsiState4h, tick.price, 14);
+    if (entry.rsiState1d) rsi1d = approximateRsi(entry.rsiState1d, tick.price, 14);
     let ema9 = entry.ema9;
     let ema21 = entry.ema21;
     if (ema9 !== null) ema9 = approximateEma(ema9, tick.price, 9);
@@ -713,8 +717,8 @@ const ScreenerRow = memo(function ScreenerRow({
 
     const liveStrategy = computeStrategyScore({
       rsi1m, rsi5m, rsi15m, rsi1h,
-      rsi4h: entry.rsi4h,
-      rsi1d: entry.rsi1d,
+      rsi4h,
+      rsi1d,
       tradingStyle,
       macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       bbPosition,
@@ -2987,6 +2991,8 @@ export default function ScreenerDashboard() {
           rsi5m: live.rsi5m ?? entry.rsi5m,
           rsi15m: live.rsi15m ?? entry.rsi15m,
           rsi1h: live.rsi1h ?? entry.rsi1h,
+          rsi4h: live.rsi4h ?? entry.rsi4h,
+          rsi1d: live.rsi1d ?? entry.rsi1d,
           rsiCustom: live.rsiCustom ?? entry.rsiCustom,
           ema9: live.ema9 ?? entry.ema9,
           ema21: live.ema21 ?? entry.ema21,
@@ -3010,6 +3016,10 @@ export default function ScreenerDashboard() {
           candleDirection: (live.candleDirection ?? entry.candleDirection) as any,
           volumeSpike: liveVolumeSpike,
           longCandle: liveLongCandle,
+          obvTrend: (live.obvTrend ?? entry.obvTrend) as any,
+          williamsR: live.williamsR ?? entry.williamsR,
+          hiddenDivergence: (live.hiddenDivergence ?? entry.hiddenDivergence) as any,
+          regime: live.regime ?? entry.regime,
           marketState: 'OPEN',
         };
       })() : entry;
@@ -3208,6 +3218,8 @@ export default function ScreenerDashboard() {
           rsiState5m: entry.rsiState5m,
           rsiState15m: entry.rsiState15m,
           rsiState1h: entry.rsiState1h,
+          rsiState4h: entry.rsiState4h,
+          rsiState1d: entry.rsiState1d,
           rsiStateCustom: entry.rsiStateCustom,
           rsiPeriodAtCreation: entry.rsiPeriodAtCreation,
           avgBarSize1m: entry.avgBarSize1m,
@@ -3234,7 +3246,12 @@ export default function ScreenerDashboard() {
           atr: entry.atr,
           adx: entry.adx,
           open1m: entry.open1m,
-          volStart1m: entry.volStart1m
+          volStart1m: entry.volStart1m,
+          hiddenDivergence: entry.hiddenDivergence,
+          obvTrend: entry.obvTrend,
+          williamsR: entry.williamsR,
+          regime: entry.regime?.regime,
+          market: entry.market,
         };
       });
       syncStates({
@@ -3270,7 +3287,8 @@ export default function ScreenerDashboard() {
     globalUseObv, globalUseWilliamsR,
     alertsEnabled, globalThresholdsEnabled, globalLongCandleThreshold,
     globalVolumeSpikeThreshold, globalVolatilityEnabled, globalShowSignalTags,
-    globalSignalThresholdMode, globalOverbought, globalOversold
+    globalSignalThresholdMode, globalOverbought, globalOversold,
+    tradingStyle
   ]);
 
   // ── Persistence Engine: Sync to Server ──
@@ -4029,6 +4047,8 @@ export default function ScreenerDashboard() {
             rsiState5m: e.rsiState5m,
             rsiState15m: e.rsiState15m,
             rsiState1h: e.rsiState1h,
+            rsiState4h: e.rsiState4h,
+            rsiState1d: e.rsiState1d,
             rsiStateCustom: e.rsiStateCustom,
             ema9State: e.ema9State,
             ema21State: e.ema21State,
@@ -5103,7 +5123,7 @@ export default function ScreenerDashboard() {
 
               {/* Trading Style Orchestrator */}
               <div className="flex items-center bg-black/40 border border-white/5 rounded-xl p-0.5 h-full shadow-inner shrink-0">
-                {(['scalping', 'intraday', 'swing'] as TradingStyle[]).map((style) => (
+                {(['scalping', 'intraday', 'swing', 'position'] as TradingStyle[]).map((style) => (
                   <button
                     key={style}
                     onClick={() => setTradingStyle(style)}
@@ -5683,6 +5703,7 @@ export default function ScreenerDashboard() {
             smartMoneyScore={smartMoney.get(selectedNarrationEntry.symbol)?.score}
             orderFlowData={orderFlow.get(selectedNarrationEntry.symbol)}
             fundingRate={fundingRates.get(selectedNarrationEntry.symbol)}
+            tradingStyle={tradingStyle}
           />
         )}
       </AnimatePresence>
@@ -7644,7 +7665,7 @@ function GlobalSettingsModal({
             <div className="space-y-3">
               <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 ml-1">Strategy Style</h3>
               <div className="grid grid-cols-1 gap-1.5">
-                {(['scalping', 'intraday', 'swing'] as TradingStyle[]).map((style) => (
+                {(['scalping', 'intraday', 'swing', 'position'] as TradingStyle[]).map((style) => (
                   <button
                     key={style}
                     onClick={() => setTradingStyle(style)}
