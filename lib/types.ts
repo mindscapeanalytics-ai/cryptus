@@ -86,6 +86,33 @@ export interface ScreenerEntry {
   vwapPriceBaseline?: number | null;
   // ── Historical data for correlation analysis ──
   historicalCloses?: number[];
+  // ── 2026 Intelligence: ATR-Based Risk Parameters ──
+  riskParams?: {
+    stopLoss: number;
+    takeProfit1: number;
+    takeProfit2: number;
+    riskRewardRatio: number;
+    atrUsed: number;
+    atrMultiplier: number;
+  } | null;
+  // ── 2026 Intelligence: Hidden Divergence (Continuation) ──
+  hiddenDivergence?: 'hidden-bullish' | 'hidden-bearish' | 'none';
+  // ── 2026 Intelligence: Market Regime Classification ──
+  regime?: {
+    regime: 'trending' | 'ranging' | 'volatile' | 'breakout';
+    confidence: number;
+    details: string;
+  } | null;
+  // ── 2026 Intelligence: Fibonacci Levels ──
+  fibLevels?: {
+    swingHigh: number;
+    swingLow: number;
+    level236: number;
+    level382: number;
+    level500: number;
+    level618: number;
+    level786: number;
+  } | null;
 }
 
 export interface ScreenerResponse {

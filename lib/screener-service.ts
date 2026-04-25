@@ -8,7 +8,9 @@ import {
   calculateAvgBarSize, calculateAvgVolume,
   calculateATR, calculateADX, deriveSignal,
   calculateOBV, calculateWilliamsR,
+  computeRiskParameters, detectHiddenDivergence, calculateFibonacciLevels,
 } from './indicators';
+import { classifyRegime } from './market-regime';
 import type { ScreenerEntry, ScreenerResponse, BinanceTicker, BinanceKline } from './types';
 import { getAllCoinConfigs, type CoinConfig } from './coin-config';
 import { getSymbolAlias } from './symbol-utils';
@@ -1130,14 +1132,14 @@ function buildEntry(
     // This provides better UX than showing all dashes.
     const klineCountThreshold = 20; 
     if (validKlines.length < klineCountThreshold) {
-      console.warn(`[screener] ${sym}: Insufficient klines (${validKlines.length}/${klineCountThreshold}), returning ticker-only entry`);
+      debugWarn(`[screener] ${sym}: Insufficient klines (${validKlines.length}/${klineCountThreshold}), returning ticker-only entry`);
       if (validKlines.length > 0 && ticker) {
         return buildTickerOnlyEntry(sym, ticker, nowTs);
       }
       return null;
     }
 
-    console.log(`[screener] ${sym}: Processing ${validKlines.length} valid klines`);
+    debugLog(`[screener] ${sym}: Processing ${validKlines.length} valid klines`);
 
     const closes1m = validKlines.map((k) => parseFloat(k[4]));
     const highs1m = validKlines.map((k) => parseFloat(k[2]));
@@ -1156,28 +1158,28 @@ function buildEntry(
     const agg5m = aggregateKlines(validKlines, 5, aggCache);
     const closes5m = agg5m.map((c) => c.close);
     const rsi5m = closes5m.length >= r5mP + 1 ? calculateRsi(closes5m, r5mP) : null;
-    console.log(`[screener] ${sym}: 5m aggregation: ${closes5m.length} candles (need ${r5mP + 1} for RSI), rsi5m=${rsi5m}`);
+    debugLog(`[screener] ${sym}: 5m aggregation: ${closes5m.length} candles (need ${r5mP + 1} for RSI), rsi5m=${rsi5m}`);
 
     const agg15m = aggregateKlines(validKlines, 15, aggCache);
     const closes15m = agg15m.map((c) => c.close);
     const highs15m = agg15m.map((c) => c.high);
     const lows15m = agg15m.map((c) => c.low);
     const rsi15m = closes15m.length >= r15mP + 1 ? calculateRsi(closes15m, r15mP) : null;
-    console.log(`[screener] ${sym}: 15m aggregation: ${closes15m.length} candles (need ${r15mP + 1} for RSI), rsi15m=${rsi15m}`);
+    debugLog(`[screener] ${sym}: 15m aggregation: ${closes15m.length} candles (need ${r15mP + 1} for RSI), rsi15m=${rsi15m}`);
 
     let rsi1h: number | null = null;
     let closes1h: number[] = [];
     if (klines1h && klines1h.length >= r1hP + 1) {
       closes1h = klines1h.map((k) => parseFloat(k[4]));
       rsi1h = calculateRsi(closes1h, r1hP);
-      console.log(`[screener] ${sym}: 1h from direct fetch: ${closes1h.length} candles, rsi1h=${rsi1h}`);
+      debugLog(`[screener] ${sym}: 1h from direct fetch: ${closes1h.length} candles, rsi1h=${rsi1h}`);
     } else {
       const agg1h = aggregateKlines(validKlines, 60, aggCache);
       closes1h = agg1h.map((c) => c.close);
       if (closes1h.length >= r1hP + 1) {
         rsi1h = calculateRsi(closes1h, r1hP);
       }
-      console.log(`[screener] ${sym}: 1h from aggregation: ${closes1h.length} candles (need ${r1hP + 1} for RSI), rsi1h=${rsi1h}`);
+      debugLog(`[screener] ${sym}: 1h from aggregation: ${closes1h.length} candles (need ${r1hP + 1} for RSI), rsi1h=${rsi1h}`);
     }
 
     // Dynamic/Custom RSI (User Defined Period)
@@ -1403,6 +1405,25 @@ function buildEntry(
     const obvResult = calculateOBV(closes15m, volumes15m);
     const williamsR = calculateWilliamsR(highs15m, lows15m, closes15m);
 
+    // 2026 Intelligence: Hidden Divergence (Continuation patterns)
+    const hiddenDivergence = detectHiddenDivergence(closes15m, r15mP, 40);
+
+    // 2026 Intelligence: Fibonacci Retracement Levels
+    const fibLevels = calculateFibonacciLevels(closes15m, 50);
+
+    // 2026 Intelligence: Market Regime Classification
+    const bbWidth = (bb && bb.upper && bb.lower && bb.middle && bb.middle > 0)
+      ? (bb.upper - bb.lower) / bb.middle
+      : null;
+    const regimeResult = classifyRegime({
+      adx,
+      atr,
+      atrAvg: null, // TODO: compute rolling ATR average for better regime detection
+      bbWidth,
+      bbWidthAvg: null, // TODO: compute rolling BB width average
+      volumeSpike,
+    });
+
     const strategy = computeStrategyScore({
       rsi1m,
       rsi5m,
@@ -1424,6 +1445,7 @@ function buildEntry(
       atr,
       obvTrend: obvResult?.trend ?? 'none',
       williamsR,
+      hiddenDivergence,
       market: getMarketType(sym),
     });
 
@@ -1499,7 +1521,7 @@ function buildEntry(
       ? (curCandleSize / entry_partial.avgBarSize1m) >= (config?.longCandleThreshold ?? 2.0)
       : false;
 
-    console.log(`[screener] ${sym}: curCandleSize=${curCandleSize}, avgBarSize1m=${entry_partial.avgBarSize1m}, longCandle=${longCandle}`);
+    debugLog(`[screener] ${sym}: curCandleSize=${curCandleSize}, avgBarSize1m=${entry_partial.avgBarSize1m}, longCandle=${longCandle}`);
 
     // ── Final Indicator Summary with Coverage Metrics ──
     const indicatorCoverage = {
@@ -1516,7 +1538,7 @@ function buildEntry(
     const maxIndicators = 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1; // 12 total
     const coveragePercent = Math.round((totalIndicators / maxIndicators) * 100);
     
-    console.log(`[screener] ${sym}: ✅ Entry built successfully (${coveragePercent}% indicator coverage):`, {
+    debugLog(`[screener] ${sym}: ✅ Entry built successfully (${coveragePercent}% indicator coverage):`, {
       rsi: { rsi1m, rsi5m, rsi15m, rsi1h },
       ema: { ema9: ema9Val, ema21: ema21Val, cross: emaCross },
       macd: { line: macdLineVal, signal: macdSignalVal, hist: macdHistogramVal },
@@ -1555,6 +1577,18 @@ function buildEntry(
       historicalCloses: closes15m,
       vwapPriceBaseline: vwap,
       momentumPriceBaseline: (closes15m.length >= 11) ? closes15m[closes15m.length - 11] : null,
+      // 2026 Intelligence: New indicator fields
+      hiddenDivergence,
+      regime: regimeResult,
+      fibLevels: fibLevels ?? null,
+      riskParams: (atr !== null && strategy.signal !== 'neutral')
+        ? computeRiskParameters(
+            price,
+            atr,
+            strategy.signal.includes('buy') ? 'buy' : 'sell',
+            getMarketType(sym),
+          )
+        : null,
     };
   } catch (err) {
     debugWarn(`[screener] buildEntry failed for ${sym}:`, err instanceof Error ? err.message : err);
@@ -1790,7 +1824,7 @@ function runRefresh(
     }
 
     if (failedCount > 0) {
-      console.warn(`[screener] ${failedCount}/${symbolsToRefresh.length} kline fetches failed or were throttled. Check BINANCE_APIS connectivity.`);
+      debugWarn(`[screener] ${failedCount}/${symbolsToRefresh.length} kline fetches failed or were throttled. Check BINANCE_APIS connectivity.`);
       // Task 12.3: Record kline fetch errors in metrics
       metricsCollector.recordError(
         new Error(`${failedCount} kline fetches failed`),
@@ -1826,10 +1860,10 @@ function runRefresh(
         const klines1m = res1m.value;
         const klines1h = res1h?.status === 'fulfilled' ? res1h.value : null;
 
-        console.log(`[screener] ${sym}: Fetched ${klines1m?.length || 0} 1m klines, ${klines1h?.length || 0} 1h klines`);
+        debugLog(`[screener] ${sym}: Fetched ${klines1m?.length || 0} 1m klines, ${klines1h?.length || 0} 1h klines`);
 
         if (!klines1m || klines1m.length === 0) {
-          console.warn(`[screener] ${sym}: kline fetch returned empty array`);
+          debugWarn(`[screener] ${sym}: kline fetch returned empty array`);
         } else {
           const prevEntry = indicatorCache.get(getCacheKey(sym))?.entry;
           const entry = buildEntry(
@@ -1843,7 +1877,7 @@ function runRefresh(
             coinConfigs.get(sym),
           );
           if (entry) {
-            console.log(`[screener] ${sym}: Successfully built entry with indicators - rsi1m=${entry.rsi1m}, rsi5m=${entry.rsi5m}, rsi15m=${entry.rsi15m}, rsi1h=${entry.rsi1h}`);
+            debugLog(`[screener] ${sym}: Successfully built entry with indicators - rsi1m=${entry.rsi1m}, rsi5m=${entry.rsi5m}, rsi15m=${entry.rsi15m}, rsi1h=${entry.rsi1h}`);
             entries.push(entry);
             const cacheObj = { entry: entry, ts: nowTs };
             indicatorCache.set(getCacheKey(sym), cacheObj);
@@ -1851,13 +1885,13 @@ function runRefresh(
             void redisService.setJson(`cache:ind:${getCacheKey(sym)}`, cacheObj, 60); // 1 min shared TTL
             continue;
           } else {
-            console.warn(`[screener] ${sym}: buildEntry returned null despite having ${klines1m.length} klines`);
+            debugWarn(`[screener] ${sym}: buildEntry returned null despite having ${klines1m.length} klines`);
           }
         }
       } else if (res1m?.status === 'rejected') {
         console.error(`[screener] ${sym}: 1m kline fetch rejected - ${res1m.reason instanceof Error ? res1m.reason.message : String(res1m.reason)}`);
       } else {
-        console.warn(`[screener] ${sym}: No 1m kline result available`);
+        debugWarn(`[screener] ${sym}: No 1m kline result available`);
       }
 
       const cached = indicatorCache.get(getCacheKey(sym));
@@ -1933,7 +1967,7 @@ function runRefresh(
       
       const stale = fromCachedResult(symbolCount, smartMode, rsiPeriod, exchange);
       if (stale) {
-        console.log(`[screener] Returning stale cache for ${exchange} after error`);
+        debugLog(`[screener] Returning stale cache for ${exchange} after error`);
         return stale;
       }
       
@@ -1985,7 +2019,7 @@ export async function getScreenerData(
 
   for (const tryExchange of exchangeOrder) {
     if (geoBlockedExchanges.has(tryExchange)) {
-      console.log(`[screener] Skipping geo-blocked exchange: ${tryExchange}`);
+      debugLog(`[screener] Skipping geo-blocked exchange: ${tryExchange}`);
       continue;
     }
 
@@ -1995,14 +2029,14 @@ export async function getScreenerData(
       if (result.data.length > 0) {
         // This exchange works - remember it for future requests
         if (tryExchange !== requestedExchange) {
-          console.log(`[screener] ✅ Failover success: ${requestedExchange} → ${tryExchange} (${result.data.length} symbols)`);
+          debugLog(`[screener] ✅ Failover success: ${requestedExchange} → ${tryExchange} (${result.data.length} symbols)`);
           preferredExchange = tryExchange;
         }
         return result;
       }
       
       // Empty result but no error - log and try next exchange
-      console.warn(`[screener] ⚠️ Exchange ${tryExchange} returned empty data. Trying next...`);
+      debugWarn(`[screener] ⚠️ Exchange ${tryExchange} returned empty data. Trying next...`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const errStack = err instanceof Error ? err.stack : '';
@@ -2010,12 +2044,12 @@ export async function getScreenerData(
       if (errStack) console.error(`[screener] Stack: ${errStack.split('\n').slice(0, 3).join('\n')}`);
       
       if (errMsg.includes('geo-blocked') || errMsg.includes('403') || errMsg.includes('451')) {
-        console.warn(`[screener] 🌍 Exchange ${tryExchange} geo-blocked. Trying next...`);
+        debugWarn(`[screener] 🌍 Exchange ${tryExchange} geo-blocked. Trying next...`);
         geoBlockedExchanges.add(tryExchange);
         continue;
       }
       // For non-geo-block errors, also try next exchange
-      console.warn(`[screener] ⚠️ Exchange ${tryExchange} failed: ${errMsg}. Trying next...`);
+      debugWarn(`[screener] ⚠️ Exchange ${tryExchange} failed: ${errMsg}. Trying next...`);
     }
   }
 
@@ -2035,7 +2069,7 @@ export async function getScreenerData(
   const anyCached = cachedEntries[0];
 
   if (anyCached && Date.now() - anyCached.ts < 300_000) { // 5 min stale cache acceptable
-    console.warn('[screener] ⚠️ Using stale cache due to API failures');
+    debugWarn('[screener] ⚠️ Using stale cache due to API failures');
     return {
       ...anyCached.data,
       meta: {

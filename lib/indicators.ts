@@ -9,6 +9,7 @@
 
 import { calculateRsiSeries } from './rsi';
 import { LRUCache } from './lru-cache';
+import { RSI_DEFAULTS, INDICATOR_DEFAULTS } from './defaults';
 
 function round(n: number): number {
   return Math.round(n * 1e8) / 1e8;
@@ -673,6 +674,10 @@ export function computeStrategyScore(params: {
   atr?: number | null;
   obvTrend?: 'bullish' | 'bearish' | 'none';
   williamsR?: number | null;
+  /** Smart Money Pressure Index score (-100 to +100). When significant, influences strategy direction. */
+  smartMoneyScore?: number | null;
+  /** Hidden divergence signal (continuation patterns). */
+  hiddenDivergence?: 'hidden-bullish' | 'hidden-bearish' | 'none';
   enabledIndicators?: {
     rsi?: boolean;
     macd?: boolean;
@@ -696,10 +701,7 @@ export function computeStrategyScore(params: {
   else if (params.market === 'Metal') volatilityMultiplier = 1.5;
   let factors = 0;
   const reasons: string[] = [];
-  const enabled = params.enabledIndicators || {
-    rsi: true, macd: true, bb: true, stoch: true, ema: true, vwap: true,
-    confluence: true, divergence: true, momentum: true, obv: true, williamsR: true
-  };
+  const enabled = params.enabledIndicators || INDICATOR_DEFAULTS;
 
   // ── Asset-Specific RSI Zone Calibration ──
   // Different asset classes have different RSI characteristics.
@@ -922,6 +924,46 @@ export function computeStrategyScore(params: {
     }
   }
 
+  // ── SMART MONEY PRESSURE INTEGRATION ────────────────────────────
+  // Derivatives data (funding rate, liquidations, whale trades, order flow).
+  // When significant (|score| >= 30), it confirms or contradicts direction.
+  if (params.smartMoneyScore !== undefined && params.smartMoneyScore !== null && Math.abs(params.smartMoneyScore) >= 30) {
+    const smDirection = params.smartMoneyScore > 0 ? 'bullish' : 'bearish';
+    const scoreDirection = score > 0 ? 'bullish' : score < 0 ? 'bearish' : 'neutral';
+
+    if (scoreDirection !== 'neutral') {
+      if (smDirection === scoreDirection) {
+        // Confirmation: Smart Money agrees with technical signal → boost
+        score *= 1.15;
+        factors += 1.5;
+        reasons.push(`🐋 Smart Money confirms (${params.smartMoneyScore > 0 ? '+' : ''}${params.smartMoneyScore})`);
+      } else {
+        // Contradiction: Smart Money disagrees → penalty + caution
+        score *= 0.80;
+        reasons.push(`⚠ Smart Money contradicts (${params.smartMoneyScore > 0 ? '+' : ''}${params.smartMoneyScore})`);
+      }
+    } else {
+      // Neutral technical signal but strong Smart Money → add directional bias
+      const smBias = params.smartMoneyScore > 0 ? 10 : -10;
+      score += smBias * volatilityMultiplier;
+      factors += 1.0;
+      reasons.push(`🐋 Smart Money bias (${params.smartMoneyScore > 0 ? '+' : ''}${params.smartMoneyScore})`);
+    }
+  }
+
+  // ── HIDDEN DIVERGENCE (Continuation) ────────────────────────────
+  // Lower weight than regular divergence (1.5 vs 2.0) — continuation, not reversal
+  if (params.hiddenDivergence && params.hiddenDivergence !== 'none' && enabled.divergence !== false) {
+    factors += 1.5;
+    if (params.hiddenDivergence === 'hidden-bullish') {
+      score += 20 * volatilityMultiplier;
+      reasons.push('📊 Hidden bullish divergence (trend continuation)');
+    } else {
+      score -= 20 * volatilityMultiplier;
+      reasons.push('📊 Hidden bearish divergence (trend continuation)');
+    }
+  }
+
   // ── ADX MARKET CONTEXT ──────────────────────────────────────────
   // ADX measures trend strength. <20 = choppy/ranging, >30 = strong trend.
   // Dampen signals in choppy markets, amplify in trending markets.
@@ -1110,8 +1152,8 @@ export function calculateADX(
  */
 export function deriveSignal(
   rsi: number | null,
-  overbought: number = 80,
-  oversold: number = 20
+  overbought: number = RSI_DEFAULTS.overbought,
+  oversold: number = RSI_DEFAULTS.oversold
 ): 'oversold' | 'overbought' | 'neutral' {
   if (rsi === null) return 'neutral';
   
@@ -1128,5 +1170,191 @@ export function deriveSignal(
   return 'neutral';
 }
 
+// ── ATR-Based Risk Parameters ───────────────────────────────────
 
+export interface RiskParameters {
+  /** Suggested stop loss price */
+  stopLoss: number;
+  /** Conservative take profit (1.33:1 R:R) */
+  takeProfit1: number;
+  /** Aggressive take profit (2:1 R:R) */
+  takeProfit2: number;
+  /** Risk-reward ratio for TP1 */
+  riskRewardRatio: number;
+  /** ATR value used for calculation */
+  atrUsed: number;
+  /** ATR multiplier used for stop */
+  atrMultiplier: number;
+}
 
+/**
+ * Compute institutional-grade risk parameters based on ATR.
+ *
+ * Stop Loss: price ± (ATR × multiplier) depending on direction
+ * Take Profit 1: 1.33:1 R:R (conservative)
+ * Take Profit 2: 2.0:1 R:R (aggressive)
+ *
+ * The ATR multiplier adapts to the asset class:
+ *   Crypto: 1.5 (wider stops for high volatility)
+ *   Forex:  1.0 (tighter stops, lower ATR)
+ *   Metals: 1.2 (moderate)
+ *   Stocks: 1.3 (moderate-high)
+ *
+ * @param price - Current asset price
+ * @param atr - Average True Range value
+ * @param direction - Trade direction ('buy' or 'sell')
+ * @param market - Asset class for multiplier calibration
+ */
+export function computeRiskParameters(
+  price: number,
+  atr: number,
+  direction: 'buy' | 'sell',
+  market: 'Crypto' | 'Metal' | 'Forex' | 'Index' | 'Stocks' = 'Crypto',
+): RiskParameters {
+  // Asset-class-aware ATR multiplier
+  const multiplierMap: Record<string, number> = {
+    Crypto: 1.5,
+    Forex: 1.0,
+    Metal: 1.2,
+    Index: 1.3,
+    Stocks: 1.3,
+  };
+  const atrMult = multiplierMap[market] ?? 1.5;
+  const riskDistance = atr * atrMult;
+
+  if (direction === 'buy') {
+    const stopLoss = round(price - riskDistance);
+    const takeProfit1 = round(price + riskDistance * 1.33);
+    const takeProfit2 = round(price + riskDistance * 2.0);
+    return {
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      riskRewardRatio: round(1.33),
+      atrUsed: round(atr),
+      atrMultiplier: atrMult,
+    };
+  } else {
+    const stopLoss = round(price + riskDistance);
+    const takeProfit1 = round(price - riskDistance * 1.33);
+    const takeProfit2 = round(price - riskDistance * 2.0);
+    return {
+      stopLoss,
+      takeProfit1,
+      takeProfit2,
+      riskRewardRatio: round(1.33),
+      atrUsed: round(atr),
+      atrMultiplier: atrMult,
+    };
+  }
+}
+
+// ── Hidden (Continuation) Divergence ────────────────────────────
+
+/**
+ * Detect hidden RSI divergence (continuation signals).
+ *
+ * Hidden Bullish: Price makes HIGHER low, RSI makes LOWER low
+ *   → Trend continuation UP (hidden strength)
+ *
+ * Hidden Bearish: Price makes LOWER high, RSI makes HIGHER high
+ *   → Trend continuation DOWN (hidden weakness)
+ *
+ * These are institutional-grade continuation patterns with higher
+ * win rates than regular divergence in trending markets.
+ */
+export function detectHiddenDivergence(
+  closes: number[],
+  rsiPeriod = 14,
+  lookback = 40,
+): 'hidden-bullish' | 'hidden-bearish' | 'none' {
+  if (closes.length < rsiPeriod + lookback) return 'none';
+
+  const priceWindow = closes.slice(-lookback);
+  const fullRsi = computeRsiSeries(closes.slice(-(rsiPeriod + lookback)), rsiPeriod);
+  const rsiWindow = fullRsi.slice(-lookback);
+  if (rsiWindow.length < lookback) return 'none';
+
+  // Dynamic tolerance based on volatility (same as regular divergence)
+  const recentReturns = priceWindow.slice(1).map((p, i) => Math.abs(p - priceWindow[i]) / priceWindow[i]);
+  const avgReturn = recentReturns.reduce((a, b) => a + b, 0) / recentReturns.length;
+  const tolerance = Math.max(2, Math.min(5, Math.round(avgReturn * 400)));
+
+  // Hidden Bullish: price makes higher low, RSI makes lower low
+  const priceLows = findSwingLows(priceWindow, tolerance);
+  if (priceLows.length >= 2) {
+    const prev = priceLows[priceLows.length - 2];
+    const curr = priceLows[priceLows.length - 1];
+    if (priceWindow[curr] > priceWindow[prev] && rsiWindow[curr] < rsiWindow[prev] - 1) {
+      return 'hidden-bullish';
+    }
+  }
+
+  // Hidden Bearish: price makes lower high, RSI makes higher high
+  const priceHighs = findSwingHighs(priceWindow, tolerance);
+  if (priceHighs.length >= 2) {
+    const prev = priceHighs[priceHighs.length - 2];
+    const curr = priceHighs[priceHighs.length - 1];
+    if (priceWindow[curr] < priceWindow[prev] && rsiWindow[curr] > rsiWindow[prev] + 1) {
+      return 'hidden-bearish';
+    }
+  }
+
+  return 'none';
+}
+
+// ── Fibonacci Retracement Levels ────────────────────────────────
+
+export interface FibonacciLevels {
+  /** The swing high used for calculation */
+  swingHigh: number;
+  /** The swing low used for calculation */
+  swingLow: number;
+  /** 23.6% retracement */
+  level236: number;
+  /** 38.2% retracement (key support/resistance) */
+  level382: number;
+  /** 50.0% retracement (psychological level) */
+  level500: number;
+  /** 61.8% retracement (golden ratio — strongest level) */
+  level618: number;
+  /** 78.6% retracement (deep pullback) */
+  level786: number;
+}
+
+/**
+ * Calculate Fibonacci retracement levels from a swing high and low.
+ *
+ * These levels serve as institutional-grade support/resistance zones.
+ * The 61.8% (golden ratio) level is the strongest reversal zone.
+ *
+ * Usage: Display as horizontal lines on charts, or check if current price
+ * is near a fib level for confluence with RSI/MACD signals.
+ *
+ * @param closes - Price series to auto-detect swing points
+ * @param lookback - Number of candles to search for swing high/low
+ */
+export function calculateFibonacciLevels(
+  closes: number[],
+  lookback = 50,
+): FibonacciLevels | null {
+  if (closes.length < lookback) return null;
+
+  const window = closes.slice(-lookback);
+  const swingHigh = Math.max(...window);
+  const swingLow = Math.min(...window);
+
+  if (swingHigh === swingLow) return null; // Flat market
+
+  const range = swingHigh - swingLow;
+
+  return {
+    swingHigh: round(swingHigh),
+    swingLow: round(swingLow),
+    level236: round(swingHigh - range * 0.236),
+    level382: round(swingHigh - range * 0.382),
+    level500: round(swingHigh - range * 0.500),
+    level618: round(swingHigh - range * 0.618),
+    level786: round(swingHigh - range * 0.786),
+  };
+}

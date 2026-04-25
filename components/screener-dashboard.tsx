@@ -726,6 +726,8 @@ const ScreenerRow = memo(function ScreenerRow({
       atr: entry.atr,
       obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
+      smartMoneyScore: smartMoneyScore?.score ?? undefined,
+      hiddenDivergence: entry.hiddenDivergence,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,
@@ -1713,6 +1715,8 @@ const ScreenerCard = memo(function ScreenerCard({
       atr: entry.atr,
       obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
+      smartMoneyScore: smartMoneyScore?.score ?? undefined,
+      hiddenDivergence: entry.hiddenDivergence,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,
@@ -2266,8 +2270,8 @@ export default function ScreenerDashboard() {
   const [globalOverbought, setGlobalOverbought] = useState(80);
   const [globalOversold, setGlobalOversold] = useState(20);
   const [globalThresholdTimeframes, setGlobalThresholdTimeframes] = useState<string[]>(['1m', '5m', '15m', '1h']);
-  const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState(3.0);
-  const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState(3.0);
+  const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState(2.0);
+  const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState(2.5);
   const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState(true);
   // ── Signal Tag Display Controls ──
   const [globalShowSignalTags, setGlobalShowSignalTags] = useState(true);
@@ -2968,6 +2972,7 @@ export default function ScreenerDashboard() {
           volumeSpike: merged.volumeSpike,
           price: merged.price,
           adx: merged.adx,
+          hiddenDivergence: merged.hiddenDivergence,
           enabledIndicators: {
             rsi: globalUseRsi,
             macd: globalUseMacd,
@@ -7553,7 +7558,7 @@ function GlobalSettingsModal({
           {/* Reset to Default Button */}
           <button
             onClick={() => {
-              if (confirm('Reset all settings to institutional defaults?\n\n• All 11 strategy indicators → ON\n• RSI period → 14 (industry standard)\n• Thresholds → 80/20 (institutional grade)\n• Signal mode → Custom (expert)\n• Volatility detection → ON\n• Columns → Optimal trading set\n• Keep your watchlist and alerts\n\nContinue?')) {
+              if (confirm('Reset all settings to institutional defaults?\n\n• All 11 strategy indicators → ON\n• RSI period → 14 (industry standard)\n• Thresholds → 80/20 (institutional grade)\n• Signal mode → Custom (expert)\n• Volatility detection → ON (2.0x/2.5x)\n• Columns → Optimal trading set\n• Keep your watchlist and alerts\n\nContinue?')) {
                 // Reset all indicators to default (all ON — expert mode)
                 setGlobalUseRsi(true);
                 setGlobalUseMacd(true);
@@ -7578,10 +7583,10 @@ function GlobalSettingsModal({
                 setGlobalShowSignalTags(true);
                 setGlobalSignalThresholdMode('custom');
 
-                // Reset volatility — enabled with balanced thresholds
+                // Reset volatility — enabled with institutional thresholds (2.0x/2.5x)
                 setGlobalVolatilityEnabled(true);
-                setGlobalLongCandleThreshold(3);
-                setGlobalVolumeSpikeThreshold(3);
+                setGlobalLongCandleThreshold(2.0);
+                setGlobalVolumeSpikeThreshold(2.5);
 
                 // Reset performance
                 setRefreshInterval(3000);

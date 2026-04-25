@@ -40,26 +40,26 @@ model UserPreference {
   
   // Global Alert Settings
   globalThresholdsEnabled      Boolean  @default(false)
-  globalOverbought             Int      @default(90)
-  globalOversold               Int      @default(15)
+  globalOverbought             Int      @default(80)
+  globalOversold               Int      @default(20)
   globalThresholdTimeframes    String[] @default(["1m", "5m", "15m", "1h"])
   
   // Volatility Surge Settings
   globalVolatilityEnabled      Boolean  @default(false)
-  globalLongCandleThreshold    Float    @default(5.0)
-  globalVolumeSpikeThreshold   Float    @default(5.0)
+  globalLongCandleThreshold    Float    @default(2.0)
+  globalVolumeSpikeThreshold   Float    @default(2.5)
   
   // UI & Indicator Settings
   globalSignalThresholdMode    String   @default("default") // 'default' | 'custom'
   globalUseRsi                 Boolean  @default(true)
-  globalUseMacd                Boolean  @default(false)
-  globalUseBb                  Boolean  @default(false)
-  globalUseStoch               Boolean  @default(false)
-  globalUseEma                 Boolean  @default(false)
-  globalUseVwap                Boolean  @default(false)
-  globalUseConfluence          Boolean  @default(false)
-  globalUseDivergence          Boolean  @default(false)
-  globalUseMomentum            Boolean  @default(false)
+  globalUseMacd                Boolean  @default(true)
+  globalUseBb                  Boolean  @default(true)
+  globalUseStoch               Boolean  @default(true)
+  globalUseEma                 Boolean  @default(true)
+  globalUseVwap                Boolean  @default(true)
+  globalUseConfluence          Boolean  @default(true)
+  globalUseDivergence          Boolean  @default(true)
+  globalUseMomentum            Boolean  @default(true)
   
   // Dashboard State
   visibleColumns               String[] @default(["rsi15m", "strategy"])
@@ -179,8 +179,8 @@ model CoinConfig {
   alertOnStrategyShift Boolean  @default(false)
   alertOnLongCandle    Boolean  @default(false)
   alertOnVolumeSpike   Boolean  @default(false)
-  longCandleThreshold  Float    @default(5.0)
-  volumeSpikeThreshold Float    @default(5.0)
+  longCandleThreshold  Float    @default(2.0)
+  volumeSpikeThreshold Float    @default(2.5)
   priority             String   @default("medium")
   sound                String   @default("default")
   quietHoursEnabled    Boolean  @default(false)

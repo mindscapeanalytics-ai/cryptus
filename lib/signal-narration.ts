@@ -211,8 +211,8 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   }
 
   // ── 11. OBV Volume Trend ──
-  if ((entry as any).obvTrend && (entry as any).obvTrend !== 'none') {
-    if ((entry as any).obvTrend === 'bullish') {
+  if (entry.obvTrend && entry.obvTrend !== 'none') {
+    if (entry.obvTrend === 'bullish') {
       reasons.push('📈 OBV volume trend bullish - smart money accumulation detected');
       bullishPoints += 8;
     } else {
@@ -223,8 +223,8 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   }
 
   // ── 12. Williams %R ──
-  if ((entry as any).williamsR !== null && (entry as any).williamsR !== undefined) {
-    const wr = (entry as any).williamsR as number;
+  if (entry.williamsR !== null && entry.williamsR !== undefined) {
+    const wr = entry.williamsR;
     if (wr <= -85) {
       reasons.push(`📊 Williams %R at ${formatNum(wr)} - deeply oversold, reversal probability elevated`);
       bullishPoints += 7;
@@ -241,6 +241,77 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       reasons.push(`📊 Williams %R at ${formatNum(wr)} - approaching overbought territory`);
       bearishPoints += 3;
       totalPoints += 3;
+    }
+  }
+
+  // ── 13. Hidden Divergence (Continuation Patterns) ──
+  if (entry.hiddenDivergence && entry.hiddenDivergence !== 'none') {
+    if (entry.hiddenDivergence === 'hidden-bullish') {
+      reasons.push('🔄 Hidden bullish divergence - price higher low + RSI lower low = hidden trend strength');
+      bullishPoints += 12;
+    } else {
+      reasons.push('🔄 Hidden bearish divergence - price lower high + RSI higher high = hidden trend weakness');
+      bearishPoints += 12;
+    }
+    totalPoints += 12;
+  }
+
+  // ── 14. Market Regime Context ──
+  if (entry.regime && entry.regime.confidence >= 40) {
+    const r = entry.regime;
+    switch (r.regime) {
+      case 'trending':
+        reasons.push(`🌊 Market Regime: Trending (${r.confidence}% confidence) - trend-following indicators favored`);
+        totalPoints += 5;
+        if (bullishPoints > bearishPoints) bullishPoints += 5;
+        else if (bearishPoints > bullishPoints) bearishPoints += 5;
+        break;
+      case 'ranging':
+        reasons.push(`📦 Market Regime: Ranging (${r.confidence}% confidence) - oscillator signals more reliable`);
+        totalPoints += 3;
+        break;
+      case 'volatile':
+        reasons.push(`⚡ Market Regime: Volatile (${r.confidence}% confidence) - exercise caution, widen stops`);
+        totalPoints += 3;
+        break;
+      case 'breakout':
+        reasons.push(`🚀 Market Regime: Breakout detected (${r.confidence}% confidence) - momentum signals amplified`);
+        totalPoints += 8;
+        if (bullishPoints > bearishPoints) bullishPoints += 8;
+        else if (bearishPoints > bullishPoints) bearishPoints += 8;
+        break;
+    }
+  }
+
+  // ── 15. ATR-Based Risk Parameters ──
+  if (entry.riskParams) {
+    const rp = entry.riskParams;
+    const direction = entry.strategySignal?.includes('buy') ? 'Buy' : 'Sell';
+    reasons.push(
+      `🎯 Risk Parameters (${direction}): SL $${formatPrice(rp.stopLoss)} | TP1 $${formatPrice(rp.takeProfit1)} (${rp.riskRewardRatio}:1) | TP2 $${formatPrice(rp.takeProfit2)} (2:1) | ATR: ${formatNum(rp.atrUsed, 4)}`
+    );
+    // Risk params don't add directional points — they're informational
+  }
+
+  // ── 16. Fibonacci Proximity ──
+  if (entry.fibLevels && entry.price) {
+    const fib = entry.fibLevels;
+    const price = entry.price;
+    const range = fib.swingHigh - fib.swingLow;
+    if (range > 0) {
+      // Check if price is near a key fib level (within 0.5% of range)
+      const tolerance = range * 0.005;
+      const nearLevels: string[] = [];
+      if (Math.abs(price - fib.level382) < tolerance) nearLevels.push('38.2%');
+      if (Math.abs(price - fib.level500) < tolerance) nearLevels.push('50%');
+      if (Math.abs(price - fib.level618) < tolerance) nearLevels.push('61.8%');
+      if (Math.abs(price - fib.level786) < tolerance) nearLevels.push('78.6%');
+      if (nearLevels.length > 0) {
+        const isBelowMid = price < (fib.swingHigh + fib.swingLow) / 2;
+        reasons.push(`📐 Price near Fibonacci ${nearLevels.join(', ')} ${isBelowMid ? 'support' : 'resistance'} level(s)`);
+        totalPoints += 6;
+        if (isBelowMid) bullishPoints += 6; else bearishPoints += 6;
+      }
     }
   }
 
@@ -294,4 +365,12 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     emoji,
     shareLine,
   };
+}
+
+// ── Price Formatting Helper ──────────────────────────────────────
+
+function formatPrice(price: number): string {
+  if (price >= 1000) return price.toFixed(2);
+  if (price >= 1) return price.toFixed(4);
+  return price.toFixed(6);
 }

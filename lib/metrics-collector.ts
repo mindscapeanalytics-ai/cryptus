@@ -105,6 +105,50 @@ export class MetricsCollector {
     };
   }
 
+  // ── Signal Quality Tracking (2026 Intelligence) ─────────────────────────────
+
+  private signalsFired = 0;
+  private signalOutcomes: { win5m: number; win15m: number; win1h: number; total: number } = {
+    win5m: 0, win15m: 0, win1h: 0, total: 0,
+  };
+
+  recordSignalFired(symbol: string, signal: string, score: number): void {
+    this.signalsFired++;
+    // Also track by alert type for breakdown
+    const key = `signal:${signal}`;
+    this.alertsByType.set(key, (this.alertsByType.get(key) ?? 0) + 1);
+  }
+
+  recordSignalOutcome(
+    symbol: string,
+    signal: string,
+    winAt5m: boolean,
+    winAt15m: boolean,
+    winAt1h: boolean,
+  ): void {
+    this.signalOutcomes.total++;
+    if (winAt5m) this.signalOutcomes.win5m++;
+    if (winAt15m) this.signalOutcomes.win15m++;
+    if (winAt1h) this.signalOutcomes.win1h++;
+  }
+
+  getSignalQuality(): {
+    totalFired: number;
+    totalOutcomes: number;
+    winRate5m: number;
+    winRate15m: number;
+    winRate1h: number;
+  } {
+    const t = this.signalOutcomes.total || 1; // Prevent division by zero
+    return {
+      totalFired: this.signalsFired,
+      totalOutcomes: this.signalOutcomes.total,
+      winRate5m: Math.round((this.signalOutcomes.win5m / t) * 100),
+      winRate15m: Math.round((this.signalOutcomes.win15m / t) * 100),
+      winRate1h: Math.round((this.signalOutcomes.win1h / t) * 100),
+    };
+  }
+
   // ── Reset ──────────────────────────────────────────────────────────────────
 
   reset(): void {
@@ -114,6 +158,8 @@ export class MetricsCollector {
     this.apiWeights.clear();
     this.alertsByType.clear();
     this.errors = [];
+    this.signalsFired = 0;
+    this.signalOutcomes = { win5m: 0, win15m: 0, win1h: 0, total: 0 };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
