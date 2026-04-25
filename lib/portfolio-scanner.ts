@@ -15,6 +15,7 @@
 
 import type { ScreenerEntry } from './types';
 import type { LiveTick } from '@/hooks/use-live-prices';
+import { RSI_ZONES } from './defaults';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -263,20 +264,21 @@ export function computePortfolioRisk(
 
   // ── 7. Hedge Suggestions ──
   const hedgeSuggestions: HedgeSuggestion[] = [];
+  const { ob, deepOB, os, deepOS } = RSI_ZONES.Crypto;
 
-  if (portfolioRsi !== null && portfolioRsi >= 70) {
+  if (portfolioRsi !== null && portfolioRsi >= ob) {
     hedgeSuggestions.push({
       reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} - overbought territory. Consider taking profits on strongest performers.`,
       action: 'reduce',
-      urgency: portfolioRsi >= 80 ? 'high' : 'medium',
+      urgency: portfolioRsi >= deepOB ? 'high' : 'medium',
     });
   }
 
-  if (portfolioRsi !== null && portfolioRsi <= 30) {
+  if (portfolioRsi !== null && portfolioRsi <= os) {
     hedgeSuggestions.push({
       reason: `Portfolio RSI at ${portfolioRsi.toFixed(1)} - oversold territory. Potential accumulation opportunity if fundamentals are intact.`,
       action: 'rebalance',
-      urgency: portfolioRsi <= 20 ? 'high' : 'medium',
+      urgency: portfolioRsi <= deepOS ? 'high' : 'medium',
     });
   }
 
@@ -292,7 +294,7 @@ export function computePortfolioRisk(
 
   // Per-position extreme RSI alerts
   for (const a of analyses) {
-    if (a.rsi !== null && a.rsi >= 80 && a.weight > 10) {
+    if (a.rsi !== null && a.rsi >= deepOB && a.weight > 10) {
       hedgeSuggestions.push({
         reason: `${a.symbol} RSI at ${a.rsi.toFixed(1)} - deeply overbought while holding ${a.weight.toFixed(1)}% of portfolio.`,
         action: 'reduce',

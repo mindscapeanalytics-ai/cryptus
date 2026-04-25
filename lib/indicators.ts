@@ -495,12 +495,13 @@ export function calculateConfluence(params: {
   const checkRsi = (rsi: number | null, w: number) => {
     if (rsi === null) return;
     total += w;
+    const { deepOS, os, ob, deepOB } = RSI_ZONES.Crypto;
     // Deep oversold/overbought = full weight, approaching = partial
-    if (rsi <= 20) bullish += w;
-    else if (rsi <= 30) bullish += w * 0.8;
+    if (rsi <= deepOS) bullish += w;
+    else if (rsi <= os) bullish += w * 0.8;
     else if (rsi <= 40) bullish += w * 0.3;
-    else if (rsi >= 80) bearish += w;
-    else if (rsi >= 70) bearish += w * 0.8;
+    else if (rsi >= deepOB) bearish += w;
+    else if (rsi >= ob) bearish += w * 0.8;
     else if (rsi >= 60) bearish += w * 0.3;
   };
 
