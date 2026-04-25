@@ -41,16 +41,23 @@ export interface SignalNarration {
  *
  * Crypto: wide zones (20/30/70/80) — extreme oscillations are normal
  * Metals/Forex: tighter zones (22-25/32-35/65-68/75-78) — commodity mean-reversion
+ * 
+ * 2026 FIX: Use proportional offsets for "approaching" thresholds
  */
 function rsiZone(rsi: number | null, market: ScreenerEntry['market'] = 'Crypto'): string | null {
   if (rsi === null) return null;
   const zones = RSI_ZONES[market] ?? RSI_ZONES.Crypto;
+  
+  // Calculate proportional offset (15% of zone width)
+  const zoneWidth = zones.ob - zones.os;
+  const approachingOffset = Math.round(zoneWidth * 0.15);
+  
   if (rsi <= zones.deepOS) return 'deeply oversold';
   if (rsi <= zones.os)     return 'oversold';
-  if (rsi <= zones.os + 10) return 'approaching oversold';
+  if (rsi <= zones.os + approachingOffset) return 'approaching oversold';
   if (rsi >= zones.deepOB) return 'deeply overbought';
   if (rsi >= zones.ob)     return 'overbought';
-  if (rsi >= zones.ob - 5) return 'approaching overbought';
+  if (rsi >= zones.ob - approachingOffset) return 'approaching overbought';
   return null; // Neutral — not interesting enough to narrate
 }
 
@@ -172,24 +179,35 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
   // ── 6. RSI Divergence (Relevance-Gated) ──
   // We use the 15m RSI (or 1m fallback) to check if the divergence is still relevant.
-  const currentRsi = entry.rsi15m ?? entry.rsi1m ?? 50;
+  // 2026 FIX: Remove fallback to 50 - require actual RSI data for validation
+  const currentRsi = entry.rsi15m ?? entry.rsi1m;
   if (entry.rsiDivergence === 'bullish') {
-    if (currentRsi < 65) {
-      reasons.push('🔄 Bullish RSI divergence detected - price making lower lows but RSI making higher lows');
-      bullishPoints += 18;
-      totalPoints += 18;
-      pillars.momentum = true;
+    if (currentRsi !== null && currentRsi !== undefined) {
+      if (currentRsi < 65) {
+        reasons.push('🔄 Bullish RSI divergence detected - price making lower lows but RSI making higher lows');
+        bullishPoints += 18;
+        totalPoints += 18;
+        pillars.momentum = true;
+      } else {
+        reasons.push('⌛ Bullish divergence detected but likely played out (RSI already overextended)');
+      }
     } else {
-      reasons.push('⌛ Bullish divergence detected but likely played out (RSI already overextended)');
+      // No RSI data available - cannot validate divergence relevance, skip scoring
+      reasons.push('⚠️ Bullish divergence detected but RSI data unavailable for validation');
     }
   } else if (entry.rsiDivergence === 'bearish') {
-    if (currentRsi > 35) {
-      reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
-      bearishPoints += 18;
-      totalPoints += 18;
-      pillars.momentum = true;
+    if (currentRsi !== null && currentRsi !== undefined) {
+      if (currentRsi > 35) {
+        reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
+        bearishPoints += 18;
+        totalPoints += 18;
+        pillars.momentum = true;
+      } else {
+        reasons.push('⌛ Bearish divergence detected but likely played out (RSI already oversold)');
+      }
     } else {
-      reasons.push('⌛ Bearish divergence detected but likely played out (RSI already oversold)');
+      // No RSI data available - cannot validate divergence relevance, skip scoring
+      reasons.push('⚠️ Bearish divergence detected but RSI data unavailable for validation');
     }
   }
 
@@ -217,19 +235,25 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   }
 
   // ── 9. ADX Trend Strength ──
+  // 2026 FIX: Correct double-counting bug - only add points once, to the appropriate direction
   if (entry.adx !== null && entry.adx > 0) {
     if (entry.adx > 30) {
       reasons.push(`📐 ADX at ${formatNum(entry.adx)} — strong trend confirmed, trend-following signals amplified`);
-      totalPoints += 5;
       // ADX confirms direction of the dominant bias — amplifies, doesn't create
-      // BUG FIX: was incorrectly adding to bullishPoints regardless of actual bias
-      if (bullishPoints > bearishPoints) bullishPoints += 5;
-      else if (bearishPoints > bullishPoints) bearishPoints += 5; // ✅ Fixed
+      if (bullishPoints > bearishPoints) {
+        bullishPoints += 5;
+        totalPoints += 5;
+      } else if (bearishPoints > bullishPoints) {
+        bearishPoints += 5;
+        totalPoints += 5;
+      }
+      // If neutral (bullishPoints === bearishPoints), ADX doesn't add points
+      pillars.trend = true;
     } else if (entry.adx < 18) {
       reasons.push(`📐 ADX at ${formatNum(entry.adx)} — choppy/ranging market, oscillator signals more reliable`);
       totalPoints += 3;
+      pillars.trend = true;
     }
-    pillars.trend = true;
   }
 
   // ── 10. Confluence Score ──
@@ -530,19 +554,27 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   const maxPossible = Math.max(totalPoints, 1);
 
   // Institutional Conviction Algorithm:
-  // Base score + Pillar Confluence Bonus (10pts per pillar after the first) + Absolute Strength factor
-  const baseConviction = (Math.abs(netBias) / maxPossible) * 100;
-  const confluenceBonus = Math.max(0, (pillarCount - 1) * 12);
-  const scaleFactor = totalPoints > 50 ? 1.2 : 1.0;
-
-  const conviction = Math.min(100, Math.round(baseConviction * scaleFactor + confluenceBonus));
-
+  // Base score + Pillar Confluence Bonus (12pts per pillar after the first) + Absolute Strength factor
+  // 2026 FIX: Only calculate conviction if there are actual points
+  let conviction: number;
   let convictionLabel: SignalNarration['convictionLabel'];
-  if (conviction >= 88) convictionLabel = 'Maximum';
-  else if (conviction >= 72) convictionLabel = 'Very Strong';
-  else if (conviction >= 52) convictionLabel = 'Strong';
-  else if (conviction >= 32) convictionLabel = 'Moderate';
-  else convictionLabel = 'Weak';
+  
+  if (totalPoints === 0) {
+    // No indicators contributed - zero conviction
+    conviction = 0;
+    convictionLabel = 'Weak';
+  } else {
+    const baseConviction = (Math.abs(netBias) / maxPossible) * 100;
+    const confluenceBonus = Math.max(0, (pillarCount - 1) * 12);
+    const scaleFactor = totalPoints > 50 ? 1.2 : 1.0;
+    conviction = Math.min(100, Math.round(baseConviction * scaleFactor + confluenceBonus));
+    
+    if (conviction >= 88) convictionLabel = 'Maximum';
+    else if (conviction >= 72) convictionLabel = 'Very Strong';
+    else if (conviction >= 52) convictionLabel = 'Strong';
+    else if (conviction >= 32) convictionLabel = 'Moderate';
+    else convictionLabel = 'Weak';
+  }
 
   let headline: string;
   let emoji: string;

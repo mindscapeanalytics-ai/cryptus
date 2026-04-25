@@ -1077,11 +1077,15 @@ export function computeStrategyScore(params: {
   // ── Multi-TF RSI Agreement Gate for Strong Signals ──
   // Require at least 3 of 4 RSI timeframes to agree on direction for Strong.
   // This prevents "Strong Buy" when only one timeframe is deeply oversold while others are neutral.
+  // 2026 FIX: Use asset-specific zones instead of hardcoded 45/55 thresholds
+  const buyThreshold = rsiOS + 15; // e.g., Crypto: 30+15=45, Forex: 35+15=50
+  const sellThreshold = rsiOB - 15; // e.g., Crypto: 70-15=55, Forex: 65-15=50
+  
   const rsiDirections = [
-    params.rsi1m !== null ? (params.rsi1m < 45 ? 'buy' : params.rsi1m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi5m !== null ? (params.rsi5m < 45 ? 'buy' : params.rsi5m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi15m !== null ? (params.rsi15m < 45 ? 'buy' : params.rsi15m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi1h !== null ? (params.rsi1h < 45 ? 'buy' : params.rsi1h > 55 ? 'sell' : 'neutral') : null,
+    params.rsi1m !== null ? (params.rsi1m < buyThreshold ? 'buy' : params.rsi1m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi5m !== null ? (params.rsi5m < buyThreshold ? 'buy' : params.rsi5m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi15m !== null ? (params.rsi15m < buyThreshold ? 'buy' : params.rsi15m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi1h !== null ? (params.rsi1h < buyThreshold ? 'buy' : params.rsi1h > sellThreshold ? 'sell' : 'neutral') : null,
   ].filter(d => d !== null);
   const buyAgreement = rsiDirections.filter(d => d === 'buy').length;
   const sellAgreement = rsiDirections.filter(d => d === 'sell').length;
