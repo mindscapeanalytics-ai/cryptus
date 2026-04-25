@@ -161,8 +161,8 @@ Powered by Mindscape Analytics Signal Narration Engine™
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-[#39FF14]/10 border border-[#39FF14]/20 animate-pulse">
-                        <div className="w-1 h-1 rounded-full bg-[#39FF14]" />
-                        <span className="text-[8px] font-black text-[#39FF14] uppercase tracking-widest">Active</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-[#39FF14]" />
+                        <span className="text-[8px] font-black text-[#39FF14] uppercase tracking-widest">Live Feed</span>
                       </div>
                       <span className="text-[10px] font-black tracking-[0.25em] text-blue-400 uppercase">Signal Intel v3</span>
                       <div className={cn("px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter border", getConvictionBg(narration?.conviction || 0))}>
@@ -174,7 +174,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
                     </h2>
                     <div className="flex items-center gap-3 mt-1.5 opacity-80 scale-90 origin-left">
                       <div className="flex items-center gap-1">
-                        <span className="text-[7px] font-black text-slate-500 uppercase">Conf:</span>
+                        <span className="text-[7px] font-black text-slate-500 uppercase">Indic. Sync:</span>
                         <span className="text-[9px] font-black text-blue-400">{entry?.confluence || 0}%</span>
                       </div>
                       <div className="w-px h-2 bg-white/10" />
@@ -278,29 +278,29 @@ Powered by Mindscape Analytics Signal Narration Engine™
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {narration?.reasons.map((reason, idx) => {
                     const isSMC = reason.includes('🏛️') || reason.includes('⚡');
                     return (
                       <div 
                         key={idx} 
                         className={cn(
-                          "group flex items-start gap-3.5 p-3.5 transition-all duration-300 rounded-xl border",
+                          "group flex items-start gap-2.5 p-2.5 transition-all duration-300 rounded-xl border",
                           isSMC 
                             ? "bg-blue-500/10 border-blue-400/30 shadow-[0_0_15px_-5px_rgba(59,130,246,0.2)]" 
                             : "bg-black/40 border-white/[0.03] hover:bg-white/[0.04] hover:border-blue-500/20"
                         )}
                       >
                         <div className={cn(
-                          "w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 transition-all border",
+                          "w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black shrink-0 transition-all border",
                           isSMC 
                             ? "bg-blue-400/20 border-blue-400/40 text-blue-400" 
                             : "bg-blue-500/10 border-blue-500/20 text-blue-400 group-hover:bg-blue-500 group-hover:text-white"
                         )}>
-                          {reason.includes('🏛️') ? <Activity size={12} /> : reason.includes('⚡') ? <Zap size={12} /> : idx + 1}
+                          {reason.includes('🏛️') ? <Activity size={10} /> : reason.includes('⚡') ? <Zap size={10} /> : idx + 1}
                         </div>
                         <p className={cn(
-                          "text-[12px] leading-tight font-medium pt-0.5 transition-colors",
+                          "text-[10px] sm:text-[11px] leading-snug font-medium pt-0.5 transition-colors line-clamp-3",
                           isSMC ? "text-blue-100 font-bold" : "text-slate-300 group-hover:text-white"
                         )}>
                           {reason}
@@ -311,12 +311,12 @@ Powered by Mindscape Analytics Signal Narration Engine™
                 </div>
 
                 {/* Data Surveillance Matrix (NEW - Institutional Alignment) */}
-                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-white/5 pt-5">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-white/5 pt-4">
                   {/* RSI Spectrum Heatmap */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3.5">
-                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2.5 flex items-center gap-1.5">
                       <Gauge size={12} className="text-purple-400" />
-                      RSI Spectrum Heatmap
+                      RSI Spectrum
                     </h4>
                     <div className="grid grid-cols-4 gap-2">
                       {[
@@ -339,8 +339,8 @@ Powered by Mindscape Analytics Signal Narration Engine™
                   </div>
 
                   {/* Institutional Zones & Flow (SMC Integration) */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3.5">
-                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center justify-between">
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2.5 flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <Activity size={12} className="text-blue-400" />
                         Institutional Zones & Flow
@@ -377,8 +377,8 @@ Powered by Mindscape Analytics Signal Narration Engine™
                   </div>
 
                   {/* Trend & Volume Guard */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3.5">
-                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-1.5">
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2.5 flex items-center gap-1.5">
                       <ShieldAlert size={12} className="text-orange-400" />
                       Signal DNA
                     </h4>
@@ -422,13 +422,29 @@ Powered by Mindscape Analytics Signal Narration Engine™
                   
                   {entry?.riskParams ? (
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="p-2.5 bg-white/[0.02] border border-white/5 rounded-lg">
-                        <p className="text-[7px] font-black text-slate-500 uppercase tracking-tighter mb-1">Target TP</p>
-                        <p className="text-xs font-black text-[#39FF14] font-mono leading-none">${entry.riskParams.takeProfit1.toLocaleString()}</p>
+                      <div className="p-2.5 bg-white/[0.02] border border-white/5 rounded-lg relative overflow-hidden group/tp transition-colors hover:border-[#39FF14]/30">
+                        <div className="absolute inset-0 bg-[#39FF14]/5 translate-y-[100%] group-hover/tp:translate-y-0 transition-transform duration-300" />
+                        <div className="flex items-center justify-between mb-1.5 relative z-10">
+                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-tighter">Target TP</p>
+                          {entry?.price && (
+                            <span className="text-[7px] font-black text-[#39FF14] bg-[#39FF14]/10 px-1 py-0.5 rounded">
+                              +{Math.abs(((entry.riskParams.takeProfit1 - entry.price) / entry.price) * 100).toFixed(2)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[13px] font-black text-[#39FF14] font-mono leading-none relative z-10">${entry.riskParams.takeProfit1.toLocaleString()}</p>
                       </div>
-                      <div className="p-2.5 bg-white/[0.02] border border-white/5 rounded-lg">
-                        <p className="text-[7px] font-black text-slate-500 uppercase tracking-tighter mb-1">Stop Loss</p>
-                        <p className="text-xs font-black text-[#FF4B5C] font-mono leading-none">${entry.riskParams.stopLoss.toLocaleString()}</p>
+                      <div className="p-2.5 bg-white/[0.02] border border-white/5 rounded-lg relative overflow-hidden group/sl transition-colors hover:border-[#FF4B5C]/30">
+                        <div className="absolute inset-0 bg-[#FF4B5C]/5 translate-y-[100%] group-hover/sl:translate-y-0 transition-transform duration-300" />
+                        <div className="flex items-center justify-between mb-1.5 relative z-10">
+                          <p className="text-[7px] font-black text-slate-500 uppercase tracking-tighter">Stop Loss</p>
+                          {entry?.price && (
+                            <span className="text-[7px] font-black text-[#FF4B5C] bg-[#FF4B5C]/10 px-1 py-0.5 rounded">
+                              -{Math.abs(((entry.riskParams.stopLoss - entry.price) / entry.price) * 100).toFixed(2)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[13px] font-black text-[#FF4B5C] font-mono leading-none relative z-10">${entry.riskParams.stopLoss.toLocaleString()}</p>
                       </div>
                     </div>
                   ) : (
@@ -460,9 +476,12 @@ Powered by Mindscape Analytics Signal Narration Engine™
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-slate-400 font-medium">Volatility (ATR)</span>
-                        <span className={cn("font-black uppercase", (entry?.atr || 0) > 0.02 ? "text-orange-400" : "text-emerald-400")}>
-                          {(entry?.atr || 0) > 0.02 ? 'High' : 'Normal'}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-mono text-slate-500">${entry?.atr?.toFixed(4) || '0.0000'}</span>
+                          <span className={cn("font-black uppercase", (entry?.atr || 0) > 0.02 ? "text-orange-400" : "text-emerald-400")}>
+                            {(entry?.atr || 0) > 0.02 ? 'High' : 'Normal'}
+                          </span>
+                        </div>
                       </div>
                     </div>
 

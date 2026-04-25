@@ -324,7 +324,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       const tolerance = range * 0.005;
       const near618 = Math.abs(price - fib.level618) < tolerance;
       const near500 = Math.abs(price - fib.level500) < tolerance;
-      
+
       if (near618 || near500) {
         const isBullishTrend = entry.strategySignal?.includes('buy');
         const zoneType = isBullishTrend ? 'Demand Zone' : 'Supply Zone';
@@ -361,13 +361,13 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   const pillarCount = Object.values(pillars).filter(Boolean).length;
   const netBias = bullishPoints - bearishPoints;
   const maxPossible = Math.max(totalPoints, 1);
-  
+
   // Institutional Conviction Algorithm:
   // Base score + Pillar Confluence Bonus (10pts per pillar after the first) + Absolute Strength factor
   const baseConviction = (Math.abs(netBias) / maxPossible) * 100;
   const confluenceBonus = Math.max(0, (pillarCount - 1) * 12);
   const scaleFactor = totalPoints > 50 ? 1.2 : 1.0;
-  
+
   const conviction = Math.min(100, Math.round(baseConviction * scaleFactor + confluenceBonus));
 
   let convictionLabel: SignalNarration['convictionLabel'];

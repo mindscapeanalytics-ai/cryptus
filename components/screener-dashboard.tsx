@@ -2737,13 +2737,13 @@ export default function ScreenerDashboard() {
         const g = winRateContext.globalData;
         const total = localRate.total + g.total;
         setGlobalWinRate({
-          winRate5m:  Math.round(((localRate.winRate5m * localRate.evaluated5m / 100) + g.win5m)   / (localRate.evaluated5m + g.evaluated5m) * 100) || 0,
+          winRate5m: Math.round(((localRate.winRate5m * localRate.evaluated5m / 100) + g.win5m) / (localRate.evaluated5m + g.evaluated5m) * 100) || 0,
           winRate15m: Math.round(((localRate.winRate15m * localRate.evaluated15m / 100) + g.win15m) / (localRate.evaluated15m + g.evaluated15m) * 100) || 0,
-          winRate1h:  Math.round(((localRate.winRate1h * localRate.evaluated1h / 100) + g.win1h)   / (localRate.evaluated1h + g.evaluated1h) * 100) || 0,
+          winRate1h: Math.round(((localRate.winRate1h * localRate.evaluated1h / 100) + g.win1h) / (localRate.evaluated1h + g.evaluated1h) * 100) || 0,
           total,
-          evaluated5m:  localRate.evaluated5m + g.evaluated5m,
+          evaluated5m: localRate.evaluated5m + g.evaluated5m,
           evaluated15m: localRate.evaluated15m + g.evaluated15m,
-          evaluated1h:  localRate.evaluated1h + g.evaluated1h,
+          evaluated1h: localRate.evaluated1h + g.evaluated1h,
         });
       } else {
         setGlobalWinRate(localRate);
@@ -3046,10 +3046,10 @@ export default function ScreenerDashboard() {
         if (fibs) merged.fibLevels = fibs;
 
         // 2. Market Regime Classification
-        const bbWidth = (merged.bbUpper && merged.bbLower && merged.bbMiddle) 
-          ? (merged.bbUpper - merged.bbLower) / merged.bbMiddle 
+        const bbWidth = (merged.bbUpper && merged.bbLower && merged.bbMiddle)
+          ? (merged.bbUpper - merged.bbLower) / merged.bbMiddle
           : null;
-        
+
         const regime = classifyRegime({
           adx: merged.adx,
           atr: merged.atr,
