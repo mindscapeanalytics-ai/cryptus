@@ -2741,6 +2741,7 @@ export default function ScreenerDashboard() {
     smartMoney,
     isConnected: derivativesConnected,
     isStale: derivativesStale,
+    streamHealth: derivStreamHealth,
     updateConfig: updateDerivConfig,
   } = useDerivativesIntel(symbolSet, activeAssetClass === 'crypto');
 
@@ -5179,7 +5180,7 @@ export default function ScreenerDashboard() {
       )}
 
       {/* ─── DERIVATIVES INTELLIGENCE PANEL (MINIMIZED) ─── */}
-      <div className="mb-6 opacity-90 hover:opacity-100 transition-opacity">
+      <div className="mb-4 opacity-95 hover:opacity-100 transition-opacity">
         <DerivativesPanel
           fundingRates={fundingRates}
           liquidations={liquidations}
@@ -5188,6 +5189,7 @@ export default function ScreenerDashboard() {
           openInterest={openInterest}
           smartMoney={smartMoney}
           isConnected={derivativesConnected}
+          streamHealth={derivStreamHealth}
           onUpdateConfig={updateDerivConfig}
         />
       </div>

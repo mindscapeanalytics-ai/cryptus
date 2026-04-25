@@ -20,11 +20,11 @@
 // ── Constants ────────────────────────────────────────────────────
 const RECONNECT_BASE_MS = 2000;
 const RECONNECT_MAX_MS = 30000;
-const FLUSH_INTERVAL_MS = 400;
+const FLUSH_INTERVAL_MS = 300;     // 300ms for ultra-live feel
 const OI_POLL_INTERVAL_MS = 30000;
-const ZOMBIE_WATCHDOG_MS = 30000;   // check every 30s
-const ZOMBIE_THRESHOLD_MS = 60000;  // force reconnect if no data for 60s
-let LIQUIDATION_THRESHOLD = 1000;          // Default $1K (lowered from $10K for better visibility)
+const ZOMBIE_WATCHDOG_MS = 10000;   // check every 10s (reduced from 30s)
+const ZOMBIE_THRESHOLD_MS = 15000;  // force reconnect if no data for 15s (reduced from 60s)
+let LIQUIDATION_THRESHOLD = 10000;         // Default $10K (aligned with UI standard)
 const WHALE_THRESHOLD_USD = 100000;        // $100K+ = whale trade
 const MEGA_WHALE_THRESHOLD_USD = 500000;   // $500K+ = mega whale
 const ORDER_FLOW_WINDOW_MS = 60000;        // 1-minute accumulation window
@@ -79,6 +79,12 @@ let currentOiInterval = OI_POLL_INTERVAL_MS;
 let consecutiveOiErrors = 0;
 let oiHistory = new Map();          // symbol → { value1hAgo, value24hAgo, snapshots[] }
 let lastDataReceived = Date.now();  // tracker for watchdog
+let streamHealth = {
+  funding: false,
+  liquidationBybit: false,
+  liquidationBinance: false,
+  whale: false
+};
 let zombieWatchdog = null;
 let healthTimer = null;
 
@@ -154,7 +160,18 @@ function connectFundingStream() {
 
     fundingWs.onopen = () => {
       console.log('[deriv-worker] Funding rate stream connected (Binance Futures)');
+      streamHealth.funding = true;
       resetReconnect(STREAM_KEY);
+      
+      // Heartbeat: Binance requires a ping every 3 minutes to keep the connection alive
+      // We do it every 30s to be safe
+      const pingInterval = setInterval(() => {
+        if (fundingWs && fundingWs.readyState === WebSocket.OPEN) {
+          try { fundingWs.send(JSON.stringify({ method: 'PING', id: Date.now() })); } catch(e) {}
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 30000);
     };
 
     fundingWs.onmessage = (event) => {
@@ -201,6 +218,7 @@ function connectFundingStream() {
     fundingWs.onclose = () => {
       console.log('[deriv-worker] Funding stream closed');
       fundingWs = null;
+      streamHealth.funding = false;
       if (isRunning) scheduleReconnect(STREAM_KEY, connectFundingStream);
     };
 
@@ -235,6 +253,7 @@ function connectBybitLiquidationStream() {
 
     liquidationWs.onopen = () => {
       console.log('[deriv-worker] Liquidation stream connected (Bybit Linear)');
+      streamHealth.liquidationBybit = true;
       resetReconnect(STREAM_KEY);
 
       const symbolsToWatch = new Set([
@@ -295,6 +314,7 @@ function connectBybitLiquidationStream() {
 
     liquidationWs.onclose = () => {
       clearInterval(pingInterval);
+      streamHealth.liquidationBybit = false;
       if (isRunning) scheduleReconnect(STREAM_KEY, connectBybitLiquidationStream);
     };
     liquidationWs.onerror = () => liquidationWs?.close();
@@ -317,6 +337,7 @@ function connectBinanceLiquidationStream() {
 
     binanceLiqWs.onopen = () => {
       console.log('[deriv-worker] Liquidation stream connected (Binance Futures)');
+      streamHealth.liquidationBinance = true;
       resetReconnect(STREAM_KEY);
     };
 
@@ -360,6 +381,7 @@ function connectBinanceLiquidationStream() {
     };
 
     binanceLiqWs.onclose = () => {
+      streamHealth.liquidationBinance = false;
       if (isRunning) scheduleReconnect(STREAM_KEY, connectBinanceLiquidationStream);
     };
     binanceLiqWs.onerror = () => binanceLiqWs?.close();
@@ -388,7 +410,17 @@ function connectWhaleStream() {
 
     ws.onopen = () => {
       console.log(`[deriv-worker] Whale/OrderFlow stream connected (${WHALE_WATCH_SYMBOLS.length} symbols)`);
+      streamHealth.whale = true;
       resetReconnect(STREAM_KEY);
+
+      // Heartbeat
+      const pingInterval = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          try { ws.send(JSON.stringify({ method: 'PING', id: Date.now() })); } catch(e) {}
+        } else {
+          clearInterval(pingInterval);
+        }
+      }, 30000);
     };
 
     ws.onmessage = (event) => {
@@ -456,6 +488,7 @@ function connectWhaleStream() {
 
     ws.onclose = () => {
       console.log('[deriv-worker] Whale stream closed');
+      streamHealth.whale = false;
       whaleWsSockets.delete('combined');
       if (isRunning) scheduleReconnect(STREAM_KEY, connectWhaleStream);
     };
@@ -570,6 +603,31 @@ async function pollOpenInterest() {
   } catch (e) {
     console.error('[deriv-worker] pollOpenInterest critical error:', e);
   }
+
+  // ── Intelligence: REST Fallback for Funding ──
+  // If WebSocket is offline, attempt to poll current rates via proxy
+  if (!streamHealth.funding) {
+    try {
+      const activeSymbols = Array.from(currentSymbols).slice(0, 10);
+      if (activeSymbols.length > 0) {
+        const res = await fetch(`/api/derivatives/funding?symbols=${activeSymbols.join(',')}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            Object.entries(json.data).forEach(([symbol, rateData]) => {
+              const prev = fundingBuffer.get(symbol);
+              fundingBuffer.set(symbol, { 
+                ...(prev || {}), 
+                ...rateData, 
+                updatedAt: Date.now() 
+              });
+            });
+            fundingDirty = true;
+          }
+        }
+      }
+    } catch (e) { /* silent */ }
+  }
 }
 
 // ── Flush Engine ─────────────────────────────────────────────────
@@ -633,6 +691,7 @@ function startFlushing() {
       payload: { 
         lastDataReceived, 
         isRunning,
+        streamHealth,
         timestamp: Date.now()
       } 
     });

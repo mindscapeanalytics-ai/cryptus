@@ -272,6 +272,12 @@ interface DerivativesPanelProps {
   openInterest: Map<string, OpenInterestData>;
   smartMoney: Map<string, SmartMoneyPressure>;
   isConnected: boolean;
+  streamHealth?: {
+    funding: boolean;
+    liquidationBybit: boolean;
+    liquidationBinance: boolean;
+    whale: boolean;
+  };
   onUpdateConfig?: (config: { liquidationThreshold?: number }) => void;
 }
 
@@ -285,6 +291,7 @@ export const DerivativesPanel = memo(function DerivativesPanel({
   openInterest,
   smartMoney,
   isConnected,
+  streamHealth,
   onUpdateConfig,
 }: DerivativesPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -381,7 +388,17 @@ export const DerivativesPanel = memo(function DerivativesPanel({
             <div className={cn(
               "w-2 h-2 rounded-full",
               isConnected ? "bg-[#39FF14] animate-pulse shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-slate-600"
-            )} />
+            )} title={isConnected ? 'Intelligence Worker Online' : 'Worker Offline'} />
+            
+            {/* Granular Health Dots */}
+            {isConnected && streamHealth && (
+              <div className="flex gap-0.5 ml-1">
+                <div className={cn("w-1 h-1 rounded-full", streamHealth.funding ? "bg-blue-400" : "bg-slate-700")} title="Binance Funding" />
+                <div className={cn("w-1 h-1 rounded-full", streamHealth.liquidationBinance ? "bg-orange-400" : "bg-slate-700")} title="Binance Liq" />
+                <div className={cn("w-1 h-1 rounded-full", streamHealth.liquidationBybit ? "bg-amber-400" : "bg-slate-700")} title="Bybit Liq" />
+                <div className={cn("w-1 h-1 rounded-full", streamHealth.whale ? "bg-purple-400" : "bg-slate-700")} title="Whale Stream" />
+              </div>
+            )}
             <span className="text-[11px] font-black text-white uppercase tracking-widest">
               Derivatives Intelligence
             </span>
@@ -418,7 +435,7 @@ export const DerivativesPanel = memo(function DerivativesPanel({
 
           {/* Market Pressure Gauge - Hidden on Mobile Header */}
           {marketPressure && (
-            <div className="hidden md:block">
+            <div className="hidden sm:block">
               <SmartMoneyGauge data={marketPressure} compact />
             </div>
           )}
@@ -458,7 +475,20 @@ export const DerivativesPanel = memo(function DerivativesPanel({
                       : "text-slate-500 hover:text-slate-300 border-b border-transparent"
                   )}
                 >
-                  <tab.icon size={9} />
+                  <div className="relative">
+                    <tab.icon size={9} className={cn(
+                      activeTab === tab.id ? "text-[#39FF14]" : "text-slate-500"
+                    )} />
+                    {/* Activity Pulse */}
+                    {isConnected && streamHealth && (
+                      (tab.id === 'liquidations' && (streamHealth.liquidationBinance || streamHealth.liquidationBybit)) ||
+                      (tab.id === 'whales' && streamHealth.whale) ||
+                      (tab.id === 'funding' && streamHealth.funding) ||
+                      (tab.id === 'flow' && streamHealth.whale)
+                    ) && (
+                      <span className="absolute -top-1 -right-1 w-1 h-1 bg-[#39FF14] rounded-full animate-ping" />
+                    )}
+                  </div>
                   <span className="hidden sm:inline-block">{tab.label}</span>
                   <span className="sm:hidden">{tab.mobileLabel}</span>
                   {tab.count !== undefined && tab.count > 0 && (

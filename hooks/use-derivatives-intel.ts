@@ -57,6 +57,12 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
   const [orderFlow, setOrderFlow] = useState<Map<string, OrderFlowData>>(new Map());
   const [openInterest, setOpenInterest] = useState<Map<string, OpenInterestData>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
+  const [streamHealth, setStreamHealth] = useState({
+    funding: false,
+    liquidationBybit: false,
+    liquidationBinance: false,
+    whale: false
+  });
   const [lastHealthPulse, setLastHealthPulse] = useState<number>(Date.now());
   
   // Stale detection: true if we haven't received data in 8 seconds (tighter for ultra-live feel)
@@ -133,6 +139,9 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
         case 'HEALTH_STATUS': {
           // Only update state if the value meaningfully changed (>1s difference)
           // to avoid re-rendering every 400ms from the flush interval
+          if (payload.streamHealth) {
+            setStreamHealth(payload.streamHealth);
+          }
           setLastHealthPulse(prev => {
             const next = payload.lastDataReceived as number;
             return Math.abs(next - prev) > 1000 ? next : prev;
@@ -302,6 +311,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     smartMoney,
     isConnected,
     isStale,
+    streamHealth,
     updateConfig,
   };
 }
