@@ -293,26 +293,44 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     // Risk params don't add directional points — they're informational
   }
 
-  // ── 16. Fibonacci Proximity ──
+  // ── 16. Fibonacci Proximity (Institutional Demand/Supply) ──
   if (entry.fibLevels && entry.price) {
     const fib = entry.fibLevels;
     const price = entry.price;
     const range = fib.swingHigh - fib.swingLow;
     if (range > 0) {
-      // Check if price is near a key fib level (within 0.5% of range)
       const tolerance = range * 0.005;
-      const nearLevels: string[] = [];
-      if (Math.abs(price - fib.level382) < tolerance) nearLevels.push('38.2%');
-      if (Math.abs(price - fib.level500) < tolerance) nearLevels.push('50%');
-      if (Math.abs(price - fib.level618) < tolerance) nearLevels.push('61.8%');
-      if (Math.abs(price - fib.level786) < tolerance) nearLevels.push('78.6%');
-      if (nearLevels.length > 0) {
-        const isBelowMid = price < (fib.swingHigh + fib.swingLow) / 2;
-        reasons.push(`📐 Price near Fibonacci ${nearLevels.join(', ')} ${isBelowMid ? 'support' : 'resistance'} level(s)`);
-        totalPoints += 6;
-        if (isBelowMid) bullishPoints += 6; else bearishPoints += 6;
+      const near618 = Math.abs(price - fib.level618) < tolerance;
+      const near500 = Math.abs(price - fib.level500) < tolerance;
+      
+      if (near618 || near500) {
+        const isBullishTrend = entry.strategySignal?.includes('buy');
+        const zoneType = isBullishTrend ? 'Demand Zone' : 'Supply Zone';
+        reasons.push(`🏛️ Price testing Institutional ${zoneType} (${near618 ? '61.8% Golden Ratio' : '50% Level'}) - strong reversal potential`);
+        totalPoints += 15;
+        if (isBullishTrend) bullishPoints += 15; else bearishPoints += 15;
+      } else {
+        // Standard fib proximity check
+        const nearLevels: string[] = [];
+        if (Math.abs(price - fib.level382) < tolerance) nearLevels.push('38.2%');
+        if (Math.abs(price - fib.level786) < tolerance) nearLevels.push('78.6%');
+        if (nearLevels.length > 0) {
+          const isBelowMid = price < (fib.swingHigh + fib.swingLow) / 2;
+          reasons.push(`📐 Price near Fibonacci ${nearLevels.join(', ')} ${isBelowMid ? 'support' : 'resistance'} level(s)`);
+          totalPoints += 8;
+          if (isBelowMid) bullishPoints += 8; else bearishPoints += 8;
+        }
       }
     }
+  }
+
+  // ── 17. Fair Value Gap (FVG) & Momentum Gaps ──
+  if (entry.regime?.regime === 'breakout' && entry.longCandle && entry.volumeSpike) {
+    const direction = entry.candleDirection === 'bullish' ? 'Bullish' : 'Bearish';
+    reasons.push(`⚡ ${direction} Fair Value Gap (FVG) / Momentum Gap detected - rapid institutional execution in progress`);
+    totalPoints += 12;
+    if (entry.candleDirection === 'bullish') bullishPoints += 12;
+    else if (entry.candleDirection === 'bearish') bearishPoints += 12;
   }
 
   // ── Compose Headline & Conviction ──

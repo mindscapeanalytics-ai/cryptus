@@ -189,7 +189,41 @@ Powered by Mindscape Analytics Signal Narration Engine™
                           <div className="w-px h-2 bg-white/10" />
                           <div className="flex items-center gap-1">
                             <Zap size={8} className="text-yellow-400" />
-                            <span className="text-[7px] font-black text-yellow-400 uppercase">Vol Spike</span>
+                            <span className="text-[7px] font-black text-yellow-400 uppercase tracking-tighter">Vol Spike</span>
+                          </div>
+                        </>
+                      )}
+                      
+                      {/* SMC Detection (Demand/Supply/FVG) */}
+                      {(() => {
+                        const fib = entry?.fibLevels;
+                        if (!fib || !entry?.price) return null;
+                        const range = fib.swingHigh - fib.swingLow;
+                        const tolerance = range * 0.005;
+                        const near618 = Math.abs(entry.price - fib.level618) < tolerance;
+                        const isBullish = entry.strategySignal?.includes('buy');
+                        if (near618) {
+                          return (
+                            <>
+                              <div className="w-px h-2 bg-white/10" />
+                              <div className="flex items-center gap-1">
+                                <Activity size={8} className="text-purple-400" />
+                                <span className="text-[7px] font-black text-purple-400 uppercase tracking-tighter">
+                                  {isBullish ? 'Demand' : 'Supply'} Zone
+                                </span>
+                              </div>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
+                      
+                      {entry?.regime?.regime === 'breakout' && entry?.longCandle && entry?.volumeSpike && (
+                        <>
+                          <div className="w-px h-2 bg-white/10" />
+                          <div className="flex items-center gap-1">
+                            <Zap size={8} className="text-[#39FF14]" />
+                            <span className="text-[7px] font-black text-[#39FF14] uppercase tracking-tighter">FVG Detection</span>
                           </div>
                         </>
                       )}
@@ -245,19 +279,35 @@ Powered by Mindscape Analytics Signal Narration Engine™
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {narration?.reasons.map((reason, idx) => (
-                    <div 
-                      key={idx} 
-                      className="group flex items-start gap-3.5 p-3.5 bg-black/40 border border-white/[0.03] rounded-xl hover:bg-white/[0.04] hover:border-blue-500/20 transition-all duration-300"
-                    >
-                      <div className="w-6 h-6 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-[10px] font-black text-blue-400 shrink-0 group-hover:bg-blue-500 group-hover:text-white transition-all">
-                        {idx + 1}
+                  {narration?.reasons.map((reason, idx) => {
+                    const isSMC = reason.includes('🏛️') || reason.includes('⚡');
+                    return (
+                      <div 
+                        key={idx} 
+                        className={cn(
+                          "group flex items-start gap-3.5 p-3.5 transition-all duration-300 rounded-xl border",
+                          isSMC 
+                            ? "bg-blue-500/10 border-blue-400/30 shadow-[0_0_15px_-5px_rgba(59,130,246,0.2)]" 
+                            : "bg-black/40 border-white/[0.03] hover:bg-white/[0.04] hover:border-blue-500/20"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 transition-all border",
+                          isSMC 
+                            ? "bg-blue-400/20 border-blue-400/40 text-blue-400" 
+                            : "bg-blue-500/10 border-blue-500/20 text-blue-400 group-hover:bg-blue-500 group-hover:text-white"
+                        )}>
+                          {reason.includes('🏛️') ? <Activity size={12} /> : reason.includes('⚡') ? <Zap size={12} /> : idx + 1}
+                        </div>
+                        <p className={cn(
+                          "text-[12px] leading-tight font-medium pt-0.5 transition-colors",
+                          isSMC ? "text-blue-100 font-bold" : "text-slate-300 group-hover:text-white"
+                        )}>
+                          {reason}
+                        </p>
                       </div>
-                      <p className="text-[12px] text-slate-300 leading-tight font-medium pt-0.5 group-hover:text-white transition-colors">
-                        {reason}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Data Surveillance Matrix (NEW - Institutional Alignment) */}
@@ -285,6 +335,44 @@ Powered by Mindscape Analytics Signal Narration Engine™
                           </span>
                         </div>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Institutional Zones & Flow (SMC Integration) */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3.5">
+                    <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Activity size={12} className="text-blue-400" />
+                        Institutional Zones & Flow
+                      </div>
+                      {entry?.regime?.regime === 'breakout' && (
+                        <div className="px-1.5 py-0.5 rounded bg-orange-500/20 border border-orange-500/30 text-orange-400 text-[7px] font-black uppercase">
+                          Volatility Expansion
+                        </div>
+                      )}
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/5">
+                        <span className="text-[9px] font-bold text-slate-400">Demand Zone</span>
+                        <span className="text-[10px] font-black text-white font-mono">
+                          {entry?.fibLevels ? `$${entry.fibLevels.level618.toLocaleString()}` : '--'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/5">
+                        <span className="text-[9px] font-bold text-slate-400">Supply Zone</span>
+                        <span className="text-[10px] font-black text-white font-mono">
+                          {entry?.fibLevels ? `$${entry.fibLevels.swingHigh.toLocaleString()}` : '--'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/5">
+                        <span className="text-[9px] font-bold text-slate-400">Momentum Gap</span>
+                        <span className={cn(
+                          "text-[10px] font-black px-1.5 py-0.5 rounded",
+                          entry?.regime?.regime === 'breakout' && entry?.longCandle ? "bg-[#39FF14]/10 text-[#39FF14]" : "text-slate-500"
+                        )}>
+                          {entry?.regime?.regime === 'breakout' && entry?.longCandle ? 'FVG DETECTED' : 'NEUTRAL'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

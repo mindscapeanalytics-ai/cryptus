@@ -38,7 +38,8 @@ import { OrderFlowIndicator } from '@/components/order-flow-indicator';
 import { CorrelationHeatmap } from '@/components/correlation-heatmap';
 import { PortfolioScannerPanel } from '@/components/portfolio-scanner-panel';
 import { approximateRsi, approximateEma, calculateRsiWithState } from '@/lib/rsi';
-import { computeStrategyScore, deriveSignal, calculateRsi, latestEma, detectEmaCross, calculateMacd, calculateBollinger, calculateStochRsi, calculateROC, calculateConfluence, latestEmaWithState, calculateMacdWithState, calculateBollingerWithState, calculateATR, calculateADX } from '@/lib/indicators';
+import { computeStrategyScore, deriveSignal, calculateRsi, latestEma, detectEmaCross, calculateMacd, calculateBollinger, calculateStochRsi, calculateROC, calculateConfluence, latestEmaWithState, calculateMacdWithState, calculateBollingerWithState, calculateATR, calculateADX, calculateFibonacciLevels, computeRiskParameters } from '@/lib/indicators';
+import { classifyRegime } from '@/lib/market-regime';
 import { getSymbolAlias, getSymbolTicker } from '@/lib/symbol-utils';
 import { generateSignalNarration } from '@/lib/signal-narration';
 import type { AssetClass } from '@/lib/asset-classes';
@@ -3034,6 +3035,42 @@ export default function ScreenerDashboard() {
           strategyLabel: strat.label,
           strategyReasons: strat.reasons,
         };
+      }
+
+      // ─── Phase 3: SMC Institutional Intelligence Wiring ───
+      // We recalculate Fibonacci levels and Market Regimes live to ensure accuracy
+      // for Demand Zones and FVG detection in the narrator.
+      if (merged.historicalCloses && merged.historicalCloses.length >= 20) {
+        // 1. Institutional Fibonacci Zones
+        const fibs = calculateFibonacciLevels(merged.historicalCloses, 50);
+        if (fibs) merged.fibLevels = fibs;
+
+        // 2. Market Regime Classification
+        const bbWidth = (merged.bbUpper && merged.bbLower && merged.bbMiddle) 
+          ? (merged.bbUpper - merged.bbLower) / merged.bbMiddle 
+          : null;
+        
+        const regime = classifyRegime({
+          adx: merged.adx,
+          atr: merged.atr,
+          atrAvg: merged.atr, // Simplified fallback for real-time
+          bbWidth,
+          bbWidthAvg: bbWidth, // Simplified fallback for real-time
+          volumeSpike: merged.volumeSpike || false
+        });
+        merged.regime = regime;
+
+        // 3. Dynamic Risk Parameters (ATR-Based)
+        if (merged.strategySignal !== 'neutral') {
+          const isBuy = merged.strategySignal?.includes('buy');
+          const risk = computeRiskParameters(
+            merged.price,
+            merged.atr || (merged.price * 0.02),
+            isBuy ? 'buy' : 'sell',
+            merged.market
+          );
+          merged.riskParams = risk;
+        }
       }
 
       // Type safety enforcement for the unions
