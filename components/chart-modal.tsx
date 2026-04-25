@@ -41,7 +41,7 @@ export function ChartModal({
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="fixed inset-4 md:inset-8 bg-[#0A0D14] border border-white/10 rounded-2xl shadow-2xl z-[70] flex flex-col overflow-hidden"
+            className="fixed inset-0 md:inset-6 lg:inset-8 bg-[#0A0D14] border-x border-y md:border border-white/10 md:rounded-2xl shadow-2xl z-[70] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#0D111A]">

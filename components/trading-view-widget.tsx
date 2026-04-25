@@ -74,6 +74,8 @@ function TradingViewWidget({
     script.async = true;
 
     const config = {
+      "width": "100%",
+      "height": "100%",
       "autosize": true,
       "symbol": tvSymbol,
       "interval": tvInterval,
@@ -105,10 +107,17 @@ function TradingViewWidget({
     widgetDiv.style.height = "100%";
     widgetDiv.style.width = "100%";
     
-    container.current.appendChild(widgetDiv);
-    container.current.appendChild(script);
+    // Use a small delay to ensure the modal animation has finished and dimensions are stable
+    const timer = setTimeout(() => {
+      if (container.current) {
+        container.current.innerHTML = ''; // Clear loading state
+        container.current.appendChild(widgetDiv);
+        container.current.appendChild(script);
+      }
+    }, 200);
 
     return () => {
+      clearTimeout(timer);
       if (container.current) {
         container.current.innerHTML = '';
       }
@@ -117,10 +126,17 @@ function TradingViewWidget({
 
   return (
     <div 
-      className="tradingview-widget-container" 
+      className="tradingview-widget-container flex flex-col items-center justify-center bg-[#0A0D14]" 
       ref={container} 
-      style={{ height: "100%", width: "100%", display: 'block' }}
-    />
+      style={{ height: "100%", width: "100%" }}
+    >
+      <div className="flex flex-col items-center gap-4 animate-pulse">
+        <div className="w-12 h-12 border-4 border-[#39FF14]/20 border-t-[#39FF14] rounded-full animate-spin" />
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+          Initializing Alpha Stream...
+        </span>
+      </div>
+    </div>
   );
 }
 

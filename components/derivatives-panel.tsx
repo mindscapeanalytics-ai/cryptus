@@ -503,18 +503,20 @@ export const DerivativesPanel = memo(function DerivativesPanel({
               )}
 
               {activeTab === 'funding' && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1.5">
+                <>
                   {sortedFunding.length === 0 ? (
-                    <div className="flex items-center justify-center gap-2 py-3 text-slate-600 text-[9px] w-full">
-                      <BarChart3 size={12} className="opacity-40 animate-pulse" />
-                      <span>Loading funding rates...</span>
+                    <div className="flex items-center justify-center gap-2 py-8 text-slate-600 text-[9px] w-full border border-white/5 rounded-xl bg-white/[0.02]">
+                      <BarChart3 size={12} className="opacity-40 animate-pulse text-[#39FF14]" />
+                      <span className="uppercase tracking-[0.2em] font-black">Initializing Funding Streams...</span>
                     </div>
                   ) : (
-                    sortedFunding.map(f => (
-                      <FundingCell key={f.symbol} data={f} />
-                    ))
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1.5">
+                      {sortedFunding.map(f => (
+                        <FundingCell key={f.symbol} data={f} />
+                      ))}
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               {activeTab === 'flow' && (
