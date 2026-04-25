@@ -58,6 +58,15 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   let bearishPoints = 0;
   let totalPoints = 0;
 
+  // Analytical Pillars (Categories) for Institutional Confluence
+  const pillars = {
+    momentum: false,
+    trend: false,
+    structure: false,
+    liquidity: false,
+    volatility: false
+  };
+
   // ── 1. RSI Analysis (Multi-timeframe) ──
   const rsiValues = [
     { label: '1m', val: entry.rsi1m },
@@ -93,6 +102,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       reasons.push(`${isBullish ? '📉' : '📈'} RSI(14) is ${zone} at ${formatNum(entry.rsiCustom)}`);
       if (isBullish) bullishPoints += 10; else bearishPoints += 10;
       totalPoints += 10;
+      pillars.momentum = true;
     }
   }
 
@@ -105,6 +115,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     reasons.push('🔀 EMA 9/21 bearish crossover - short-term momentum fading');
     bearishPoints += 15;
     totalPoints += 15;
+    pillars.trend = true;
   }
 
   // ── 3. MACD ──
@@ -118,6 +129,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 10;
     }
     totalPoints += 10;
+    pillars.trend = true;
   }
 
   // ── 4. Bollinger Bands Position ──
@@ -131,6 +143,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 8;
       totalPoints += 8;
     }
+    pillars.structure = true;
   }
 
   // ── 5. Stochastic RSI ──
@@ -144,6 +157,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 8;
       totalPoints += 8;
     }
+    pillars.momentum = true;
   }
 
   // ── 6. RSI Divergence ──
@@ -155,6 +169,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
     bearishPoints += 18;
     totalPoints += 18;
+    pillars.momentum = true;
   }
 
   // ── 7. Volume Spike ──
@@ -164,6 +179,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     // Volume spike direction depends on price action
     if (entry.candleDirection === 'bullish') bullishPoints += 12;
     else if (entry.candleDirection === 'bearish') bearishPoints += 12;
+    pillars.liquidity = true;
   }
 
   // ── 8. VWAP Deviation ──
@@ -173,9 +189,10 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bullishPoints += 6;
     } else {
       reasons.push(`💰 Trading ${formatNum(entry.vwapDiff)}% above VWAP - extended from fair value`);
-      bearishPoints += 6;
+      bearishPoints += 5;
     }
-    totalPoints += 6;
+    totalPoints += 5;
+    pillars.structure = true;
   }
 
   // ── 9. ADX Trend Strength ──
@@ -185,11 +202,12 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       totalPoints += 5;
       // ADX doesn't add directional bias, but amplifies existing bias
       if (bullishPoints > bearishPoints) bullishPoints += 5;
-      else if (bearishPoints > bullishPoints) bearishPoints += 5;
+      else if (bearishPoints > bullishPoints) bullishPoints += 5;
     } else if (entry.adx < 18) {
       reasons.push(`📐 ADX at ${formatNum(entry.adx)} - choppy/ranging market, signals less reliable`);
       totalPoints += 3;
     }
+    pillars.trend = true;
   }
 
   // ── 10. Confluence Score ──
@@ -208,6 +226,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 6;
     }
     totalPoints += 12;
+    pillars.trend = true; // Confluence maps well to trend/momentum mix
   }
 
   // ── 11. OBV Volume Trend ──
@@ -220,6 +239,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 8;
     }
     totalPoints += 8;
+    pillars.liquidity = true;
   }
 
   // ── 12. Williams %R ──
@@ -242,6 +262,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bearishPoints += 3;
       totalPoints += 3;
     }
+    pillars.momentum = true;
   }
 
   // ── 13. Hidden Divergence (Continuation Patterns) ──
@@ -251,9 +272,10 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bullishPoints += 12;
     } else {
       reasons.push('🔄 Hidden bearish divergence - price lower high + RSI higher high = hidden trend weakness');
-      bearishPoints += 12;
+      bearishPoints += 14;
     }
-    totalPoints += 12;
+    totalPoints += 14;
+    pillars.momentum = true;
   }
 
   // ── 14. Market Regime Context ──
@@ -321,6 +343,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
           if (isBelowMid) bullishPoints += 8; else bearishPoints += 8;
         }
       }
+      pillars.structure = true;
     }
   }
 
@@ -331,38 +354,50 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     totalPoints += 12;
     if (entry.candleDirection === 'bullish') bullishPoints += 12;
     else if (entry.candleDirection === 'bearish') bearishPoints += 12;
+    pillars.liquidity = true;
   }
 
   // ── Compose Headline & Conviction ──
+  const pillarCount = Object.values(pillars).filter(Boolean).length;
   const netBias = bullishPoints - bearishPoints;
   const maxPossible = Math.max(totalPoints, 1);
-  const conviction = Math.min(100, Math.round((Math.abs(netBias) / maxPossible) * 100 + (totalPoints > 30 ? 20 : 0)));
+  
+  // Institutional Conviction Algorithm:
+  // Base score + Pillar Confluence Bonus (10pts per pillar after the first) + Absolute Strength factor
+  const baseConviction = (Math.abs(netBias) / maxPossible) * 100;
+  const confluenceBonus = Math.max(0, (pillarCount - 1) * 12);
+  const scaleFactor = totalPoints > 50 ? 1.2 : 1.0;
+  
+  const conviction = Math.min(100, Math.round(baseConviction * scaleFactor + confluenceBonus));
 
   let convictionLabel: SignalNarration['convictionLabel'];
-  if (conviction >= 85) convictionLabel = 'Maximum';
-  else if (conviction >= 65) convictionLabel = 'Very Strong';
-  else if (conviction >= 45) convictionLabel = 'Strong';
-  else if (conviction >= 25) convictionLabel = 'Moderate';
+  if (conviction >= 88) convictionLabel = 'Maximum';
+  else if (conviction >= 72) convictionLabel = 'Very Strong';
+  else if (conviction >= 52) convictionLabel = 'Strong';
+  else if (conviction >= 32) convictionLabel = 'Moderate';
   else convictionLabel = 'Weak';
 
   let headline: string;
   let emoji: string;
 
-  if (netBias > 20) {
-    if (conviction >= 80) headline = 'High-Conviction Institutional Buy Setup';
-    else if (conviction >= 50) headline = 'Bullish Expansion Identified';
+  if (netBias > 25) {
+    if (conviction >= 80 && pillarCount >= 3) headline = 'Institutional Buy Setup - High Confluence';
+    else if (conviction >= 60) headline = 'Bullish Expansion - Strategy Confirmed';
     else headline = 'Emerging Bullish Momentum';
-    emoji = conviction >= 65 ? '🟢🔥' : '🟢';
-  } else if (netBias < -20) {
-    if (conviction >= 80) headline = 'High-Conviction Institutional Sell Setup';
-    else if (conviction >= 50) headline = 'Bearish Distribution Pattern';
+    emoji = conviction >= 70 ? '🟢🔥' : '🟢';
+  } else if (netBias < -25) {
+    if (conviction >= 80 && pillarCount >= 3) headline = 'Institutional Sell Setup - High Confluence';
+    else if (conviction >= 60) headline = 'Bearish Distribution - Strategy Confirmed';
     else headline = 'Bearish Pressure Building';
-    emoji = conviction >= 65 ? '🔴🔥' : '🔴';
-  } else if (totalPoints > 30) {
-    headline = 'Equilibrium - Market Consolidation';
+    emoji = conviction >= 70 ? '🔴🔥' : '🔴';
+  } else if (totalPoints > 40 || (pillarCount >= 2 && Math.abs(netBias) < 15)) {
+    headline = 'Equilibrium - Market Consolidation (HOLD)';
     emoji = '🟡';
+    if (reasons.length > 0 && !reasons.some(r => r.includes('HOLD'))) {
+      reasons.push('⚖️ Conflicting signals detected - neutral stance (HOLD) recommended until breakout');
+    }
   } else {
-    headline = 'Technical Neutral - Awaiting Trigger';
+    headline = 'Technical Neutral - Awaiting Trigger (HOLD)';
     emoji = '⚪';
   }
 

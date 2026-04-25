@@ -92,19 +92,19 @@ Powered by Mindscape Analytics Signal Narration Engine™
   // ── Helpers ───────────────────────────────────────────────────
 
   const getConvictionColor = (conviction: number) => {
-    if (conviction >= 85) return 'text-[#39FF14]';
-    if (conviction >= 65) return 'text-emerald-400';
-    if (conviction >= 45) return 'text-yellow-400';
-    if (conviction >= 25) return 'text-orange-400';
-    return 'text-slate-400';
+    if (conviction >= 88) return 'text-[#39FF14] shadow-[0_0_10px_rgba(57,255,20,0.3)]';
+    if (conviction >= 72) return 'text-emerald-400';
+    if (conviction >= 52) return 'text-yellow-400';
+    if (conviction >= 32) return 'text-orange-400';
+    return 'text-slate-500';
   };
 
   const getConvictionBg = (conviction: number) => {
-    if (conviction >= 85) return 'bg-[#39FF14]/10 border-[#39FF14]/30';
-    if (conviction >= 65) return 'bg-emerald-400/10 border-emerald-400/30';
-    if (conviction >= 45) return 'bg-yellow-400/10 border-yellow-400/30';
-    if (conviction >= 25) return 'bg-orange-400/10 border-orange-400/30';
-    return 'bg-slate-400/10 border-slate-400/30';
+    if (conviction >= 88) return 'bg-[#39FF14]/10 border-[#39FF14]/40 shadow-[inset_0_0_20px_rgba(57,255,20,0.05)]';
+    if (conviction >= 72) return 'bg-emerald-400/10 border-emerald-400/30';
+    if (conviction >= 52) return 'bg-yellow-400/10 border-yellow-400/30';
+    if (conviction >= 32) return 'bg-orange-400/10 border-orange-400/30';
+    return 'bg-white/[0.03] border-white/10';
   };
 
   const getBiasColor = () => {
