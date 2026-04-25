@@ -729,6 +729,7 @@ const ScreenerRow = memo(function ScreenerRow({
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       smartMoneyScore: smartMoneyScore?.score ?? undefined,
       hiddenDivergence: entry.hiddenDivergence,
+      regime: entry.regime?.regime,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,
@@ -1731,6 +1732,7 @@ const ScreenerCard = memo(function ScreenerCard({
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       smartMoneyScore: smartMoneyScore?.score ?? undefined,
       hiddenDivergence: entry.hiddenDivergence,
+      regime: entry.regime?.regime,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,

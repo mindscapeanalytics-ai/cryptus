@@ -9,7 +9,8 @@
 
 import { calculateRsiSeries } from './rsi';
 import { LRUCache } from './lru-cache';
-import { RSI_DEFAULTS, INDICATOR_DEFAULTS } from './defaults';
+import { RSI_DEFAULTS, INDICATOR_DEFAULTS, STRATEGY_DEFAULTS, RSI_ZONES } from './defaults';
+import { getRegimeWeights, type MarketRegime } from './market-regime';
 
 function round(n: number): number {
   return Math.round(n * 1e8) / 1e8;
@@ -678,6 +679,8 @@ export function computeStrategyScore(params: {
   smartMoneyScore?: number | null;
   /** Hidden divergence signal (continuation patterns). */
   hiddenDivergence?: 'hidden-bullish' | 'hidden-bearish' | 'none';
+  /** Market regime for dynamic weight adjustment. */
+  regime?: MarketRegime;
   enabledIndicators?: {
     rsi?: boolean;
     macd?: boolean;
@@ -694,6 +697,11 @@ export function computeStrategyScore(params: {
 }): StrategyResult {
   let score = 0;
   
+  // ── Regime-Aware Dynamic Weights ──
+  // When a regime is provided, dynamically scale indicator categories.
+  // This makes regime classification actionable rather than decorative.
+  const rw = params.regime ? getRegimeWeights(params.regime) : { oscillators: 1.0, trend: 1.0, volume: 1.0, momentum: 1.0 };
+  
   // ── Asset-Aware Volatility Calibration ──
   let volatilityMultiplier = 1.0;
   if (params.market === 'Forex') volatilityMultiplier = 5.0;
@@ -705,27 +713,22 @@ export function computeStrategyScore(params: {
 
   // ── Asset-Specific RSI Zone Calibration ──
   // Different asset classes have different RSI characteristics.
-  // Forex: RSI rarely hits extremes → use tighter zones (35/65)
-  // Metals/Indices: Moderate → use standard-tight (25/75)
-  // Crypto: High volatility → use wide zones (20/80) — default
-  let rsiDeepOS = 20, rsiOS = 30, rsiOB = 70, rsiDeepOB = 80;
-  if (params.market === 'Forex') {
-    rsiDeepOS = 25; rsiOS = 35; rsiOB = 65; rsiDeepOB = 75;
-  } else if (params.market === 'Metal' || params.market === 'Index' || params.market === 'Stocks') {
-    rsiDeepOS = 22; rsiOS = 32; rsiOB = 68; rsiDeepOB = 78;
-  }
+  const market = params.market || 'Crypto';
+  const zones = RSI_ZONES[market] || RSI_ZONES.Crypto;
+  let { deepOS: rsiDeepOS, os: rsiOS, ob: rsiOB, deepOB: rsiDeepOB } = zones;
 
   // RSI scoring (higher weight for longer timeframes)
+  // Regime-aware: oscillator weight applied to all RSI sub-scores
   const rsiScore = (rsi: number | null, weight: number, tf: string) => {
     if (rsi === null || enabled.rsi === false) return;
     factors += weight;
-    if (rsi <= rsiDeepOS) { score += 100 * weight; reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) deep oversold`); }
-    else if (rsi <= rsiOS) { score += 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) oversold`); }
-    else if (rsi <= 40) score += 30 * weight;
-    else if (rsi <= 60) score += 0;
-    else if (rsi <= rsiOB) score -= 30 * weight;
-    else if (rsi <= rsiDeepOB) { score -= 70 * weight; if (weight >= 1) reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) overbought`); }
-    else { score -= 100 * weight; reasons.push(`RSI ${tf} (${rsi.toFixed(1)}) deep overbought`); }
+    const effectiveWeight = weight * rw.oscillators;
+    if (rsi <= rsiDeepOS) { score += 100 * effectiveWeight; reasons.push(`RSI ${tf} (${rsi.toFixed(0)}) deeply oversold`); }
+    else if (rsi <= rsiOS) { score += 80 * effectiveWeight; reasons.push(`RSI ${tf} (${rsi.toFixed(0)}) oversold`); }
+    else if (rsi >= rsiDeepOB) { score -= 100 * effectiveWeight; reasons.push(`RSI ${tf} (${rsi.toFixed(0)}) deeply overbought`); }
+    else if (rsi >= rsiOB) { score -= 80 * effectiveWeight; reasons.push(`RSI ${tf} (${rsi.toFixed(0)}) overbought`); }
+    else if (rsi < 45) score += 30 * effectiveWeight;
+    else if (rsi > 55) score -= 30 * effectiveWeight;
   };
 
   rsiScore(params.rsi1m, 0.5, '1m');
@@ -736,8 +739,9 @@ export function computeStrategyScore(params: {
   // MACD histogram — ATR-relative scaling for consistent behavior across all price levels
   // 2026 fix: Price-relative scaling breaks on high/low priced assets.
   // ATR-normalized MACD measures histogram significance against actual volatility.
-  if (params.macdHistogram !== null && params.price > 0 && enabled.macd !== false) {
+  if (params.macdHistogram != null && enabled.macd !== false) {
     factors += 1.5;
+    const trendW = 1.5 * rw.trend;
     // Use ATR for normalization if available, else fall back to price-relative
     let macdNorm: number;
     if (params.atr != null && params.atr > 0) {
@@ -746,85 +750,93 @@ export function computeStrategyScore(params: {
       macdNorm = Math.min(macdNorm * 80, 100); // Scale: 0.625 ATR → 50 points, 1.25 ATR → 100 points
     } else {
       // Fallback: percentage of price (legacy behavior, improved scaling)
-      const hPct = Math.abs(params.macdHistogram / params.price) * 100;
+      const hPct = params.price > 0 ? Math.abs(params.macdHistogram / params.price) * 100 : 0;
       macdNorm = Math.min(hPct * 200, 100);
     }
     if (params.macdHistogram > 0) {
-      score += macdNorm * 1.5;
+      score += macdNorm * trendW;
       if (macdNorm > 40) reasons.push('MACD bullish momentum');
     } else {
-      score -= macdNorm * 1.5;
+      score -= macdNorm * trendW;
       if (macdNorm > 40) reasons.push('MACD bearish momentum');
     }
   }
 
-  // Bollinger position
-  if (params.bbPosition !== null && enabled.bb !== false) {
+  // Bollinger position — regime: oscillator weight (mean-reversion signal category)
+  if (params.bbPosition != null && enabled.bb !== false) {
     factors += 1;
+    const bbW = 1.0 * rw.oscillators;
     const bp = params.bbPosition;
-    if (bp <= 0.1) { score += 80 * 1; reasons.push(`Near lower BB (${bp.toFixed(2)})`); }
-    else if (bp <= 0.25) score += 40 * 1;
-    else if (bp >= 0.9) { score -= 80 * 1; reasons.push(`Near upper BB (${bp.toFixed(2)})`); }
-    else if (bp >= 0.75) score -= 40 * 1;
+    if (bp <= 0.1) { score += 80 * bbW; reasons.push(`Near lower BB (${bp.toFixed(2)})`); }
+    else if (bp <= 0.25) score += 40 * bbW;
+    else if (bp >= 0.9) { score -= 80 * bbW; reasons.push(`Near upper BB (${bp.toFixed(2)})`); }
+    else if (bp >= 0.75) score -= 40 * bbW;
   }
 
   // Stochastic RSI with K/D crossover confirmation
   // 2026 fix: K/D crossover now properly adds to `factors` divisor to prevent score inflation
-  if (params.stochK !== null && params.stochD !== null && enabled.stoch !== false) {
+  if (params.stochK != null && params.stochD != null && enabled.stoch !== false) {
     factors += 1;
-    if (params.stochK < 20 && params.stochD < 20) { score += 80 * 1; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) oversold`); }
-    else if (params.stochK < 30) score += 40 * 1;
-    else if (params.stochK > 80 && params.stochD > 80) { score -= 80 * 1; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) overbought`); }
-    else if (params.stochK > 70) score -= 40 * 1;
+    const stochW = 1.0 * rw.oscillators; // regime-scaled for stoch base
+    if (params.stochK < 20 && params.stochD < 20) { score += 80 * stochW; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) oversold`); }
+    else if (params.stochK < 30) score += 40 * stochW;
+    else if (params.stochK > 80 && params.stochD > 80) { score -= 80 * stochW; reasons.push(`StochRSI (${params.stochK.toFixed(0)}) overbought`); }
+    else if (params.stochK > 70) score -= 40 * stochW;
     // K/D Crossover Confirmation — properly weighted with factors to prevent inflation
     if (params.stochK > params.stochD && params.stochK < 30) {
       factors += 0.5;
-      score += 70 * 0.5; // 35 effective, but now properly normalized
+      score += 70 * 0.5 * rw.oscillators; // regime-scaled
       reasons.push('StochRSI bullish cross in oversold');
     } else if (params.stochK < params.stochD && params.stochK > 70) {
       factors += 0.5;
-      score -= 70 * 0.5;
+      score -= 70 * 0.5 * rw.oscillators;
       reasons.push('StochRSI bearish cross in overbought');
     }
     // Standard crossover in neutral zone (weaker signal)
     else if (params.stochK > params.stochD && params.stochK < 50) {
       factors += 0.25;
-      score += 60 * 0.25;
+      score += 60 * 0.25 * rw.oscillators;
     } else if (params.stochK < params.stochD && params.stochK > 50) {
       factors += 0.25;
-      score -= 60 * 0.25;
+      score -= 60 * 0.25 * rw.oscillators;
     }
   }
 
-  // EMA cross
+  // EMA cross — regime: trend weight
   if (params.emaCross !== 'none' && enabled.ema !== false) {
     factors += 1.5;
-    score += (params.emaCross === 'bullish' ? 60 : -60) * 1.5;
+    const trendW = 1.5 * rw.trend;
+    score += (params.emaCross === 'bullish' ? 60 : -60) * trendW;
     reasons.push(params.emaCross === 'bullish' ? 'Bullish EMA cross' : 'Bearish EMA cross');
   }
 
-  // VWAP
+  // VWAP — regime: volume weight
   if (params.vwapDiff !== null && enabled.vwap !== false) {
-    factors += 1.0; // Increased from 0.5
+    factors += 1.0;
+    const volW = 1.0 * rw.volume;
     const scaledVwapDiff = params.vwapDiff * volatilityMultiplier;
-    if (scaledVwapDiff < -2) { score += 40 * 1.0; if (scaledVwapDiff < -3) reasons.push(`Below VWAP (${params.vwapDiff.toFixed(2)}%)`); }
-    else if (scaledVwapDiff > 2) { score -= 40 * 1.0; if (scaledVwapDiff > 3) reasons.push(`Above VWAP (${params.vwapDiff.toFixed(2)}%)`); }
+    if (scaledVwapDiff < -2) { score += 40 * volW; if (scaledVwapDiff < -3) reasons.push(`Below VWAP (${params.vwapDiff.toFixed(2)}%)`); }
+    else if (scaledVwapDiff > 2) { score -= 40 * volW; if (scaledVwapDiff > 3) reasons.push(`Above VWAP (${params.vwapDiff.toFixed(2)}%)`); }
   }
 
   // Volume spike: additive factor (not multiplicative) to prevent inflating already-high scores
+  // Regime: volume weight
   if (params.volumeSpike) {
     factors += 0.5;
+    const volW = 0.5 * rw.volume;
     const volBoost = score > 0 ? 30 : score < 0 ? -30 : 0;
-    score += volBoost * 0.5;
+    score += volBoost * volW;
     if (volBoost !== 0) reasons.push('Volume spike confirms direction');
   }
 
   // ── Intelligence signals ──
 
   // Multi-TF confluence
+  // Multi-TF confluence — regime: trend weight (confluence reflects cross-TF trend agreement)
   if (params.confluence !== undefined && Math.abs(params.confluence) >= 20 && enabled.confluence !== false) {
-    factors += 2.5; // Increased from 2.0
-    score += params.confluence * 2.5; 
+    factors += 2.5;
+    const confW = 2.5 * rw.trend;
+    score += params.confluence * confW;
     if (params.confluence >= 50) reasons.push('Institutional multi-TF confluence (Strong Bullish)');
     else if (params.confluence >= 20) reasons.push('Multi-TF bullish alignment');
     else if (params.confluence <= -50) reasons.push('Institutional multi-TF confluence (Strong Bearish)');
@@ -855,45 +867,46 @@ export function computeStrategyScore(params: {
     }
   }
 
-  // Momentum
+  // Momentum — regime: momentum weight
   if (params.momentum !== undefined && params.momentum !== null && Math.abs(params.momentum * volatilityMultiplier) > 0.5 && enabled.momentum !== false) {
     factors += 0.5;
+    const momW = 0.5 * rw.momentum;
     const scaledMomentum = params.momentum * volatilityMultiplier;
     const mScore = Math.max(-60, Math.min(60, scaledMomentum * 15));
-    score += mScore * 0.5;
+    score += mScore * momW;
     if (scaledMomentum > 3) reasons.push('Strong institutional momentum (Up)');
     else if (scaledMomentum < -3) reasons.push('Strong institutional momentum (Down)');
   }
 
   // ── OBV (On-Balance Volume) — Volume Trend Confirmation ──
-  // OBV is a proven leading indicator: volume precedes price.
-  // Bullish OBV during a buy setup dramatically increases win rate.
+  // Regime: volume weight applied
   if (params.obvTrend && params.obvTrend !== 'none' && enabled.obv !== false) {
     factors += 1.5;
+    const volW = 1.5 * rw.volume;
     if (params.obvTrend === 'bullish') {
-      score += 55 * 1.5;
+      score += 55 * volW;
       reasons.push('OBV volume trend bullish (accumulation)');
     } else {
-      score -= 55 * 1.5;
+      score -= 55 * volW;
       reasons.push('OBV volume trend bearish (distribution)');
     }
   }
 
   // ── Williams %R — Complementary Oscillator ──
-  // Works best in ranging markets where RSI and StochRSI may lag.
-  // -80 to -100 = oversold (buy zone), 0 to -20 = overbought (sell zone)
+  // Regime: oscillator weight applied
   if (params.williamsR !== null && params.williamsR !== undefined && enabled.williamsR !== false) {
     factors += 0.8;
+    const oscW = 0.8 * rw.oscillators;
     if (params.williamsR <= -85) {
-      score += 80 * 0.8;
+      score += 80 * oscW;
       reasons.push(`Williams %R (${params.williamsR.toFixed(0)}) deeply oversold`);
     } else if (params.williamsR <= -70) {
-      score += 45 * 0.8;
+      score += 45 * oscW;
     } else if (params.williamsR >= -15) {
-      score -= 80 * 0.8;
+      score -= 80 * oscW;
       reasons.push(`Williams %R (${params.williamsR.toFixed(0)}) deeply overbought`);
     } else if (params.williamsR >= -30) {
-      score -= 45 * 0.8;
+      score -= 45 * oscW;
     }
   }
 
@@ -904,22 +917,22 @@ export function computeStrategyScore(params: {
     const is1hBullishTrend = params.rsi1h < 45;  // Clear bullish: RSI below 45
     const is1hBearishTrend = params.rsi1h > 55;  // Clear bearish: RSI above 55
     
-    // Trend-aligned boost (15%)
+    // Trend-aligned boost
     if (score > 0 && is1hBullishTrend) {
-      score *= 1.15; 
+      score *= STRATEGY_DEFAULTS.trendAlignedBoost; 
       reasons.push('1h Trend-aligned (Bullish)');
     }
     if (score < 0 && is1hBearishTrend) {
-      score *= 1.15;
+      score *= STRATEGY_DEFAULTS.trendAlignedBoost;
       reasons.push('1h Trend-aligned (Bearish)');
     }
-    // Counter-trend penalty (30% dampening)
+    // Counter-trend penalty
     if (score > 0 && is1hBearishTrend) {
-      score *= 0.70;
+      score *= STRATEGY_DEFAULTS.counterTrendPenalty;
       reasons.push('⚠ Counter-trend (1h bearish)');
     }
     if (score < 0 && is1hBullishTrend) {
-      score *= 0.70;
+      score *= STRATEGY_DEFAULTS.counterTrendPenalty;
       reasons.push('⚠ Counter-trend (1h bullish)');
     }
   }
@@ -953,13 +966,15 @@ export function computeStrategyScore(params: {
 
   // ── HIDDEN DIVERGENCE (Continuation) ────────────────────────────
   // Lower weight than regular divergence (1.5 vs 2.0) — continuation, not reversal
+  // Hidden divergence — regime: momentum weight; volatility-scaled for asset class
   if (params.hiddenDivergence && params.hiddenDivergence !== 'none' && enabled.divergence !== false) {
     factors += 1.5;
+    const hiddenW = 1.5 * rw.momentum;
     if (params.hiddenDivergence === 'hidden-bullish') {
-      score += 20 * volatilityMultiplier;
+      score += 20 * volatilityMultiplier * hiddenW;
       reasons.push('📊 Hidden bullish divergence (trend continuation)');
     } else {
-      score -= 20 * volatilityMultiplier;
+      score -= 20 * volatilityMultiplier * hiddenW;
       reasons.push('📊 Hidden bearish divergence (trend continuation)');
     }
   }
@@ -969,10 +984,10 @@ export function computeStrategyScore(params: {
   // Dampen signals in choppy markets, amplify in trending markets.
   if (params.adx !== undefined && params.adx !== null && params.adx > 0) {
     if (params.adx < 20) {
-      score *= 0.75;
+      score *= STRATEGY_DEFAULTS.adxChoppyDampen;
       reasons.push('ADX choppy market (signals dampened)');
     } else if (params.adx > 30) {
-      score *= 1.10;
+      score *= STRATEGY_DEFAULTS.adxTrendBoost;
       reasons.push('ADX strong trend');
     }
   }
@@ -980,9 +995,8 @@ export function computeStrategyScore(params: {
   // Final validation guard: normalized score
   let normalized = factors > 0 ? score / factors : 0;
   
-  // ── Minimum Evidence Guard ──
-  // Require >= 4 factors for any non-neutral signal to prevent low-evidence noise.
-  if (factors < 4.0) {
+  // Require minimum factors for any non-neutral signal to prevent low-evidence noise.
+  if (factors < STRATEGY_DEFAULTS.minFactorsForSignal) {
     normalized *= 0.50; // Aggressive dampening — insufficient evidence
     if (factors < 2.5) {
       normalized = Math.max(-15, Math.min(15, normalized)); // Force near-neutral
@@ -1009,16 +1023,14 @@ export function computeStrategyScore(params: {
   const hasMultiTFSellAgreement = availableTFs >= 3 && sellAgreement >= 3;
 
   // ── 2026 Tuned Thresholds ──
-  // Strong: >=50 with multi-TF agreement (lowered from 55 — validated by evidence guard)
-  // Buy/Sell: >=20 (lowered from 25 — widens actionable zone while ADX/TFA filter noise)
   let signal: StrategySignal;
   let label: string;
-  if (normalized >= 50 && hasMultiTFBuyAgreement) { signal = 'strong-buy'; label = 'S Buy'; }
-  else if (normalized >= 50) { signal = 'buy'; label = 'Buy'; reasons.push('Downgraded: insufficient TF agreement for Strong'); }
-  else if (normalized >= 20) { signal = 'buy'; label = 'Buy'; }
-  else if (normalized <= -50 && hasMultiTFSellAgreement) { signal = 'strong-sell'; label = 'S Sell'; }
-  else if (normalized <= -50) { signal = 'sell'; label = 'Sell'; reasons.push('Downgraded: insufficient TF agreement for Strong'); }
-  else if (normalized <= -20) { signal = 'sell'; label = 'Sell'; }
+  if (normalized >= STRATEGY_DEFAULTS.strongThreshold && hasMultiTFBuyAgreement) { signal = 'strong-buy'; label = 'S Buy'; }
+  else if (normalized >= STRATEGY_DEFAULTS.strongThreshold) { signal = 'buy'; label = 'Buy'; reasons.push('Downgraded: insufficient TF agreement for Strong'); }
+  else if (normalized >= STRATEGY_DEFAULTS.actionThreshold) { signal = 'buy'; label = 'Buy'; }
+  else if (normalized <= -STRATEGY_DEFAULTS.strongThreshold && hasMultiTFSellAgreement) { signal = 'strong-sell'; label = 'S Sell'; }
+  else if (normalized <= -STRATEGY_DEFAULTS.strongThreshold) { signal = 'sell'; label = 'Sell'; reasons.push('Downgraded: insufficient TF agreement for Strong'); }
+  else if (normalized <= -STRATEGY_DEFAULTS.actionThreshold) { signal = 'sell'; label = 'Sell'; }
   else { signal = 'neutral'; label = 'Neutral'; }
 
   return { score: normalized, signal, label, reasons };

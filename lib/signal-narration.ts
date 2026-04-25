@@ -80,9 +80,10 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   const zones = RSI_ZONES[market] ?? RSI_ZONES.Crypto;
 
   const rsiValues = [
-    { label: '1m', val: entry.rsi1m },
+    { label: '1m',  val: entry.rsi1m },
+    { label: '5m',  val: entry.rsi5m },
     { label: '15m', val: entry.rsi15m },
-    { label: '1h', val: entry.rsi1h },
+    { label: '1h',  val: entry.rsi1h },
   ].filter(r => r.val !== null);
 
   const oversoldCount     = rsiValues.filter(r => r.val !== null && r.val <= zones.os).length;
@@ -94,18 +95,22 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     reasons.push(`📉 RSI deeply oversold across ${deepOversoldCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val <= zones.deepOS).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')}) — ${market === 'Metal' ? 'commodity demand zone' : 'strong reversal setup'}`);
     bullishPoints += deepOversoldCount * 15;
     totalPoints += deepOversoldCount * 15;
+    pillars.momentum = true;
   } else if (oversoldCount >= 2) {
     reasons.push(`📉 RSI oversold across ${oversoldCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val <= zones.os).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')})`);
     bullishPoints += oversoldCount * 12;
     totalPoints += oversoldCount * 12;
+    pillars.momentum = true;
   } else if (deepOverboughtCount >= 2) {
     reasons.push(`📈 RSI deeply overbought across ${deepOverboughtCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val >= zones.deepOB).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')}) — ${market === 'Metal' ? 'commodity supply zone' : 'reversal risk elevated'}`);
     bearishPoints += deepOverboughtCount * 15;
     totalPoints += deepOverboughtCount * 15;
+    pillars.momentum = true;
   } else if (overboughtCount >= 2) {
     reasons.push(`📈 RSI overbought across ${overboughtCount} timeframes (${rsiValues.filter(r => r.val !== null && r.val >= zones.ob).map(r => `${r.label}: ${formatNum(r.val)}`).join(', ')})`);
     bearishPoints += overboughtCount * 12;
     totalPoints += overboughtCount * 12;
+    pillars.momentum = true;
   } else if (entry.rsiCustom !== null) {
     const zone = rsiZone(entry.rsiCustom, market);
     if (zone) {
@@ -123,6 +128,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     reasons.push('🔀 EMA 9/21 bullish crossover - short-term momentum shifting up');
     bullishPoints += 15;
     totalPoints += 15;
+    pillars.trend = true;
   } else if (entry.emaCross === 'bearish') {
     reasons.push('🔀 EMA 9/21 bearish crossover - short-term momentum fading');
     bearishPoints += 15;
@@ -177,6 +183,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     reasons.push('🔄 Bullish RSI divergence detected - price making lower lows but RSI making higher lows');
     bullishPoints += 18;
     totalPoints += 18;
+    pillars.momentum = true;
   } else if (entry.rsiDivergence === 'bearish') {
     reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
     bearishPoints += 18;
@@ -242,6 +249,23 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
     pillars.trend = true; // Confluence maps well to trend/momentum mix
   }
 
+  // ── 10.5 RSI Crossover (Reversal Events) ──
+  // Captures the precise moment price crosses back above oversold or below overbought.
+  // This is a high-conviction event that the scoring engine weights at 1.5.
+  if (entry.rsiCrossover && entry.rsiCrossover !== 'none') {
+    if (entry.rsiCrossover === 'bullish_reversal') {
+      reasons.push('↥ RSI Bullish Reversal — RSI crossed back above oversold zone, confirming momentum shift to upside');
+      bullishPoints += 14;
+      totalPoints += 14;
+      pillars.momentum = true;
+    } else if (entry.rsiCrossover === 'bearish_reversal') {
+      reasons.push('↧ RSI Bearish Reversal — RSI crossed back below overbought zone, confirming momentum shift to downside');
+      bearishPoints += 14;
+      totalPoints += 14;
+      pillars.momentum = true;
+    }
+  }
+
   // ── 11. OBV Volume Trend ──
   if (entry.obvTrend && entry.obvTrend !== 'none') {
     if (entry.obvTrend === 'bullish') {
@@ -249,6 +273,23 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
       bullishPoints += 8;
     } else {
       reasons.push('📉 OBV volume trend bearish - institutional distribution in progress');
+      bearishPoints += 8;
+    }
+    totalPoints += 8;
+    pillars.liquidity = true;
+  }
+
+  // ── 11.5 Smart Money Score (Institutional Flow) ──
+  // Derivatives data: funding rate, liquidations, whale trades, order flow.
+  // Only narrated when signal is strong enough to be actionable (|score| >= 30).
+  const sms = (entry as any).smartMoneyScore as number | null | undefined;
+  if (sms != null && Math.abs(sms) >= 30) {
+    const smsBullish = sms > 0;
+    if (smsBullish) {
+      reasons.push(`🐳 Smart Money Flow: +${sms} — Derivatives data (funding, order flow, whale activity) confirms bullish institutional positioning`);
+      bullishPoints += 8;
+    } else {
+      reasons.push(`🐳 Smart Money Flow: ${sms} — Derivatives data signals net institutional selling pressure (negative funding / liquidation clusters)`);
       bearishPoints += 8;
     }
     totalPoints += 8;
@@ -282,7 +323,7 @@ export function generateSignalNarration(entry: ScreenerEntry): SignalNarration {
   if (entry.hiddenDivergence && entry.hiddenDivergence !== 'none') {
     if (entry.hiddenDivergence === 'hidden-bullish') {
       reasons.push('🔄 Hidden bullish divergence - price higher low + RSI lower low = hidden trend strength');
-      bullishPoints += 12;
+      bullishPoints += 14;
     } else {
       reasons.push('🔄 Hidden bearish divergence - price lower high + RSI higher high = hidden trend weakness');
       bearishPoints += 14;

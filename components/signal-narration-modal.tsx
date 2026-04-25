@@ -573,7 +573,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
             onClose={() => setIsChartOpen(false)}
             symbol={symbol}
             market={entry?.market}
-            interval={rsiPeriod.toString()}
+            interval="15"
           />
         </>
       )}

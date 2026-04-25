@@ -54,14 +54,32 @@ export function ChartModal({
                     {symbol} <span className="text-[#39FF14]">Live Analysis</span>
                   </h2>
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-                    Institutional Alpha Stream • {interval}M Timeframe
+                    Institutional Alpha Stream · {interval === '60' ? '1H' : interval === '240' ? '4H' : interval === 'D' ? 'Daily' : `${interval}M`} Timeframe
                   </p>
                 </div>
               </div>
               
               <div className="flex items-center gap-2">
                  <a 
-                    href={`https://www.tradingview.com/chart/?symbol=${market === 'Crypto' ? 'BINANCE:' : ''}${symbol}`}
+                    href={(() => {
+                      const s = symbol.toUpperCase().replace('=X', '');
+                      let tvSym: string;
+                      if (market === 'Metal') {
+                        if (s.includes('XAU') || s.includes('GC')) tvSym = 'OANDA:XAUUSD';
+                        else if (s.includes('XAG') || s.includes('SI')) tvSym = 'OANDA:XAGUSD';
+                        else if (s.includes('CL') || s.includes('OIL')) tvSym = 'NYMEX:CL1!';
+                        else tvSym = `OANDA:${s}`;
+                      } else if (market === 'Forex') {
+                        tvSym = `OANDA:${s.replace('/', '').slice(0, 6)}`;
+                      } else if (market === 'Index') {
+                        tvSym = s === 'SPY' ? 'AMEX:SPY' : s === 'QQQ' ? 'NASDAQ:QQQ' : `INDEX:${s}`;
+                      } else if (market === 'Stocks') {
+                        tvSym = `NASDAQ:${s}`;
+                      } else {
+                        tvSym = `BINANCE:${s}`;
+                      }
+                      return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSym)}`;
+                    })()}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 hover:bg-white/5 rounded-lg transition-colors text-slate-400 hover:text-white"

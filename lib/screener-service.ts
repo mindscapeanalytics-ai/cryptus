@@ -1484,6 +1484,7 @@ function buildEntry(
       williamsR,
       hiddenDivergence,
       market: getMarketType(sym),
+      regime: regimeResult.regime,
     });
 
     // Custom analysis (Isolated from strategy)
