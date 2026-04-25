@@ -144,7 +144,7 @@ function getScoreBarColor(score: number): string {
 const COL_WIDTHS = {
   rank: "w-[44px] min-w-[44px]",
   star: "w-[36px] min-w-[36px]",
-  symbol: "w-[160px] min-w-[160px]",
+  symbol: "w-[120px] min-w-[120px]",
   price: "w-[115px] min-w-[115px]",
   change: "w-[95px] min-w-[95px]",
   volume: "w-[100px] min-w-[100px]",
@@ -866,7 +866,7 @@ const ScreenerRow = memo(function ScreenerRow({
   const stickyOffsetSym = bulkMode
     ? (visibleCols.has('rank') ? 132 : 84)  // Add 44px for checkbox
     : (visibleCols.has('rank') ? 88 : 40);
-  const stickyOffsetPrice = stickyOffsetSym + 160;
+  const stickyOffsetPrice = stickyOffsetSym + 120;
 
   return (
     <tr
@@ -1375,7 +1375,7 @@ function EditableRsiCell({
 
 function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
   const stickyOffsetSym = visibleCols.has('rank') ? 88 : 40;
-  const stickyOffsetPrice = visibleCols.has('rank') ? 268 : 220;
+  const stickyOffsetPrice = visibleCols.has('rank') ? 88 + 120 : 40 + 120;
 
   return (
     <>
@@ -5421,7 +5421,7 @@ export default function ScreenerDashboard() {
                   <SortHeader
                     label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right"
                     widthClass={COL_WIDTHS.price}
-                    stickyOffset={visibleCols.has('rank') ? 88 + 160 : 40 + 160}
+                    stickyOffset={visibleCols.has('rank') ? 88 + 120 : 40 + 120}
                   />
 
                   <SortHeader
@@ -5551,6 +5551,7 @@ export default function ScreenerDashboard() {
             symbol={selectedNarrationEntry.symbol}
             narration={selectedNarration}
             entry={selectedNarrationEntry}
+            rsiPeriod={rsiPeriod}
           />
         )}
       </AnimatePresence>

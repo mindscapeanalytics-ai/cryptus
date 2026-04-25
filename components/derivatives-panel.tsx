@@ -195,8 +195,7 @@ const FundingCell = memo(function FundingCell({ data }: { data: FundingRateData 
 
   return (
     <div className={cn(
-      "flex flex-col items-center justify-center px-1.5 py-1 rounded transition-all",
-      "border border-white/5 text-center min-w-[64px]",
+      "flex flex-col items-center justify-center px-1.5 py-1 rounded transition-all border border-white/5 text-center w-full",
       isExtreme
         ? isPositive ? "bg-[#39FF14]/10 border-[#39FF14]/20" : "bg-[#FF4B5C]/10 border-[#FF4B5C]/20"
         : "bg-slate-900 overflow-hidden"
@@ -504,7 +503,7 @@ export const DerivativesPanel = memo(function DerivativesPanel({
               )}
 
               {activeTab === 'funding' && (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(72px,1fr))] gap-1.5">
                   {sortedFunding.length === 0 ? (
                     <div className="flex items-center justify-center gap-2 py-3 text-slate-600 text-[9px] w-full">
                       <BarChart3 size={12} className="opacity-40 animate-pulse" />

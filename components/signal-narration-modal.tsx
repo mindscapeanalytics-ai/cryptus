@@ -5,6 +5,7 @@ import { X, Copy, Check, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ChartModal } from './chart-modal';
 import type { SignalNarration } from '@/lib/signal-narration';
 import type { ScreenerEntry } from '@/lib/types';
 
@@ -20,6 +21,7 @@ interface SignalNarrationModalProps {
   narration: SignalNarration | null;
   symbol: string;
   entry?: ScreenerEntry;
+  rsiPeriod?: number;
 }
 
 export function SignalNarrationModal({
@@ -28,8 +30,10 @@ export function SignalNarrationModal({
   narration,
   symbol,
   entry,
+  rsiPeriod = 15,
 }: SignalNarrationModalProps) {
   const [copied, setCopied] = useState(false);
+  const [isChartOpen, setIsChartOpen] = useState(false);
 
   const handleCopyBrief = async () => {
     if (!narration) return;
@@ -64,9 +68,6 @@ Powered by Mindscape Analytics Signal Narration Engine™
     }
   };
 
-  const handleOpenSymbolPage = () => {
-    window.open(`/symbol/${symbol}`, '_blank');
-  };
 
   // Determine conviction color
   const getConvictionColor = (conviction: number) => {
@@ -228,7 +229,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
                     )}
                   </button>
                   <button
-                    onClick={handleOpenSymbolPage}
+                    onClick={() => setIsChartOpen(true)}
                     className="flex items-center justify-center gap-2 px-4 py-3 bg-white/5 border-2 border-white/10 rounded-lg font-bold text-sm text-white hover:bg-white/10 hover:border-white/20 transition-all"
                   >
                     <ExternalLink size={16} />
@@ -251,6 +252,15 @@ Powered by Mindscape Analytics Signal Narration Engine™
               </div>
             )}
           </motion.div>
+
+          {/* Full Screen Chart Modal */}
+          <ChartModal
+            isOpen={isChartOpen}
+            onClose={() => setIsChartOpen(false)}
+            symbol={symbol}
+            market={entry?.market}
+            interval={rsiPeriod.toString()}
+          />
         </>
       )}
     </AnimatePresence>
