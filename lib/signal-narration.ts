@@ -100,8 +100,8 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   // ── 2026 FIX: 24H Price Action Context (HIGHEST PRIORITY) ──
   // This should be analyzed FIRST before other indicators
   // A +42% move is MORE IMPORTANT than any RSI reading
-  if (entry.priceChange24h !== null && entry.priceChange24h !== undefined) {
-    const priceChange = entry.priceChange24h;
+  if (entry.change24h !== null && entry.change24h !== undefined) {
+    const priceChange = entry.change24h;
     const absPriceChange = Math.abs(priceChange);
     
     if (absPriceChange > 50) {
@@ -626,7 +626,7 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
   // ── 2026 FIX: Context-Aware Headlines ──
   // Add price action context to headlines for clarity
-  const priceChange24h = entry.priceChange24h ?? 0;
+  const priceChange24h = entry.change24h ?? 0;
   const isExtremeMove = Math.abs(priceChange24h) > 20;
   const isParabolicMove = Math.abs(priceChange24h) > 40;
 
@@ -637,57 +637,57 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
   if (netBias > 25) {
     if (rsiHigh && conviction < 90) {
-      headline = 'Extended Market Condition — Pullback Risk Elevated';
+      headline = 'Extended Market Condition | Pullback Risk Elevated';
       emoji = '🟡⚠️';
     } else if (conviction >= 80 && pillarCount >= 3) {
       headline = market === 'Metal'
-        ? 'Institutional Commodity Buy — Demand Zone Confirmed'
-        : 'Institutional Buy Setup — High Confluence';
+        ? 'Institutional Commodity Buy | Demand Zone Confirmed'
+        : 'Institutional Buy Setup | High Confluence';
       emoji = conviction >= 70 ? '🟢🔥' : '🟢';
     } else if (conviction >= 60) {
       headline = market === 'Metal'
-        ? 'Bullish Commodity Setup Forming — Awaiting Confirmation'
-        : 'Bullish Expansion — Strategy Confirmed';
+        ? 'Bullish Commodity Setup Forming | Awaiting Confirmation'
+        : 'Bullish Expansion | Strategy Confirmed';
       emoji = '🟢';
     } else {
-      headline = 'Bullish Setup Forming — Awaiting Confirmation';
+      headline = 'Bullish Setup Forming | Awaiting Confirmation';
       emoji = '🟢';
     }
   } else if (netBias < -25) {
     // 2026 FIX: Add context for bearish signals after extreme bullish moves
     if (isParabolicMove && priceChange24h > 40 && rsiHigh) {
-      headline = `Overbought Exhaustion After +${priceChange24h.toFixed(1)}% Rally — Pullback Risk Extreme`;
+      headline = `Overbought Exhaustion After +${priceChange24h.toFixed(1)}% Rally | Pullback Risk Extreme`;
       emoji = '🟡⚠️';
       // Add clarification to reasons
       reasons.unshift(`⚠️ CONTEXT: This is an EXHAUSTION warning, not institutional distribution. Price rallied ${priceChange24h.toFixed(1)}% in 24h and is deeply overbought.`);
     } else if (isExtremeMove && priceChange24h > 20 && rsiHigh) {
-      headline = `Overextended Rally — Correction Signals Building After +${priceChange24h.toFixed(1)}% Move`;
+      headline = `Overextended Rally | Correction Signals Building After +${priceChange24h.toFixed(1)}% Move`;
       emoji = '🟡⚠️';
     } else if (rsiLow && conviction < 90) {
-      headline = 'Deeply Oversold Condition — Reversal Potential Building';
+      headline = 'Deeply Oversold Condition | Reversal Potential Building';
       emoji = '🟡⚠️';
     } else if (conviction >= 80 && pillarCount >= 3) {
       headline = market === 'Metal'
-        ? 'Institutional Commodity Sell — Supply Zone Active'
-        : 'Institutional Sell Setup — High Confluence';
+        ? 'Institutional Commodity Sell | Supply Zone Active'
+        : 'Institutional Sell Setup | High Confluence';
       emoji = conviction >= 70 ? '🔴🔥' : '🔴';
     } else if (conviction >= 60) {
       headline = market === 'Metal'
-        ? 'Bearish Commodity Distribution — Exit Longs'
-        : 'Bearish Distribution — Exit Longs, Monitor Shorts';
+        ? 'Bearish Commodity Distribution | Exit Longs'
+        : 'Bearish Distribution | Exit Longs, Monitor Shorts';
       emoji = '🔴';
     } else {
-      headline = 'Bearish Pressure Building — Confirm Before Entry';
+      headline = 'Bearish Pressure Building | Confirm Before Entry';
       emoji = '🔴';
     }
   } else if (totalPoints > 40 || (pillarCount >= 2 && Math.abs(netBias) < 15)) {
-    headline = 'Indecision Zone — Conflicting Signals, Risk Off';
+    headline = 'Indecision Zone | Conflicting Signals, Risk Off';
     emoji = '🟡';
     if (reasons.length > 0 && !reasons.some(r => r.includes('HOLD'))) {
       reasons.push('⚖️ Conflicting signals detected — neutral stance recommended until price confirms direction');
     }
   } else {
-    headline = 'Market Equilibrium — No Edge, Stand Aside';
+    headline = 'Market Equilibrium | No Edge, Stand Aside';
     emoji = '⚪';
   }
 

@@ -419,7 +419,7 @@ export const DerivativesPanel = memo(function DerivativesPanel({
           {isConnected && (
             <div 
               onClick={handleToggleThreshold}
-              className="hidden sm:flex items-center bg-black/40 border border-white/10 rounded-lg p-0.5 cursor-pointer hover:border-white/20 transition-all shrink-0"
+              className="flex items-center bg-black/40 border border-white/10 rounded-lg p-0.5 cursor-pointer hover:border-white/20 transition-all shrink-0"
               title="Toggle Discovery Threshold ($5K vs $10K)"
             >
               <div className={cn(
@@ -433,16 +433,16 @@ export const DerivativesPanel = memo(function DerivativesPanel({
             </div>
           )}
 
-          {/* Market Pressure Gauge - Hidden on Mobile Header */}
+          {/* Market Pressure Gauge - Now visible on all screens */}
           {marketPressure && (
-            <div className="hidden sm:block">
+            <div className="block">
               <SmartMoneyGauge data={marketPressure} compact />
             </div>
           )}
 
-          {/* 5-min Liquidation Summary - Hidden on Mobile */}
+          {/* 5-min Liquidation Summary - Now visible on all screens */}
           {liqStats.totalValue > 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 text-[8px] font-mono shrink-0">
+            <div className="flex items-center gap-1.5 text-[8px] font-mono shrink-0">
               <span className="text-red-400">${Math.round(liqStats.longValue / 1000)}K 📉</span>
               <span className="text-slate-600">|</span>
               <span className="text-green-400">${Math.round(liqStats.shortValue / 1000)}K 📈</span>

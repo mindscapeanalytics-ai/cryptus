@@ -1539,6 +1539,10 @@ function buildEntry(
       bbWidth,
       bbWidthAvg: bbWidthAvgRolling, // ✅ Fixed: was always null
       volumeSpike,
+      priceChange24h: toNum(ticker.priceChangePercent, 0), // ✅ 2026 FIX: Pass 24h price change for extreme move detection
+      volumeRatio: volumeSpike && curCandleVol && avgVolume1m && avgVolume1m > 0 
+        ? curCandleVol / avgVolume1m 
+        : null, // ✅ 2026 FIX: Pass volume ratio for breakout vs trending distinction
     });
 
     const strategy = computeStrategyScore({

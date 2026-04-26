@@ -1277,7 +1277,7 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
-      <td className={cn("px-3 py-4 text-right hidden sm:table-cell", COL_WIDTHS.edit)}>
+      <td className={cn("px-3 py-4 text-right", COL_WIDTHS.edit)}>
         <button
           onClick={() => onOpenSettings(entry.symbol)}
           className="p-2 text-slate-700 hover:text-[#39FF14] hover:bg-[#39FF14]/10 rounded-lg transition-all active:scale-90"
@@ -1467,7 +1467,7 @@ function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
           <td className={cn("px-3 py-4", COL_WIDTHS.signal)}>
             <div className="skeleton h-5 w-20 bg-white/5 animate-pulse rounded-lg ml-auto" />
           </td>
-          <td className={cn("px-3 py-4 hidden sm:table-cell", COL_WIDTHS.edit)}>
+          <td className={cn("px-3 py-4", COL_WIDTHS.edit)}>
             <div className="skeleton h-4 w-4 bg-white/5 animate-pulse rounded ml-auto" />
           </td>
         </tr>
@@ -4781,7 +4781,7 @@ export default function ScreenerDashboard() {
           <div className="flex flex-col gap-2.5 lg:gap-3.5 relative z-10 w-full">
 
             {/* ROW 1: STRATEGIC IDENTITY & COMMAND SEARCH */}
-            <div className="hidden lg:flex items-center justify-between gap-4 h-10">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2 lg:gap-4 min-h-[40px] lg:h-10">
               <div className="flex items-center gap-4 bg-black/40 border border-white/5 rounded-2xl p-0.5 pl-3 pr-0.5 shadow-inner h-full shrink-0">
                 <Link href="/" className="flex items-center gap-3 group px-1">
                   <div className="relative w-28 h-7 transition-all group-hover:scale-105 active:scale-95">
@@ -4964,7 +4964,7 @@ export default function ScreenerDashboard() {
 
 
             {/* ROW 2: STRATEGIC PULSE & INTEL RIBBON */}
-            <div className="hidden lg:flex items-center gap-3 h-10 mb-1.5">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 lg:gap-3 min-h-[40px] lg:h-10 lg:mb-1.5">
               {/* Enhanced Asset Class Dropdown with Icons & Names */}
               <div className="relative shrink-0">
                 <button
@@ -5035,7 +5035,7 @@ export default function ScreenerDashboard() {
               <div className="flex-1 flex items-center bg-black/40 border border-white/5 rounded-2xl px-4 gap-6 h-full shadow-inner backdrop-blur-md">
                 {/* Liquidation Signal Heat */}
                 <div className="flex items-center gap-2 group cursor-help shrink-0" title="5-Minute Aggregated Liquidation Data">
-                  <Flame size={13} className="text-orange-500 animate-pulse" />
+                  <Flame size={13} className="text-amber-400" />
                   <div className="flex flex-col">
                     <span className="text-[6px] font-black text-slate-600 uppercase leading-none tracking-widest mb-0.5">Liq Flux</span>
                     <div className="flex items-center gap-2 text-[9px] font-mono font-black tabular-nums">
@@ -5113,7 +5113,7 @@ export default function ScreenerDashboard() {
             </div>
 
             {/* ROW 3: OPERATIONAL UTILITIES & DYNAMICS */}
-            <div className="hidden lg:flex items-center gap-3 h-9">
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 lg:gap-3 min-h-[36px] lg:h-9">
               {/* Institutional Action Cluster */}
               <div className="flex items-center bg-black/40 border border-white/5 rounded-xl p-0.5 h-full shadow-inner shrink-0">
                 <button onClick={() => setShowWatchlistOnly(!showWatchlistOnly)} className={cn("h-full px-3 rounded-xl flex items-center gap-2 transition-all group", showWatchlistOnly ? "bg-yellow-500/10 text-yellow-400" : "text-slate-500 hover:text-slate-300")}>
@@ -5271,7 +5271,7 @@ export default function ScreenerDashboard() {
               <div className="flex items-center gap-4 bg-black/20 border-t border-white/5 -mx-3 px-4 py-2 mt-0.5 overflow-x-auto no-scrollbar shadow-inner">
                 {/* Liq Flux */}
                 <div className="flex items-center gap-2 shrink-0 border-r border-white/5 pr-4">
-                  <Flame size={12} className="text-orange-500" />
+                  <Flame size={12} className="text-amber-400" />
                   <div className="flex flex-col">
                     <span className="text-[5px] font-black text-slate-600 uppercase tracking-widest leading-none">Liq Flux</span>
                     <div className="flex items-center gap-2 text-[8px] font-mono font-black tabular-nums leading-none mt-0.5">
@@ -5622,7 +5622,7 @@ export default function ScreenerDashboard() {
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
-                  <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 hidden sm:table-cell tracking-widest whitespace-nowrap", COL_WIDTHS.edit)}>Edit</th>
+                  <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-widest whitespace-nowrap", COL_WIDTHS.edit)}>Edit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
