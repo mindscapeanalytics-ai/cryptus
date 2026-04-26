@@ -27,14 +27,56 @@ import type {
 
 // ── Component Weights ────────────────────────────────────────────
 // 2026 FIX: Funding rate is the most predictive signal in crypto markets
-// Increased from 20% to 50% for crypto (where funding data is reliable)
+// Phase 1: Added CVD (10%) by reducing funding (45%) and orderFlow (5%)
 // This ensures extreme funding rates (like -8%) produce accurate Smart Money scores
 const WEIGHTS = {
-  funding: 0.50,        // 50% - PRIMARY signal (was 20%)
-  liquidation: 0.25,    // 25% - secondary (was 30%)
-  whale: 0.15,          // 15% - tertiary (was 25%)
-  orderFlow: 0.10,      // 10% - supplementary (was 25%)
+  funding: 0.45,        // 45% - PRIMARY signal (was 50%, reduced for CVD)
+  liquidation: 0.25,    // 25% - secondary
+  whale: 0.15,          // 15% - tertiary
+  orderFlow: 0.05,      // 5% - supplementary (was 10%, reduced for CVD)
+  cvd: 0.10,            // 10% - NEW Phase 1: Cumulative Volume Delta
 } as const;
+
+/**
+ * CVD Signal (-100 to +100)
+ * 
+ * Cumulative Volume Delta measures persistent buying/selling pressure.
+ * Positive CVD = Net accumulation (bullish)
+ * Negative CVD = Net distribution (bearish)
+ * 
+ * Scale:
+ *   ±$500K CVD = ±10 signal
+ *   ±$5M CVD = ±100 signal (clamped)
+ *   
+ * Divergence bonus:
+ *   Bullish divergence (CVD up, price down) = +20 bonus
+ *   Bearish divergence (CVD down, price up) = -20 bonus
+ */
+export function computeCVDSignal(
+  cvdData: Map<string, import('./derivatives-types').CVDData>,
+  symbol: string
+): number {
+  const data = cvdData.get(symbol);
+  if (!data) return 0;
+
+  // Use 4-hour CVD as the most reliable timeframe
+  const cvd4h = data.cvd4h;
+  
+  // Base signal: normalize to -100..+100 range
+  // $5M CVD = 100 signal
+  let signal = Math.min(100, Math.max(-100, (cvd4h / 5000000) * 100));
+  
+  // Divergence bonus: strong signal when CVD contradicts price
+  if (data.divergence === 'bullish') {
+    // Price down but CVD up = hidden accumulation
+    signal = Math.min(100, signal + 20);
+  } else if (data.divergence === 'bearish') {
+    // Price up but CVD down = hidden distribution
+    signal = Math.max(-100, signal - 20);
+  }
+  
+  return Math.round(signal);
+}
 
 // ── Signal Computation Functions ─────────────────────────────────
 
@@ -187,19 +229,22 @@ export function computeSmartMoneyPressure(
   fundingRates: Map<string, FundingRateData>,
   liquidations: LiquidationEvent[],
   whaleAlerts: WhaleTradeEvent[],
-  orderFlow: Map<string, OrderFlowData>
+  orderFlow: Map<string, OrderFlowData>,
+  cvdData?: Map<string, import('./derivatives-types').CVDData>
 ): SmartMoneyPressure {
   const fundingSignal = computeFundingSignal(fundingRates, symbol);
   const liquidationSignal = computeLiquidationSignal(liquidations, symbol);
   const whaleSignal = computeWhaleSignal(whaleAlerts, symbol);
   const orderFlowSignal = computeOrderFlowSignal(orderFlow, symbol);
+  const cvdSignal = cvdData ? computeCVDSignal(cvdData, symbol) : 0;
 
   // Weighted composite
   const score = Math.round(
     fundingSignal * WEIGHTS.funding +
     liquidationSignal * WEIGHTS.liquidation +
     whaleSignal * WEIGHTS.whale +
-    orderFlowSignal * WEIGHTS.orderFlow
+    orderFlowSignal * WEIGHTS.orderFlow +
+    cvdSignal * WEIGHTS.cvd
   );
 
   // Clamp to -100..+100
@@ -222,6 +267,7 @@ export function computeSmartMoneyPressure(
       liquidationImbalance: Math.round(liquidationSignal),
       whaleDirection: Math.round(whaleSignal),
       orderFlowPressure: Math.round(orderFlowSignal),
+      cvdSignal: Math.round(cvdSignal),
     },
     updatedAt: Date.now(),
   };
@@ -235,20 +281,22 @@ export function computeAllSmartMoney(
   fundingRates: Map<string, FundingRateData>,
   liquidations: LiquidationEvent[],
   whaleAlerts: WhaleTradeEvent[],
-  orderFlow: Map<string, OrderFlowData>
+  orderFlow: Map<string, OrderFlowData>,
+  cvdData?: Map<string, import('./derivatives-types').CVDData>
 ): Map<string, SmartMoneyPressure> {
   const result = new Map<string, SmartMoneyPressure>();
 
   for (const symbol of symbols) {
     const pressure = computeSmartMoneyPressure(
-      symbol, fundingRates, liquidations, whaleAlerts, orderFlow
+      symbol, fundingRates, liquidations, whaleAlerts, orderFlow, cvdData
     );
     // Only include if we have at least one data source
     if (
       pressure.components.fundingSignal !== 0 ||
       pressure.components.liquidationImbalance !== 0 ||
       pressure.components.whaleDirection !== 0 ||
-      pressure.components.orderFlowPressure !== 0
+      pressure.components.orderFlowPressure !== 0 ||
+      pressure.components.cvdSignal !== 0
     ) {
       result.set(symbol, pressure);
     }

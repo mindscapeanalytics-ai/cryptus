@@ -74,7 +74,68 @@ export interface SmartMoneyPressure {
     liquidationImbalance: number; // -100 to +100 (positive = shorts liquidated more)
     whaleDirection: number;       // -100 to +100
     orderFlowPressure: number;   // -100 to +100
+    cvdSignal?: number;          // -100 to +100 (Phase 1 addition)
   };
+  updatedAt: number;
+}
+
+// ── CVD (Cumulative Volume Delta) - Phase 1 ────────────────────
+
+export interface CVDData {
+  symbol: string;
+  cvd1h: number;              // Cumulative delta last 1 hour
+  cvd4h: number;              // Cumulative delta last 4 hours
+  cvd24h: number;             // Cumulative delta last 24 hours
+  cvdTrend: 'accumulation' | 'distribution' | 'neutral';
+  divergence: 'bullish' | 'bearish' | 'none';  // CVD vs price
+  strength: number;           // 0-100
+  updatedAt: number;
+}
+
+// ── Funding Rate Historical Context - Phase 1 ──────────────────
+
+export interface FundingRateHistory {
+  symbol: string;
+  current: number;
+  avg1h: number;
+  avg4h: number;
+  avg24h: number;
+  percentile: number;      // 0-100 (where current rate sits historically)
+  trend: 'increasing' | 'decreasing' | 'stable';
+  extremeLevel: 'normal' | 'elevated' | 'extreme';
+  divergence: 'bullish' | 'bearish' | 'none';  // vs price
+  momentum: number;        // Rate of change
+  reversal: boolean;       // True if trend reversing
+  updatedAt: number;
+}
+
+// ── Open Interest Analysis - Phase 1 ───────────────────────────
+
+export interface OpenInterestAnalysis {
+  symbol: string;
+  value: number;
+  change1h: number;
+  change4h: number;
+  change24h: number;
+  changeRate: 'accelerating' | 'steady' | 'decelerating';
+  oiVolumeRatio: number;   // OI / 24h volume
+  riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  divergence: 'bullish' | 'bearish' | 'none';
+  liquidationRisk: number; // 0-100 score
+  updatedAt: number;
+}
+
+// ── Liquidation Cascade Risk - Phase 1 ─────────────────────────
+
+export interface LiquidationCascadeRisk {
+  symbol: string;
+  riskScore: number;          // 0-100
+  triggerPrice: number;       // Price that triggers cascade
+  estimatedCascadeValue: number; // USD value of potential cascade
+  affectedLevels: number[];   // Price levels in cascade path
+  timeToTrigger: number;      // Estimated seconds
+  severity: 'low' | 'medium' | 'high' | 'extreme';
+  direction: 'long' | 'short';
   updatedAt: number;
 }
 
@@ -87,6 +148,11 @@ export interface DerivativesState {
   orderFlow: Map<string, OrderFlowData>;
   openInterest: Map<string, OpenInterestData>;
   smartMoney: Map<string, SmartMoneyPressure>;
+  // Phase 1 additions
+  cvd: Map<string, CVDData>;
+  fundingHistory: Map<string, FundingRateHistory>;
+  oiAnalysis: Map<string, OpenInterestAnalysis>;
+  cascadeRisk: Map<string, LiquidationCascadeRisk>;
   isConnected: boolean;
   lastUpdate: number;
 }
@@ -101,4 +167,9 @@ export type DerivativesWorkerMessage =
   | { type: 'LIQUIDATION'; payload: LiquidationEvent }
   | { type: 'WHALE_TRADE'; payload: WhaleTradeEvent }
   | { type: 'ORDER_FLOW_UPDATE'; payload: [string, OrderFlowData][] }
-  | { type: 'OI_UPDATE'; payload: [string, OpenInterestData][] };
+  | { type: 'OI_UPDATE'; payload: [string, OpenInterestData][] }
+  // Phase 1 message types
+  | { type: 'CVD_UPDATE'; payload: [string, CVDData][] }
+  | { type: 'FUNDING_HISTORY_UPDATE'; payload: [string, FundingRateHistory][] }
+  | { type: 'OI_ANALYSIS_UPDATE'; payload: [string, OpenInterestAnalysis][] }
+  | { type: 'CASCADE_RISK_UPDATE'; payload: [string, LiquidationCascadeRisk][] };

@@ -91,7 +91,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
     }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────
+  // Helpers
 
   const getConvictionColor = (conviction: number) => {
     if (conviction >= 88) return 'text-[#39FF14] shadow-[0_0_10px_rgba(57,255,20,0.3)]';
@@ -123,7 +123,7 @@ Powered by Mindscape Analytics Signal Narration Engine™
     return 'CONSOLIDATION';
   };
 
-  // ── Render ────────────────────────────────────────────────────
+  // Render
 
   return (
     <AnimatePresence>

@@ -7785,7 +7785,7 @@ function GlobalSettingsModal({
                 setGlobalVolumeSpikeThreshold(2.5);
 
                 // Reset performance
-                setRefreshInterval(3000);
+                setRefreshInterval(30000); // 30 seconds (30000ms)
                 setPairCount(100);
 
                 // Reset columns to optimal institutional trading set

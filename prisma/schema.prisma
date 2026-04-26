@@ -51,6 +51,7 @@ model UserPreference {
   
   // UI & Indicator Settings
   globalSignalThresholdMode    String   @default("default") // 'default' | 'custom'
+  globalShowSignalTags         Boolean  @default(true)
   globalUseRsi                 Boolean  @default(true)
   globalUseMacd                Boolean  @default(true)
   globalUseBb                  Boolean  @default(true)
@@ -60,9 +61,13 @@ model UserPreference {
   globalUseConfluence          Boolean  @default(true)
   globalUseDivergence          Boolean  @default(true)
   globalUseMomentum            Boolean  @default(true)
+  globalUseObv                 Boolean  @default(true)
+  globalUseWilliamsR           Boolean  @default(true)
+  globalUseCci                 Boolean  @default(true)
   
   // Dashboard State
-  visibleColumns               String[] @default(["rsi15m", "strategy"])
+  tradingStyle                 String   @default("intraday") // 'scalping' | 'intraday' | 'swing' | 'position'
+  visibleColumns               String[] @default(["rank", "winRate", "rsi15m", "emaCross", "macdHistogram", "stochK", "vwapDiff", "confluence", "divergence", "momentum", "adx", "longCandle", "volumeSpike", "fundingRate", "orderFlow", "smartMoney", "strategy"])
   refreshInterval              Int      @default(30)
   pairCount                    Int      @default(100)
   smartMode                    Boolean  @default(true)
@@ -255,8 +260,8 @@ model FeatureFlag {
   id                           String   @id @default("global")
   maxTrialRecords              Int      @default(100)
   maxSubscribedRecords         Int      @default(500)
-  allowTrialAlerts             Boolean  @default(false)
-  allowTrialAdvancedIndicators Boolean  @default(false)
+  allowTrialAlerts             Boolean  @default(true)
+  allowTrialAdvancedIndicators Boolean  @default(true)
   allowTrialCustomSettings     Boolean  @default(false)
   createdAt                    DateTime @default(now())
   updatedAt                    DateTime @updatedAt

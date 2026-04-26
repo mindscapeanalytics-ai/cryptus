@@ -10,6 +10,7 @@ export interface UserPreferences {
   globalLongCandleThreshold: number;
   globalVolumeSpikeThreshold: number;
   globalSignalThresholdMode: string;
+  globalShowSignalTags: boolean;
   globalUseRsi: boolean;
   globalUseMacd: boolean;
   globalUseBb: boolean;
@@ -19,6 +20,10 @@ export interface UserPreferences {
   globalUseConfluence: boolean;
   globalUseDivergence: boolean;
   globalUseMomentum: boolean;
+  globalUseObv: boolean;
+  globalUseWilliamsR: boolean;
+  globalUseCci: boolean;
+  tradingStyle: 'scalping' | 'intraday' | 'swing' | 'position';
   visibleColumns: string[];
   refreshInterval: number;
   pairCount: number;

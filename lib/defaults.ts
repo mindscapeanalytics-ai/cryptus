@@ -57,8 +57,28 @@ export const DASHBOARD_DEFAULTS = {
   showHeader: true,
   /** Enable sound alerts by default */
   soundEnabled: true,
-  /** Default visible columns */
-  visibleColumns: ['rsi15m', 'strategy'] as readonly string[],
+  /** Default visible columns - institutional-grade trading set */
+  visibleColumns: [
+    'rank',           // Asset ranking
+    'winRate',        // Historical win rate
+    'rsi15m',         // Primary RSI timeframe
+    'emaCross',       // Trend direction
+    'macdHistogram',  // Momentum
+    'stochK',         // Stochastic RSI
+    'vwapDiff',       // Volume-weighted price
+    'confluence',     // Multi-indicator agreement
+    'divergence',     // Divergence/reversal signals
+    'momentum',       // Price momentum
+    'adx',            // Trend strength
+    'longCandle',     // Volatility detection
+    'volumeSpike',    // Volume surge detection
+    'fundingRate',    // Derivatives funding
+    'orderFlow',      // Order flow pressure
+    'smartMoney',     // Smart money score
+    'strategy',       // Strategy signal
+  ] as readonly string[],
+  /** Default trading style */
+  tradingStyle: 'intraday' as const,
 } as const;
 
 // ── Alert Defaults ──────────────────────────────────────────────

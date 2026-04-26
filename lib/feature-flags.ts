@@ -11,7 +11,7 @@ export interface FeatureFlags {
 const DEFAULT_FLAGS: FeatureFlags = {
   maxTrialRecords: 100,
   maxSubscribedRecords: 500,
-  allowTrialAlerts: false,
+  allowTrialAlerts: true, // Enable alerts for trial users to test full platform
   allowTrialAdvancedIndicators: true, // Requirement 1.2: Enable by default for trial users
   allowTrialCustomSettings: false,
 };
