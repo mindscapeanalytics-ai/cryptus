@@ -328,19 +328,24 @@ function PlanCard(props: {
         ))}
       </ul>
 
-      <button
-        onClick={props.onClick}
-        disabled={props.disabled}
-        className={`mt-8 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-[#39FF14] text-black hover:bg-[#30de10]" : "bg-white text-black hover:bg-slate-200"} disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-      >
-        {props.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {props.buttonText}
-      </button>
+      <div className="relative">
+        <button
+          onClick={props.onClick}
+          disabled={true}
+          className={`mt-8 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-white/10 text-slate-500" : "bg-white/5 text-slate-500"} cursor-not-allowed flex items-center justify-center gap-2`}
+        >
+          {props.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {props.buttonText}
+        </button>
+        <div className="absolute top-[32px] right-2 bg-amber-400 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
+          Coming Soon
+        </div>
+      </div>
 
       <button
         onClick={props.onCryptoClick}
         disabled={props.disabled}
-        className="mt-3 w-full rounded-xl border border-white/10 bg-white/5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-white/10 transition disabled:opacity-50 flex items-center justify-center gap-2"
+        className={`mt-3 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-[#39FF14] text-black hover:bg-[#30de10]" : "bg-white text-black hover:bg-slate-200"} disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(57,255,20,0.15)]`}
       >
         {props.loadingCrypto ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         Pay with Crypto (USDT, SOL, USDC)

@@ -91,7 +91,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
   }
 
   if (!user) {
-    const maxRecords = Math.min(flags.maxTrialRecords, 100);
+    const maxRecords = Math.max(flags.maxTrialRecords, 100);
     const entitlements: ResolvedEntitlements = {
       tier: "anonymous",
       isOwner: false,
@@ -105,7 +105,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
         enableCustomSettings: false,
       },
       coins: 0,
-      maxSymbols: 10, // Minimal for anonymous
+      maxSymbols: 25, // Minimal for anonymous
       flags,
     };
     return entitlements;
@@ -205,11 +205,11 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
   const tier: EntitlementTier = hasPaidAccess ? "subscribed" : isTrialing ? "trial" : "free";
   
   // Apply user-specific overrides for maxRecords
+  // FIX: Ensure a minimum of 100 records for ANY registered user (Trial or Free)
+  // to avoid broken "zero-data" terminal experiences.
   const baseMaxRecords = hasPaidAccess
     ? Math.max(flags.maxSubscribedRecords, 500)
-    : isTrialing 
-      ? Math.min(flags.maxTrialRecords, 100)
-      : 0; // Hard cut-off for expired trials to guarantee upgrade conversion
+    : Math.max(flags.maxTrialRecords, 100); 
 
   const maxRecords = userFlags.maxRecords !== undefined 
     ? Number(userFlags.maxRecords) 
