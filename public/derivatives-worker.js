@@ -188,16 +188,37 @@ function updateCascadeRisk(symbol, price, liqEvent) {
 /** Options Intelligence - Put/Call Sentiment */
 function updateOptionsIntel(symbol, price) {
   const funding = fundingBuffer.get(symbol);
-  // PCR < 0.7 is Bullish, PCR > 1.2 is Bearish
-  // We use funding rate as a proxy for options sentiment when live feed is unavailable
-  const pcr = funding ? (funding.rate > 0 ? 0.75 + Math.random() * 0.5 : 0.6 + Math.random() * 0.4) : 0.9;
+  
+  let pcr = 0.9; // Neutral default
+  let iv = 50;   // Neutral default
+  let oi = 0;
+
+  // Since true Options PCR/IV requires complex backend aggregation across thousands of strike prices,
+  // we use a deterministic mathematical proxy based on the Perpetual Funding Rate to gauge institutional sentiment.
+  if (funding) {
+    const rate = funding.rate;
+    // Positive funding = retail long greed = Smart Money selling calls/buying puts = PCR decreases (more calls bought by retail)
+    // Negative funding = retail short fear = Smart Money selling puts/buying calls = PCR increases (more puts bought by retail)
+    if (rate > 0.0005) pcr = 0.65; // Extreme Greed (Bullish)
+    else if (rate > 0.0001) pcr = 0.75; // Greed
+    else if (rate < -0.0005) pcr = 1.25; // Extreme Fear (Bearish)
+    else if (rate < -0.0001) pcr = 1.1; // Fear
+    else pcr = 0.9 - (rate * 1000); // Linear interpolation for neutral ranges
+
+    // Implied Volatility scales with the extremity of the funding rate
+    iv = 40 + Math.min(60, Math.abs(rate) * 50000);
+    
+    // Estimate options open interest as a fraction of perpetual open interest
+    const perpOi = oiBuffer.get(symbol);
+    if (perpOi) oi = perpOi.value * 0.15; // Rough heuristic
+  }
 
   optionsIntelBuffer.set(symbol, {
     symbol,
     putCallRatio: Math.round(pcr * 100) / 100,
-    impliedVolatility: 45 + Math.random() * 10,
-    maxPainPrice: price,
-    openInterest: 5000000,
+    impliedVolatility: Math.round(iv),
+    maxPainPrice: price, // Approximating Max Pain near current spot price
+    openInterest: oi,
     sentiment: pcr < 0.8 ? 'bullish' : pcr > 1.1 ? 'bearish' : 'neutral',
     updatedAt: Date.now()
   });
@@ -563,8 +584,8 @@ function connectBinanceLiquidationStream() {
 }
 
 // ── Stream 3: Binance aggTrade (Whale Detection + Order Flow) ────
-// FREE: wss://stream.binance.com:9443/stream?streams=btcusdt@aggTrade/ethusdt@aggTrade/...
-// We use combined stream to monitor top 20 symbols in a single connection
+// FREE: wss://fstream.binance.com/stream?streams=btcusdt@aggTrade/ethusdt@aggTrade/...
+// We use combined stream to monitor top symbols in a single connection
 
 function connectWhaleStream() {
   // Close existing
@@ -581,7 +602,9 @@ function connectWhaleStream() {
       ...Array.from(currentSymbols).map(s => s.toLowerCase())
     ]);
     const streams = Array.from(activeSet).slice(0, 100).map(s => `${s}@aggTrade`).join('/');
-    const url = `wss://stream.binance.com/stream?streams=${streams}`;
+    
+    // CRITICAL: Use fstream.binance.com for FUTURES market order flow, not Spot
+    const url = `wss://fstream.binance.com/stream?streams=${streams}`;
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
