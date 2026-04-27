@@ -223,10 +223,14 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   }
 
   // ── 6. RSI Divergence (Relevance-Gated) ──
-  // We use the 15m RSI (or 1m fallback) to check if the divergence is still relevant.
+  // We use the live RSI (15m or 1m fallback) to check if the divergence is still relevant.
   // 2026 FIX: Remove fallback to 50 - require actual RSI data for validation
+  // Use rsiDivergenceCustom if available (matches the user's custom RSI period)
+  const activeDivergence = entry.rsiDivergenceCustom && entry.rsiDivergenceCustom !== 'none'
+    ? entry.rsiDivergenceCustom
+    : entry.rsiDivergence;
   const currentRsi = entry.rsi15m ?? entry.rsi1m;
-  if (entry.rsiDivergence === 'bullish') {
+  if (activeDivergence === 'bullish') {
     if (currentRsi !== null && currentRsi !== undefined) {
       if (currentRsi < 65) {
         reasons.push('🔄 Bullish RSI divergence detected - price making lower lows but RSI making higher lows');
@@ -237,10 +241,9 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
         reasons.push('⌛ Bullish divergence detected but likely played out (RSI already overextended)');
       }
     } else {
-      // No RSI data available - cannot validate divergence relevance, skip scoring
       reasons.push('⚠️ Bullish divergence detected but RSI data unavailable for validation');
     }
-  } else if (entry.rsiDivergence === 'bearish') {
+  } else if (activeDivergence === 'bearish') {
     if (currentRsi !== null && currentRsi !== undefined) {
       if (currentRsi > 35) {
         reasons.push('🔄 Bearish RSI divergence detected - price making higher highs but RSI making lower highs');
@@ -251,7 +254,6 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
         reasons.push('⌛ Bearish divergence detected but likely played out (RSI already oversold)');
       }
     } else {
-      // No RSI data available - cannot validate divergence relevance, skip scoring
       reasons.push('⚠️ Bearish divergence detected but RSI data unavailable for validation');
     }
   }
@@ -353,7 +355,7 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   // ── 11.5 Smart Money Score (Institutional Flow) ──
   // Derivatives data: funding rate, liquidations, whale trades, order flow.
   // Only narrated when signal is strong enough to be actionable (|score| >= 30).
-  const sms = (entry as any).smartMoneyScore as number | null | undefined;
+  const sms = entry.smartMoneyScore ?? null;
   if (sms != null && Math.abs(sms) >= 30) {
     const smsBullish = sms > 0;
     if (smsBullish) {

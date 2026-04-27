@@ -119,6 +119,26 @@ export interface ScreenerEntry {
     level618: number;
     level786: number;
   } | null;
+  // ── Derivatives / Smart Money (injected at display layer) ──
+  /** Smart Money Pressure Index score (-100 to +100). Injected from useDerivativesIntel. */
+  smartMoneyScore?: number | null;
+  // ── 2026 Intelligence: SUPER_SIGNAL (Institutional-Grade Composite Signal) ──
+  /** SUPER_SIGNAL: Composite institutional-grade signal fusing regime, liquidity, entropy, cross-asset, and risk analysis. */
+  superSignal?: {
+    value: number;                    // 0-100 composite score
+    category: 'Strong Buy' | 'Buy' | 'Neutral' | 'Sell' | 'Strong Sell';
+    components: {
+      regime: { score: number; confidence?: number; error?: string };
+      liquidity: { score: number; confidence?: number; error?: string };
+      entropy: { score: number; confidence?: number; error?: string };
+      crossAsset: { score: number; confidence?: number; error?: string };
+      risk: { score: number; confidence?: number; error?: string };
+    };
+    algorithmVersion: string;
+    computeTimeMs: number;
+    timestamp: number;
+    inputHash?: string;
+  } | null;
 }
 
 export interface ScreenerResponse {
@@ -129,12 +149,18 @@ export interface ScreenerResponse {
     indicatorCoveragePct: number;
     oversold: number;
     overbought: number;
-    // ── New: strategy breakdown ──
+    // ── Strategy breakdown ──
     strongBuy: number;
     buy: number;
     neutral: number;
     sell: number;
     strongSell: number;
+    // ── SUPER_SIGNAL breakdown ──
+    strongBuySuper?: number;
+    buySuper?: number;
+    neutralSuper?: number;
+    sellSuper?: number;
+    strongSellSuper?: number;
     computeTimeMs: number;
     fetchedAt: number;
     smartMode: boolean;

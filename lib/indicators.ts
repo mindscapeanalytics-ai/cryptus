@@ -550,7 +550,6 @@ export function calculateConfluence(params: {
   if (is15mBearish && is1hBearish && raw < 0) raw *= 1.15;
 
   const score = Math.round(Math.max(-100, Math.min(100, raw)));
-
   let label: string;
   if (score >= 60) label = 'Strong Bullish';
   else if (score >= 25) label = 'Bullish';

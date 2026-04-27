@@ -374,6 +374,14 @@ function buildMeta(
   const indicatorReady = entries.filter((e) => e.rsi1m !== null || e.rsi5m !== null || e.rsi15m !== null || e.macdHistogram !== null).length;
   const indicatorCoveragePct = entries.length > 0 ? Math.round((indicatorReady / entries.length) * 100) : 0;
 
+  // SUPER_SIGNAL counts
+  const entriesWithSuper = entries.filter((e) => e.superSignal !== null && e.superSignal !== undefined);
+  const strongBuySuper = entriesWithSuper.filter((e) => e.superSignal?.category === 'Strong Buy').length;
+  const buySuper = entriesWithSuper.filter((e) => e.superSignal?.category === 'Buy').length;
+  const neutralSuper = entriesWithSuper.filter((e) => e.superSignal?.category === 'Neutral').length;
+  const sellSuper = entriesWithSuper.filter((e) => e.superSignal?.category === 'Sell').length;
+  const strongSellSuper = entriesWithSuper.filter((e) => e.superSignal?.category === 'Strong Sell').length;
+
   return {
     total: entries.length,
     indicatorReady,
@@ -386,6 +394,11 @@ function buildMeta(
     neutral: indicatorEntries.filter((e) => e.strategySignal === 'neutral').length,
     sell: indicatorEntries.filter((e) => e.strategySignal === 'sell').length,
     strongSell: indicatorEntries.filter((e) => e.strategySignal === 'strong-sell').length,
+    strongBuySuper,
+    buySuper,
+    neutralSuper,
+    sellSuper,
+    strongSellSuper,
     computeTimeMs,
     fetchedAt,
     smartMode,
@@ -2021,6 +2034,20 @@ function runRefresh(
           );
           if (entry) {
             debugLog(`[screener] ${sym}: Successfully built entry with indicators - rsi1m=${entry.rsi1m}, rsi5m=${entry.rsi5m}, rsi15m=${entry.rsi15m}, rsi1h=${entry.rsi1h}`);
+            
+            // ── 2026 Intelligence: SUPER_SIGNAL Integration ──
+            // Compute institutional-grade composite signal (non-blocking, fail-safe)
+            try {
+              const { computeSuperSignal } = await import('./super-signal');
+              const superSignal = await computeSuperSignal(entry);
+              if (superSignal) {
+                entry.superSignal = superSignal;
+              }
+            } catch (error) {
+              // Fail-safe: SUPER_SIGNAL computation errors don't break existing functionality
+              console.error(`[super-signal] Error computing SUPER_SIGNAL for ${sym}:`, error);
+            }
+            
             entries.push(entry);
             const cacheObj = { entry: entry, ts: nowTs };
             indicatorCache.set(getCacheKey(sym), cacheObj);

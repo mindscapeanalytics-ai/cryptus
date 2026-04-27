@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react';
 import Link from 'next/link';
@@ -49,7 +49,7 @@ import { notificationEngine } from '@/lib/notification-engine';
 import { getMarketType } from '@/lib/market-utils';
 import { getGlobalWinRate, recordSignal, evaluateOutcomes } from '@/lib/signal-tracker';
 
-// ─── Formatting helpers ────────────────────────────────────────
+// â”€â”€â”€ Formatting helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function formatPrice(p: number, market?: string): string {
   if (market === 'Forex') {
@@ -140,7 +140,7 @@ function getScoreBarColor(score: number): string {
 
 
 
-// ─── Tactical Grid Constants ─────────────────────────────────────
+// â”€â”€â”€ Tactical Grid Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const COL_WIDTHS = {
   rank: "w-[44px] min-w-[44px]",
@@ -169,7 +169,7 @@ const COL_WIDTHS = {
   winRate: "w-[90px] min-w-[90px]",   // Win Rate column
 };
 
-// ─── Atomic Components ──────────────────────────────────────────
+// â”€â”€â”€ Atomic Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SortHeader = memo(function SortHeader({
   label, sortKey, currentKey, currentDir, onSort, align = 'right', widthClass, stickyOffset
@@ -322,8 +322,8 @@ const PriceCell = memo(function PriceCell({
       )}
     >
       <div className="flex items-center justify-end gap-1">
-        {flashDir === 'up' && <span className="text-[#39FF14] text-[9px] leading-none">▲</span>}
-        {flashDir === 'down' && <span className="text-[#FF4B5C] text-[9px] leading-none">▼</span>}
+        {flashDir === 'up' && <span className="text-[#39FF14] text-[9px] leading-none">â–²</span>}
+        {flashDir === 'down' && <span className="text-[#FF4B5C] text-[9px] leading-none">â–¼</span>}
         <span className={cn(dirColor, "transition-colors duration-150")}>
           ${formatPrice(price, market)}
         </span>
@@ -367,7 +367,7 @@ function SignalBadge({ signal }: { signal: ScreenerEntry['signal'] }) {
       "rounded-lg border transition-colors duration-200",
       style.bg, style.text, style.border,
     )}>
-      {/* Pulsing dot instead of pulsing the whole badge – no layout shift */}
+      {/* Pulsing dot instead of pulsing the whole badge â€“ no layout shift */}
       <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", style.dot, isActive && "animate-pulse")} />
       <span>{style.label}</span>
     </span>
@@ -380,51 +380,51 @@ function StrategyBadge({ signal, label, reasons, entry, onViewNarration }: { sig
       bg: 'bg-[#39FF14]/25',
       text: 'text-[#39FF14]',
       border: 'border-[#39FF14]/50',
-      icon: '🚀'
+      icon: 'ðŸš€'
     },
     'buy': {
       bg: 'bg-[#39FF14]/15',
       text: 'text-[#39FF14]/90',
       border: 'border-[#39FF14]/30',
-      icon: '📈'
+      icon: 'ðŸ“ˆ'
     },
     'neutral': {
       bg: 'bg-slate-700/20',
       text: 'text-slate-400',
       border: 'border-slate-600/30',
-      icon: '➖'
+      icon: 'âž–'
     },
     'sell': {
       bg: 'bg-[#FF4B5C]/15',
       text: 'text-[#FF4B5C]/90',
       border: 'border-[#FF4B5C]/30',
-      icon: '📉'
+      icon: 'ðŸ“‰'
     },
     'strong-sell': {
       bg: 'bg-[#FF4B5C]/25',
       text: 'text-[#FF4B5C]',
       border: 'border-[#FF4B5C]/50',
-      icon: '⚠️'
+      icon: 'âš ï¸'
     },
   };
 
   const style = config[signal] || config.neutral;
 
-  // Signal Narration Engine™ - generate rich explanations for non-neutral signals
+  // Signal Narration Engineâ„¢ - generate rich explanations for non-neutral signals
   const narration = useMemo(() => {
     if (!entry || signal === 'neutral') return null;
     return generateSignalNarration(entry);
   }, [entry, signal]);
 
   const title = narration
-    ? `${narration.emoji} ${narration.headline} (${narration.conviction}% ${narration.convictionLabel})\n\nTechnical Signals:\n${narration.reasons.map(r => `• ${r}`).join('\n')}\n\n📋 Click to copy institutional brief`
-    : reasons?.length ? `Strategic Alignment:\n${reasons.map(r => `• ${r}`).join('\n')}` : undefined;
+    ? `${narration.emoji} ${narration.headline} (${narration.conviction}% ${narration.convictionLabel})\n\nTechnical Signals:\n${narration.reasons.map(r => `â€¢ ${r}`).join('\n')}\n\nðŸ“‹ Click to copy institutional brief`
+    : reasons?.length ? `Strategic Alignment:\n${reasons.map(r => `â€¢ ${r}`).join('\n')}` : undefined;
 
   // Signal Sharing - copy narration shareLine to clipboard for viral growth
   const handleCopySignal = useCallback(() => {
     if (!narration || !entry) return;
     const symbolUrl = `https://rsiq.mindscapeanalytics.com/symbol/${entry.symbol.toLowerCase()}`;
-    const text = `📊 RSIQ PRO | ${narration.emoji} ${narration.headline}\n\n${narration.reasons.join('\n')}\n\nConviction: ${narration.conviction}% (${narration.convictionLabel})\nView Data: ${symbolUrl}`;
+    const text = `ðŸ“Š RSIQ PRO | ${narration.emoji} ${narration.headline}\n\n${narration.reasons.join('\n')}\n\nConviction: ${narration.conviction}% (${narration.convictionLabel})\nView Data: ${symbolUrl}`;
     navigator.clipboard.writeText(text).then(() => {
       toast.success('Strategy Brief copied!', { duration: 2000 });
     }).catch(() => {
@@ -465,6 +465,70 @@ function StrategyBadge({ signal, label, reasons, entry, onViewNarration }: { sig
 }
 
 
+function SuperSignalBadge({ superSignal }: { superSignal: ScreenerEntry['superSignal'] }) {
+  if (!superSignal) {
+    return (
+      <span className="inline-flex items-center justify-center px-1.5 py-1 w-full max-w-[105px] text-[9px] font-black uppercase tracking-tight leading-none whitespace-nowrap overflow-hidden rounded-lg border bg-slate-700/20 text-slate-600 border-slate-600/30">
+        <span className="text-[9px] shrink-0">â³</span>
+        <span className="truncate ml-1">Loading</span>
+      </span>
+    );
+  }
+
+  const config: Record<string, { bg: string; text: string; border: string; icon: string }> = {
+    'Strong Buy': {
+      bg: 'bg-[#39FF14]/30',
+      text: 'text-[#39FF14]',
+      border: 'border-[#39FF14]/60',
+      icon: 'âš¡'
+    },
+    'Buy': {
+      bg: 'bg-[#39FF14]/20',
+      text: 'text-[#39FF14]/90',
+      border: 'border-[#39FF14]/40',
+      icon: 'â†—ï¸'
+    },
+    'Neutral': {
+      bg: 'bg-slate-700/20',
+      text: 'text-slate-400',
+      border: 'border-slate-600/30',
+      icon: 'âž–'
+    },
+    'Sell': {
+      bg: 'bg-[#FF4B5C]/20',
+      text: 'text-[#FF4B5C]/90',
+      border: 'border-[#FF4B5C]/40',
+      icon: 'â†˜ï¸'
+    },
+    'Strong Sell': {
+      bg: 'bg-[#FF4B5C]/30',
+      text: 'text-[#FF4B5C]',
+      border: 'border-[#FF4B5C]/60',
+      icon: 'âš ï¸'
+    },
+  };
+
+  const style = config[superSignal.category] || config.Neutral;
+
+  const title = `SUPER SIGNAL: ${superSignal.category} (${superSignal.value}/100)\n\nComponent Scores:\nâ€¢ Regime: ${superSignal.components.regime.score.toFixed(1)}\nâ€¢ Liquidity: ${superSignal.components.liquidity.score.toFixed(1)}\nâ€¢ Entropy: ${superSignal.components.entropy.score.toFixed(1)}\nâ€¢ Cross-Asset: ${superSignal.components.crossAsset.score.toFixed(1)}\nâ€¢ Risk: ${superSignal.components.risk.score.toFixed(1)}\n\nAlgorithm: ${superSignal.algorithmVersion}`;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 px-1.5 py-1 w-full max-w-[105px]",
+        "text-[9px] font-black uppercase tracking-tight leading-none whitespace-nowrap overflow-hidden transition-all duration-200",
+        "rounded-lg border cursor-help",
+        style.bg, style.text, style.border
+      )}
+      title={title}
+    >
+      <span className="text-[9px] shrink-0">{style.icon}</span>
+      <span className="truncate">{superSignal.value}</span>
+    </span>
+  );
+}
+
+
 function MarketBadge({ market }: { market: ScreenerEntry['market'] }) {
   if (!market || market === 'Crypto') return null;
   const styles: Record<string, string> = {
@@ -480,7 +544,7 @@ function MarketBadge({ market }: { market: ScreenerEntry['market'] }) {
   );
 }
 
-// ─── Live Status Indicator (PWA Performance Monitor) ──────────────
+// â”€â”€â”€ Live Status Indicator (PWA Performance Monitor) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LiveStatusIndicator = memo(function LiveStatusIndicator({
   lastUpdate,
   isConnected
@@ -557,7 +621,7 @@ const LiveStatusIndicator = memo(function LiveStatusIndicator({
 });
 
 
-// ─── Screener Row (Memoized) ───────────────────────────────────
+// â”€â”€â”€ Screener Row (Memoized) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const ScreenerRow = memo(function ScreenerRow({
   entry,
@@ -660,7 +724,7 @@ const ScreenerRow = memo(function ScreenerRow({
     };
   }, [entry.symbol, reportVisibility]);
 
-  // ─── Atomic Real-Time State (Viewport Aware) ───
+  // â”€â”€â”€ Atomic Real-Time State (Viewport Aware) â”€â”€â”€
   const tick = useSymbolPrice(entry.symbol, entry.price, isVisible);
 
   const liveState = useMemo(() => {
@@ -724,22 +788,24 @@ const ScreenerRow = memo(function ScreenerRow({
       tradingStyle,
       macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       bbPosition,
-      stochK: entry.stochK,
-      stochD: entry.stochD,
+      stochK: tick.stochK ?? entry.stochK,
+      stochD: tick.stochD ?? entry.stochD,
       emaCross,
-      vwapDiff: entry.vwapDiff,
+      vwapDiff: tick.vwapDiff ?? entry.vwapDiff,
       volumeSpike: liveVolumeSpike || entry.volumeSpike,
       price: tick.price,
-      confluence: entry.confluence,
-      rsiDivergence: entry.rsiDivergence,
-      momentum: entry.momentum,
-      adx: entry.adx,
-      atr: entry.atr,
+      confluence: tick.confluence ?? entry.confluence,
+      rsiDivergence: tick.rsiDivergence ?? entry.rsiDivergence,
+      momentum: tick.momentum ?? entry.momentum,
+      adx: tick.adx ?? entry.adx,
+      atr: tick.atr ?? entry.atr,
+      cci: entry.cci ?? null,
       obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       smartMoneyScore: smartMoneyScore?.score ?? undefined,
       hiddenDivergence: entry.hiddenDivergence,
       regime: entry.regime?.regime,
+      market: entry.market,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,
@@ -768,7 +834,7 @@ const ScreenerRow = memo(function ScreenerRow({
       ema21: tick.ema21 ?? ema21,
       emaCross: (tick.emaCross as any) ?? emaCross,
       bbPosition: tick.bbPosition ?? bbPosition,
-      signal,
+      signal: globalShowSignalTags ? signal : 'neutral',
       rsiDivergence: tick.rsiDivergence ?? entry.rsiDivergence,
       macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       confluence: tick.confluence ?? entry.confluence,
@@ -778,8 +844,10 @@ const ScreenerRow = memo(function ScreenerRow({
       momentum: tick.momentum ?? entry.momentum,
       atr: tick.atr ?? entry.atr,
       adx: tick.adx ?? entry.adx,
+      cci: entry.cci ?? null,
       vwapDiff: tick.vwapDiff ?? entry.vwapDiff,
       volumeSpike: (tick.volumeSpike ?? liveVolumeSpike) || entry.volumeSpike,
+      longCandle: entry.longCandle,
       stochK: tick.stochK ?? entry.stochK,
       stochD: tick.stochD ?? entry.stochD,
       bbUpper: tick.bbUpper ?? entry.bbUpper,
@@ -791,9 +859,9 @@ const ScreenerRow = memo(function ScreenerRow({
       strategyScore: tick.strategyScore ?? liveStrategy.score,
       strategySignal: (tick.strategySignal as any) ?? liveStrategy.signal,
       strategyLabel: tick.strategyScore !== undefined
-        ? (tick.strategyScore >= 55 ? 'Strong Buy'
+        ? (tick.strategyScore >= 60 ? 'Strong Buy'
           : tick.strategyScore >= 25 ? 'Buy'
-            : tick.strategyScore <= -55 ? 'Strong Sell'
+            : tick.strategyScore <= -60 ? 'Strong Sell'
               : tick.strategyScore <= -25 ? 'Sell'
                 : 'Neutral')
         : liveStrategy.label,
@@ -804,6 +872,8 @@ const ScreenerRow = memo(function ScreenerRow({
       avgBarSize1m: tick.avgBarSize1m ?? entry.avgBarSize1m,
       avgVolume1m: tick.avgVolume1m ?? entry.avgVolume1m,
       candleDirection: tick.candleDirection,
+      obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
+      williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       isLiveRsi: true
     };
   }, [
@@ -1124,16 +1194,16 @@ const ScreenerRow = memo(function ScreenerRow({
             const crossover = display.rsiCrossover;
             const divergence = entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence;
             if (crossover === 'bullish_reversal') {
-              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="RSI Bullish Reversal – crossed back above oversold">↑ Rev</span>;
+              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="RSI Bullish Reversal â€“ crossed back above oversold">â†‘ Rev</span>;
             }
             if (crossover === 'bearish_reversal') {
-              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="RSI Bearish Reversal – crossed back below overbought">↓ Rev</span>;
+              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="RSI Bearish Reversal â€“ crossed back below overbought">â†“ Rev</span>;
             }
             if (divergence === 'bullish') {
-              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="Bullish Divergence – price lower low, RSI higher low">Bull Div</span>;
+              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="Bullish Divergence â€“ price lower low, RSI higher low">Bull Div</span>;
             }
             if (divergence === 'bearish') {
-              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="Bearish Divergence – price higher high, RSI lower high">Bear Div</span>;
+              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="Bearish Divergence â€“ price higher high, RSI lower high">Bear Div</span>;
             }
             return <span className="text-slate-800">-</span>;
           })()}
@@ -1279,6 +1349,12 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
+      {visibleCols.has('superSignal') && (
+        <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
+          <SuperSignalBadge superSignal={entry.superSignal} />
+        </td>
+      )}
+
       <td className={cn("px-3 py-4 text-right", COL_WIDTHS.edit)}>
         <button
           onClick={() => onOpenSettings(entry.symbol)}
@@ -1293,7 +1369,7 @@ const ScreenerRow = memo(function ScreenerRow({
 });
 
 
-// ─── Editable RSI Cell (Inline Editing) ──────────────────────────
+// â”€â”€â”€ Editable RSI Cell (Inline Editing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function EditableRsiCell({
   symbol,
@@ -1325,7 +1401,7 @@ function EditableRsiCell({
     if (rsi === null || prevRsiRef.current === rsi) return;
     const prev = prevRsiRef.current;
     prevRsiRef.current = rsi;
-    // Flash when entering extreme zones (≤25 or ≥75)
+    // Flash when entering extreme zones (â‰¤25 or â‰¥75)
     if ((rsi <= 25 || rsi >= 75) && (prev === null || (prev > 25 && prev < 75))) {
       setRsiFlash(true);
       const t = setTimeout(() => setRsiFlash(false), 800);
@@ -1401,7 +1477,7 @@ function EditableRsiCell({
   );
 }
 
-// ─── Skeleton ──────────────────────────────────────────────────
+// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
   const stickyOffsetSym = visibleCols.has('rank') ? 88 : 40;
@@ -1478,12 +1554,12 @@ function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
   );
 }
 
-// ─── Column definitions ───────────────────────────────────────
+// â”€â”€â”€ Column definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ColumnId =
   | 'rank' | 'winRate' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
-  | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy'
+  | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy' | 'superSignal'
   | 'confluence' | 'divergence' | 'momentum'
   | 'atr' | 'adx'
   | 'fundingRate' | 'orderFlow' | 'smartMoney';
@@ -1521,10 +1597,12 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'fundingRate', label: 'Funding', group: 'Derivatives', defaultVisible: true },
   { id: 'orderFlow', label: 'Flow', group: 'Derivatives', defaultVisible: true },
   { id: 'smartMoney', label: 'Smart $', group: 'Derivatives', defaultVisible: true },
+  { id: 'superSignal', label: 'SUPER SIGNAL', group: 'Intelligence', defaultVisible: true },
   { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
 ];
 
-// ─── Main Dashboard ───────────────────────────────────────────
+
+// --- Main Dashboard ---
 
 const REFRESH_OPTIONS = [
   { label: '15s', value: 15, maxPairs: 300 },
@@ -1681,7 +1759,7 @@ const ScreenerCard = memo(function ScreenerCard({
     };
   }, [entry.symbol, reportVisibility]);
 
-  // ─── Atomic Real-Time State (Viewport Aware) ───
+  // â”€â”€â”€ Atomic Real-Time State (Viewport Aware) â”€â”€â”€
   const tick = useSymbolPrice(entry.symbol, entry.price, isVisible);
 
   const liveState = useMemo(() => {
@@ -1734,24 +1812,26 @@ const ScreenerCard = memo(function ScreenerCard({
       rsi1d: entry.rsi1d,
       macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       bbPosition,
-      stochK: entry.stochK,
-      stochD: entry.stochD,
+      stochK: tick.stochK ?? entry.stochK,
+      stochD: tick.stochD ?? entry.stochD,
       emaCross: (tick.emaCross as any) ?? emaCross,
-      vwapDiff: entry.vwapDiff,
+      vwapDiff: tick.vwapDiff ?? entry.vwapDiff,
       volumeSpike: (tick.volumeSpike ?? liveVolumeSpike) || entry.volumeSpike,
       price: tick.price,
-      confluence: entry.confluence,
-      rsiDivergence: entry.rsiDivergence,
-      momentum: entry.momentum,
-      rsiCrossover: entry.rsiCrossover,
+      confluence: tick.confluence ?? entry.confluence,
+      rsiDivergence: tick.rsiDivergence ?? entry.rsiDivergence,
+      momentum: tick.momentum ?? entry.momentum,
+      rsiCrossover: tick.rsiCrossover ?? entry.rsiCrossover,
       market: entry.market,
-      adx: entry.adx,
-      atr: entry.atr,
+      adx: tick.adx ?? entry.adx,
+      atr: tick.atr ?? entry.atr,
+      cci: entry.cci ?? null,
       obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
       williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       smartMoneyScore: smartMoneyScore?.score ?? undefined,
       hiddenDivergence: entry.hiddenDivergence,
       regime: entry.regime?.regime,
+      tradingStyle,
       enabledIndicators: {
         rsi: globalUseRsi,
         macd: globalUseMacd,
@@ -1791,7 +1871,7 @@ const ScreenerCard = memo(function ScreenerCard({
       ema21: tick.ema21 ?? ema21,
       emaCross: (tick.emaCross as any) ?? emaCross,
       bbPosition: tick.bbPosition ?? bbPosition,
-      signal,
+      signal: globalShowSignalTags ? signal : 'neutral',
       rsiDivergence: tick.rsiDivergence ?? entry.rsiDivergence,
       macdHistogram: tick.macdHistogram ?? entry.macdHistogram,
       confluence: tick.confluence ?? entry.confluence,
@@ -1801,8 +1881,10 @@ const ScreenerCard = memo(function ScreenerCard({
       momentum: tick.momentum ?? entry.momentum,
       atr: tick.atr ?? entry.atr,
       adx: tick.adx ?? entry.adx,
+      cci: entry.cci ?? null,
       vwapDiff: tick.vwapDiff ?? entry.vwapDiff,
       volumeSpike: (tick.volumeSpike ?? liveVolumeSpike) || entry.volumeSpike,
+      longCandle: entry.longCandle,
       stochK: tick.stochK ?? entry.stochK,
       stochD: tick.stochD ?? entry.stochD,
       bbUpper: tick.bbUpper ?? entry.bbUpper,
@@ -1814,9 +1896,9 @@ const ScreenerCard = memo(function ScreenerCard({
       strategyScore: tick.strategyScore ?? liveStrategy.score,
       strategySignal: (tick.strategySignal as any) ?? liveStrategy.signal,
       strategyLabel: tick.strategyScore !== undefined
-        ? (tick.strategyScore >= 55 ? 'Strong Buy'
+        ? (tick.strategyScore >= 60 ? 'Strong Buy'
           : tick.strategyScore >= 25 ? 'Buy'
-            : tick.strategyScore <= -55 ? 'Strong Sell'
+            : tick.strategyScore <= -60 ? 'Strong Sell'
               : tick.strategyScore <= -25 ? 'Sell'
                 : 'Neutral')
         : liveStrategy.label,
@@ -1827,6 +1909,8 @@ const ScreenerCard = memo(function ScreenerCard({
       avgBarSize1m: tick.avgBarSize1m ?? entry.avgBarSize1m,
       avgVolume1m: tick.avgVolume1m ?? entry.avgVolume1m,
       candleDirection: tick.candleDirection,
+      obvTrend: (tick as any).obvTrend ?? entry.obvTrend ?? 'none',
+      williamsR: (tick as any).williamsR ?? entry.williamsR ?? null,
       isLiveRsi: true
     };
   }, [
@@ -2000,7 +2084,7 @@ const ScreenerCard = memo(function ScreenerCard({
                           <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" title="Real-Time" />
                         )}
                         {(display.curCandleSize / display.avgBarSize1m) >= (globalLongCandleThreshold * 0.8) && (
-                          <span className="text-[8px]">{display.candleDirection === 'bullish' ? '🟢' : '🔴'}</span>
+                          <span className="text-[8px]">{display.candleDirection === 'bullish' ? 'ðŸŸ¢' : 'ðŸ”´'}</span>
                         )}
                         {Number.isFinite(display.curCandleSize / display.avgBarSize1m) ? `${(display.curCandleSize / display.avgBarSize1m).toFixed(1)}x` : '0.0x'}
                       </div>
@@ -2251,20 +2335,20 @@ export default function ScreenerDashboard() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // ── Theme State ──
+  // â”€â”€ Theme State â”€â”€
   const smartModeDefault = process.env.NEXT_PUBLIC_SMART_MODE_DEFAULT !== '0';
-  // ── Asset Class State ──
+  // â”€â”€ Asset Class State â”€â”€
   const [activeAssetClass, setActiveAssetClass] = useState<AssetClass>('crypto');
   const [showAssetClassDropdown, setShowAssetClassDropdown] = useState(false);
-  // ── State ──
+  // â”€â”€ State â”€â”€
   const [data, setData] = useState<ScreenerEntry[]>([]);
   const isMobile = useIsMobile();
   const [meta, setMeta] = useState<ScreenerResponse['meta'] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [initialLoad, setInitialLoad] = useState(true); // 🔥 NEW: Track first load separately
+  const [initialLoad, setInitialLoad] = useState(true); // ðŸ”¥ NEW: Track first load separately
   const [error, setError] = useState<string | null>(null);
-  const [geoBlocked, setGeoBlocked] = useState(false); // 🔥 NEW: Track geo-blocking
-  const [apiUnavailable, setApiUnavailable] = useState(false); // 🔥 NEW: Track API failures
+  const [geoBlocked, setGeoBlocked] = useState(false); // ðŸ”¥ NEW: Track geo-blocking
+  const [apiUnavailable, setApiUnavailable] = useState(false); // ðŸ”¥ NEW: Track API failures
   const [search, setSearch] = useState('');
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -2311,12 +2395,12 @@ export default function ScreenerDashboard() {
   const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState(2.0);
   const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState(2.5);
   const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState(true);
-  // ── Signal Tag Display Controls ──
+  // â”€â”€ Signal Tag Display Controls â”€â”€
   const [globalShowSignalTags, setGlobalShowSignalTags] = useState(true);
   const [globalSignalThresholdMode, setGlobalSignalThresholdMode] = useState<'default' | 'custom'>('custom');
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>('intraday');
 
-  // ── Indicator Feature Flags ──
+  // â”€â”€ Indicator Feature Flags â”€â”€
   const [globalUseRsi, setGlobalUseRsi] = useState(true);
   const [globalUseMacd, setGlobalUseMacd] = useState(true);
   const [globalUseBb, setGlobalUseBb] = useState(true);
@@ -2336,10 +2420,10 @@ export default function ScreenerDashboard() {
   const [selectedNarrationEntry, setSelectedNarrationEntry] = useState<ScreenerEntry | null>(null);
   const [showNarrationModal, setShowNarrationModal] = useState(false);
 
-  // ── Signal Narration Engine™ ──
+  // â”€â”€ Signal Narration Engineâ„¢ â”€â”€
 
 
-  // ── PWA Performance Monitoring ──
+  // â”€â”€ PWA Performance Monitoring â”€â”€
   const [lastGlobalUpdate, setLastGlobalUpdate] = useState(Date.now());
 
   const fetchingRef = useRef(false);
@@ -2442,7 +2526,7 @@ export default function ScreenerDashboard() {
         console.warn('[screener] Initial server-side pref sync failed, using local fallback:', err);
       }
 
-      // ── Local Fallback (Only if server fails or is empty) ──
+      // â”€â”€ Local Fallback (Only if server fails or is empty) â”€â”€
       const alerts = localStorage.getItem('crypto-rsi-alerts-enabled');
       if (alerts !== null) setAlertsEnabled(alerts === '1');
 
@@ -2539,7 +2623,7 @@ export default function ScreenerDashboard() {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
-    // ── Multi-Tab Sync Infrastructure ──
+    // â”€â”€ Multi-Tab Sync Infrastructure â”€â”€
     if (!syncChannelRef.current && typeof window !== 'undefined') {
       syncChannelRef.current = new BroadcastChannel('rsiq-state-sync');
       syncChannelRef.current.onmessage = (event) => {
@@ -2695,7 +2779,7 @@ export default function ScreenerDashboard() {
   const symbolSet = useMemo(() => {
     const baseSet = data.length > 0 ? new Set(data.map((e) => e.symbol)) : new Set<string>();
 
-    // 🔥 Institutional Priority: Always include Watchlist symbols in the live set
+    // ðŸ”¥ Institutional Priority: Always include Watchlist symbols in the live set
     watchlist.forEach(s => baseSet.add(s));
 
     // Intelligent Search Candidate: If search looks like a ticker, warm it up instantly
@@ -2726,7 +2810,7 @@ export default function ScreenerDashboard() {
     postToWorker
   } = useLivePrices(symbolSet, liveThrottleMs);
 
-  // ── Institutional 2026 Optimization: Win Rate Symbol Registration ──
+  // â”€â”€ Institutional 2026 Optimization: Win Rate Symbol Registration â”€â”€
   // Registers active symbols with the global provider to allow for automatic pruning of stale data.
   const winRateContext = useWinRateContext();
   useEffect(() => {
@@ -2735,15 +2819,15 @@ export default function ScreenerDashboard() {
     }
   }, [symbolSet, winRateContext]);
 
-  // ── PWA Performance: Track last price update for live status indicator ──
+  // â”€â”€ PWA Performance: Track last price update for live status indicator â”€â”€
   // Use a ref to avoid triggering re-renders on every tick.
-  // Update state at 2s intervals max – the LiveStatusIndicator only needs ~1s precision.
+  // Update state at 2s intervals max â€“ the LiveStatusIndicator only needs ~1s precision.
   const lastGlobalUpdateRef = useRef(Date.now());
   const lastGlobalUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (livePrices.size === 0) return;
     lastGlobalUpdateRef.current = Date.now();
-    // Only schedule one pending timer at a time – cancel previous to prevent timer storms
+    // Only schedule one pending timer at a time â€“ cancel previous to prevent timer storms
     if (lastGlobalUpdateTimerRef.current) return;
     lastGlobalUpdateTimerRef.current = setTimeout(() => {
       setLastGlobalUpdate(lastGlobalUpdateRef.current);
@@ -2751,12 +2835,12 @@ export default function ScreenerDashboard() {
     }, 2000);
   }, [livePrices]);
 
-  // ── Win Rate Ribbon: read from localStorage at most every 30s ──
+  // â”€â”€ Win Rate Ribbon: read from localStorage at most every 30s â”€â”€
   // Initialize with null to avoid TDZ issues, then load in useEffect
   const [globalWinRate, setGlobalWinRate] = useState<ReturnType<typeof getGlobalWinRate> | null>(null);
   useEffect(() => {
     const update = () => {
-      // ── Institutional 2026 Optimization: Batch Win Rate Evaluation ──
+      // â”€â”€ Institutional 2026 Optimization: Batch Win Rate Evaluation â”€â”€
       // Evaluate outcomes for all pending signals using latest live prices
       if (livePrices.size > 0) {
         const prices = new Map<string, number>();
@@ -2764,7 +2848,7 @@ export default function ScreenerDashboard() {
         evaluateOutcomes(prices);
       }
       const localRate = getGlobalWinRate();
-      // ── Intelligence: Global Production Fallback ──
+      // â”€â”€ Intelligence: Global Production Fallback â”€â”€
       // If local device has < 10 signals (Calibrating), we blend in or promote global Redis stats
       if (localRate.total < 10 && winRateContext?.globalData) {
         const g = winRateContext.globalData;
@@ -2785,7 +2869,7 @@ export default function ScreenerDashboard() {
     update(); // Load immediately on mount
     const id = setInterval(update, 15_000); // Increased frequency to 15s for better real-time feel
     return () => clearInterval(id);
-    // getGlobalWinRate is a stable imported function – safe to omit from deps
+    // getGlobalWinRate is a stable imported function â€“ safe to omit from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [livePrices]);
 
@@ -2804,7 +2888,7 @@ export default function ScreenerDashboard() {
     globalOverbought, globalOversold, globalThresholdTimeframes, globalSignalThresholdMode
   ]);
 
-  // ─── Derivatives Intelligence Engine ───
+  // â”€â”€â”€ Derivatives Intelligence Engine â”€â”€â”€
   const {
     fundingRates,
     liquidations,
@@ -2818,7 +2902,7 @@ export default function ScreenerDashboard() {
     updateConfig: updateDerivConfig,
   } = useDerivativesIntel(symbolSet, activeAssetClass === 'crypto');
 
-  // ─── Multi-Asset Market Data (Forex, Metals, Stocks) ───
+  // â”€â”€â”€ Multi-Asset Market Data (Forex, Metals, Stocks) â”€â”€â”€
   const {
     data: marketData,
     isLoading: marketDataLoading,
@@ -2826,14 +2910,14 @@ export default function ScreenerDashboard() {
     refresh: refreshMarketData,
   } = useMarketData(activeAssetClass, activeAssetClass !== 'crypto');
 
-  // ─── Hybrid Atomic Data ───
+  // â”€â”€â”€ Hybrid Atomic Data â”€â”€â”€
   // ProcessedData is the "base" data with non-live additions (like custom RSI values from the last API fetch).
   // It merges the SWR data (from API) with the Live WebSocket prices (from useLivePrices).
-  // livePrices is intentionally NOT in the dep array – live price merging happens per-row
+  // livePrices is intentionally NOT in the dep array â€“ live price merging happens per-row
   // via useSymbolPrice() to avoid re-running this expensive memo on every 100ms tick.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const processedData = useMemo<ScreenerEntry[]>(() => {
-    // ─── Phase 1: Institutional Intelligence Normalization ───
+    // â”€â”€â”€ Phase 1: Institutional Intelligence Normalization â”€â”€â”€
     // We prioritize the hardened backend stream (data).
     // If backend data is warming up, we use the frontend hook (marketData) as a fallback.
     const unifiedIds = new Set(data.map(d => d.symbol));
@@ -2843,7 +2927,7 @@ export default function ScreenerDashboard() {
         const resolvedMarket = getMarketType(md.symbol);
         const closes = md.closes || [];
 
-        // ── Institutional 2026 Optimization: Real-Time Baseline Intelligence ──
+        // â”€â”€ Institutional 2026 Optimization: Real-Time Baseline Intelligence â”€â”€
         const rsi14 = calculateRsi(closes, 14);
         const rsi1m = closes.length >= 20 ? calculateRsi(closes.slice(-20), 14) : rsi14;
         const ema9 = latestEma(closes, 9);
@@ -2853,7 +2937,7 @@ export default function ScreenerDashboard() {
         const bbRes = calculateBollinger(closes, 20, 2);
         const stochRes = calculateStochRsi(closes, 14, 14, 3, 3);
 
-        // ── Institutional 2026 Optimization: Real-Time State Seeds ──
+        // â”€â”€ Institutional 2026 Optimization: Real-Time State Seeds â”€â”€
         const rsiState1m = calculateRsiWithState(closes.length >= 20 ? closes.slice(-20) : closes, 14);
         const rsiState5m = calculateRsiWithState(closes.length >= 20 ? closes.slice(-20) : closes, 14); // Fallback to 1m data for seed
         const rsiState15m = calculateRsiWithState(closes, 14);
@@ -3039,7 +3123,7 @@ export default function ScreenerDashboard() {
         };
       })() : entry;
 
-      // ─── Phase 2: Institutional Logic Overlay ───
+      // â”€â”€â”€ Phase 2: Institutional Logic Overlay â”€â”€â”€
       // We apply the same weighted strategy logic to all assets (Crypto & traditional).
       // If the backend hasn't provided a score yet (fallback mode), we calculate a local one.
       if (merged.strategyScore === 0) {
@@ -3085,7 +3169,7 @@ export default function ScreenerDashboard() {
         };
       }
 
-      // ─── Phase 3: SMC Institutional Intelligence Wiring ───
+      // â”€â”€â”€ Phase 3: SMC Institutional Intelligence Wiring â”€â”€â”€
       // We recalculate Fibonacci levels and Market Regimes live to ensure accuracy
       // for Demand Zones and FVG detection in the narrator.
       if (merged.historicalCloses && merged.historicalCloses.length >= 20) {
@@ -3182,7 +3266,7 @@ export default function ScreenerDashboard() {
     globalVolumeSpikeThreshold, globalLongCandleThreshold
   ]);
 
-  // ── Signal Narration Engine™ (Institutional Intelligence) ──
+  // â”€â”€ Signal Narration Engineâ„¢ (Institutional Intelligence) â”€â”€
   const handleViewNarration = useCallback((entry: ScreenerEntry) => {
     setSelectedNarrationEntry(entry);
     setShowNarrationModal(true);
@@ -3307,7 +3391,7 @@ export default function ScreenerDashboard() {
     tradingStyle
   ]);
 
-  // ── Persistence Engine: Sync to Server ──
+  // â”€â”€ Persistence Engine: Sync to Server â”€â”€
   useEffect(() => {
     if (!preferencesSynced || !session?.user?.id || isSyncingRef.current) return;
 
@@ -3352,7 +3436,7 @@ export default function ScreenerDashboard() {
           headers: { 'Content-Type': 'application/json' }
         });
 
-        // ── Keep localStorage as local fallback for immediate hydration ──
+        // â”€â”€ Keep localStorage as local fallback for immediate hydration â”€â”€
         localStorage.setItem('crypto-rsi-alerts-enabled', alertsEnabled ? '1' : '0');
         localStorage.setItem('crypto-rsi-sound-enabled', soundEnabled ? '1' : '0');
         localStorage.setItem('crypto-rsi-global-thresholds-enabled', globalThresholdsEnabled ? '1' : '0');
@@ -3384,7 +3468,7 @@ export default function ScreenerDashboard() {
         saveFlag('crypto-rsi-global-use-obv', globalUseObv);
         saveFlag('crypto-rsi-global-use-williamsr', globalUseWilliamsR);
 
-        // ── Broadcast to other tabs for seamless "Zero-Lag" sync ──
+        // â”€â”€ Broadcast to other tabs for seamless "Zero-Lag" sync â”€â”€
         syncChannelRef.current?.postMessage({ type: 'PREFS_UPDATED', payload: body });
       } catch (err) {
         console.error('[screener] failed to sync preferences to server:', err);
@@ -3529,7 +3613,7 @@ export default function ScreenerDashboard() {
     localStorage.setItem('crypto-rsi-trading-style', tradingStyle);
   }, [tradingStyle]);
 
-  // ─── Real-time Stats Engine (Tab-Scoped) ──────────────────────
+  // â”€â”€â”€ Real-time Stats Engine (Tab-Scoped) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // CRITICAL FIX: Stats are computed from the active asset class tab only,
   // so header counts exactly match what the user sees in the visible table.
   const stats = useMemo(() => {
@@ -3584,7 +3668,7 @@ export default function ScreenerDashboard() {
   }, [processedData, activeAssetClass]);
 
 
-  // ─── Feed Health Aggregation (Debounced – 5s) ──────────────────
+  // â”€â”€â”€ Feed Health Aggregation (Debounced â€“ 5s) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // PERF: Feed health is informational. Computing on every livePrices tick (3/sec)
   // was wasteful. Now uses a ref-based debounce to recalculate at most once per 5s.
   const feedHealthRef = useRef({ activeFeeds: 0, staleFeeds: 0, totalFeeds: 0, activePercent: 0, status: 'healthy' as 'healthy' | 'degraded' | 'critical', oldestTickAge: 0 });
@@ -3653,7 +3737,7 @@ export default function ScreenerDashboard() {
 
         fetchData(true);
 
-        // ── Institutional Multi-Tab Sync ──
+        // â”€â”€ Institutional Multi-Tab Sync â”€â”€
         syncChannelRef.current?.postMessage({
           type: 'CONFIGS_UPDATED',
           payload: { ...coinConfigs, [symbol]: updated }
@@ -3875,7 +3959,7 @@ export default function ScreenerDashboard() {
     }
   }, [pairCount, refreshInterval]);
 
-  // ── Fetch data (Optimized for smooth background updates) ──
+  // â”€â”€ Fetch data (Optimized for smooth background updates) â”€â”€
   const fetchData = useCallback(async (background = false) => {
     if (background && backoffUntilRef.current && Date.now() < backoffUntilRef.current) {
       return;
@@ -3958,7 +4042,7 @@ export default function ScreenerDashboard() {
         return;
       }
 
-      // 🔥 NEW: Check for geo-blocking or API unavailability
+      // ðŸ”¥ NEW: Check for geo-blocking or API unavailability
       if (json.meta && (json.meta as any).geoBlocked) {
         setGeoBlocked(true);
         setApiUnavailable(true);
@@ -3975,7 +4059,7 @@ export default function ScreenerDashboard() {
         throw new Error('All exchanges are geo-blocked in your region. Please use a VPN or try a different network.');
       }
 
-      // 🔥 NEW: Handle empty data with better error messages
+      // ðŸ”¥ NEW: Handle empty data with better error messages
       if (json.data.length === 0 && json.meta) {
         if ((json.meta as any).apiUnavailable || (json.meta as any).error) {
           setApiUnavailable(true);
@@ -4006,7 +4090,7 @@ export default function ScreenerDashboard() {
         throw new Error(`API error ${res.status}`);
       }
 
-      // 🔥 OPTIMIZED: Smooth data updates using requestAnimationFrame to prevent UI freezes
+      // ðŸ”¥ OPTIMIZED: Smooth data updates using requestAnimationFrame to prevent UI freezes
       if (json.data.length > 0) {
         // Use requestAnimationFrame to batch DOM updates and prevent jank
         requestAnimationFrame(() => {
@@ -4023,7 +4107,7 @@ export default function ScreenerDashboard() {
       }
 
       setLoading(false);
-      setInitialLoad(false); // 🔥 NEW: Mark initial load complete
+      setInitialLoad(false); // ðŸ”¥ NEW: Mark initial load complete
       const now = Date.now();
       setLastSuccessfulFetchAt(now);
       setStaleSince(null);
@@ -4102,17 +4186,17 @@ export default function ScreenerDashboard() {
         // Show an error so the user knows why the table is empty.
         if (dataLenRef.current === 0) {
           setError('Connection timed out - server is slow or unreachable. Tap to retry.');
-          setInitialLoad(false); // 🔥 NEW: Mark initial load complete even on error
+          setInitialLoad(false); // ðŸ”¥ NEW: Mark initial load complete even on error
         }
         return;
       }
 
-      // 🔥 NEW: Better error handling - keep cached data if available
+      // ðŸ”¥ NEW: Better error handling - keep cached data if available
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
 
       if (dataLenRef.current === 0) {
         setError(errorMessage);
-        setInitialLoad(false); // 🔥 NEW: Mark initial load complete even on error
+        setInitialLoad(false); // ðŸ”¥ NEW: Mark initial load complete even on error
       } else {
         // We have cached data, just show a toast
         toast.error('Update Failed', {
@@ -4167,7 +4251,7 @@ export default function ScreenerDashboard() {
     }
   }, [pairCount, smartMode, rsiPeriod, search, exchange, tradingStyle, handleUpgradeRequired, entitlements.maxRecords, entitlements.availableRecordOptions, syncStates, watchlist]);
 
-  // ── Stable ref so all async effects always call the latest fetchData
+  // â”€â”€ Stable ref so all async effects always call the latest fetchData
   // without adding `fetchData` to their dependency arrays (which causes race conditions).
   const fetchDataRef = useRef(fetchData);
   useEffect(() => { fetchDataRef.current = fetchData; }, [fetchData]);
@@ -4223,7 +4307,7 @@ export default function ScreenerDashboard() {
     }
   }, [pairCount]);
 
-  // ── Initial fetch with auto-retry and Hydration ──
+  // â”€â”€ Initial fetch with auto-retry and Hydration â”€â”€
   const retryCountRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prioritySyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4292,7 +4376,7 @@ export default function ScreenerDashboard() {
     return () => clearTimeout(retryTimerRef.current);
   }, []); // mount-only: fetchDataRef always points to latest fetchData
 
-  // ── Global Interaction Monitor for Institutional Audio Resilience ──
+  // â”€â”€ Global Interaction Monitor for Institutional Audio Resilience â”€â”€
   useEffect(() => {
     if (!hasMounted) return;
 
@@ -4313,7 +4397,7 @@ export default function ScreenerDashboard() {
     };
   }, [hasMounted, isAudioSuspended, resumeAudioContext]);
 
-  // ── PWA Wake & Network Recovery ──────────────────────────────────
+  // â”€â”€ PWA Wake & Network Recovery â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!hasMounted) return;
 
@@ -4340,7 +4424,7 @@ export default function ScreenerDashboard() {
     };
   }, [hasMounted]);
 
-  // ── Auto-refresh (skips when tab is hidden) ──
+  // â”€â”€ Auto-refresh (skips when tab is hidden) â”€â”€
   useEffect(() => {
     if (refreshInterval <= 0) return;
 
@@ -4361,7 +4445,7 @@ export default function ScreenerDashboard() {
     };
   }, [refreshInterval]); // fetchDataRef is stable so no dep needed
 
-  // ── Trigger refetch on RSI Period change (debounced) ──
+  // â”€â”€ Trigger refetch on RSI Period change (debounced) â”€â”€
   useEffect(() => {
     // Immediately push the new period to the worker so custom RSI
     // alert evaluations use the correct period without waiting for a data refresh
@@ -4378,7 +4462,7 @@ export default function ScreenerDashboard() {
     return () => clearTimeout(timer);
   }, [rsiPeriod]); // fetchDataRef is stable so no dep needed
 
-  // ── Trigger refetch on Exchange change ──
+  // â”€â”€ Trigger refetch on Exchange change â”€â”€
   // Uses prevExchangeRef to fire ONLY on real exchange changes, not on every
   // fetchData reference change (which happens whenever any fetchData dep changes).
   const prevExchangeRef = useRef<string | null>(null);
@@ -4400,7 +4484,7 @@ export default function ScreenerDashboard() {
     fetchDataRef.current();
   }, [exchange, hasMounted]); // removed fetchData dep - use fetchDataRef instead
 
-  // ── Debounced Server-side Search ──
+  // â”€â”€ Debounced Server-side Search â”€â”€
   useEffect(() => {
     if (!search) return;
     const timer = setTimeout(() => {
@@ -4409,7 +4493,7 @@ export default function ScreenerDashboard() {
     return () => clearTimeout(timer);
   }, [search]); // fetchDataRef is stable so no dep needed
 
-  // ── Sorting ──
+  // â”€â”€ Sorting â”€â”€
   const handleSort = useCallback(
     (key: SortKey) => {
       if (sortKey === key) {
@@ -4422,7 +4506,7 @@ export default function ScreenerDashboard() {
     [sortKey],
   );
 
-  // ── Filtered & sorted data ──
+  // â”€â”€ Filtered & sorted data â”€â”€
   // Auto-switch asset class when search finds a symbol in another class
   // This must be a useEffect, NOT inside useMemo (calling setState in useMemo is a React anti-pattern)
   useEffect(() => {
@@ -4471,7 +4555,7 @@ export default function ScreenerDashboard() {
       });
     }
 
-    // ── Asset Class Filter ──
+    // â”€â”€ Asset Class Filter â”€â”€
     const marketMap: Record<string, string[]> = {
       crypto: ['Crypto'],
       forex: ['Forex'],
@@ -4481,7 +4565,7 @@ export default function ScreenerDashboard() {
     const targetMarkets = marketMap[activeAssetClass] || ['Crypto'];
     items = items.filter(e => targetMarkets.includes(e.market));
 
-    // Sort – use stable snapshot of funding/orderFlow/smartMoney to avoid re-sort on every tick
+    // Sort â€“ use stable snapshot of funding/orderFlow/smartMoney to avoid re-sort on every tick
     const dir = sortDir === 'asc' ? 1 : -1;
     items = [...items].sort((a, b) => {
       const marketPriority: Record<string, number> = { Metal: 3, Index: 2, Forex: 1, Crypto: 0 };
@@ -4534,7 +4618,7 @@ export default function ScreenerDashboard() {
     setSelectedSymbols(new Set(visibleSymbols));
   }, [filtered]);
 
-  // ── 2026 UX Improvement: Live Tab Item Counts ──
+  // â”€â”€ 2026 UX Improvement: Live Tab Item Counts â”€â”€
   const assetClassCounts = useMemo(() => {
     const counts = { crypto: 0, forex: 0, metals: 0, stocks: 0 };
     processedData.forEach(e => {
@@ -4546,7 +4630,7 @@ export default function ScreenerDashboard() {
     return counts;
   }, [processedData]);
 
-  // ── Presets ──
+  // â”€â”€ Presets â”€â”€
   const showMostOversold = () => {
     setSignalFilter('oversold');
     setSortKey('rsi15m');
@@ -4590,7 +4674,7 @@ export default function ScreenerDashboard() {
     setShowWatchlistOnly(false);
   };
 
-  // ── Keyboard shortcuts ──
+  // â”€â”€ Keyboard shortcuts â”€â”€
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept when user is typing in an input
@@ -4618,7 +4702,7 @@ export default function ScreenerDashboard() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []); // mount-only: fetchDataRef always points to latest fetchData
 
-  // ── CSV export ──
+  // â”€â”€ CSV export â”€â”€
   const handleExportCsv = useCallback(() => {
     if (filtered.length === 0) return;
     const headers = ['Symbol', 'Price', '24h%', 'Volume', 'RSI15m', 'RSI1h', 'RSI Custom', 'Strategy', 'Score', 'Signal', 'EMA Cross', 'ATR', 'ADX'];
@@ -4648,7 +4732,7 @@ export default function ScreenerDashboard() {
     toast.success('CSV exported successfully');
   }, [filtered]);
 
-  // ── Top movers ──
+  // â”€â”€ Top movers â”€â”€
   const topMovers = useMemo(() => {
     if (processedData.length < 6) return { gainers: [], losers: [] };
     const sorted = [...processedData].sort((a, b) => b.change24h - a.change24h);
@@ -4658,7 +4742,7 @@ export default function ScreenerDashboard() {
     };
   }, [processedData]);
 
-  // ── Fear/Greed gauge ──
+  // â”€â”€ Fear/Greed gauge â”€â”€
   const fearGreedScore = useMemo(() => {
     if (processedData.length === 0) return 50;
     const { strongBuy, buy, sell, strongSell, neutral: n } = stats;
@@ -4674,7 +4758,7 @@ export default function ScreenerDashboard() {
 
   return (
     <div className="w-full px-0 lg:px-8 pt-0 lg:pt-4 pb-32 lg:py-6">
-      {/* ── Loading State (Initial Load) ── */}
+      {/* â”€â”€ Loading State (Initial Load) â”€â”€ */}
       {initialLoad && loading && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
           <div className="text-center space-y-6 max-w-md px-6">
@@ -4694,7 +4778,7 @@ export default function ScreenerDashboard() {
         </div>
       )}
 
-      {/* ── Geo-Block Error Screen ── */}
+      {/* â”€â”€ Geo-Block Error Screen â”€â”€ */}
       {geoBlocked && !loading && data.length === 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
           <div className="text-center space-y-6 max-w-lg px-6">
@@ -4731,7 +4815,7 @@ export default function ScreenerDashboard() {
         </div>
       )}
 
-      {/* ── API Unavailable Error Screen ── */}
+      {/* â”€â”€ API Unavailable Error Screen â”€â”€ */}
       {apiUnavailable && !geoBlocked && !loading && data.length === 0 && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0A0F1B]/95 backdrop-blur-sm">
           <div className="text-center space-y-6 max-w-lg px-6">
@@ -4767,14 +4851,14 @@ export default function ScreenerDashboard() {
         </div>
       )}
 
-      {/* ── Silent Background Refresh (No Visible Overlay) ── */}
+      {/* â”€â”€ Silent Background Refresh (No Visible Overlay) â”€â”€ */}
       {/* Refresh happens silently in the background without disrupting the user experience */}
       {/* Status is shown only in the subtle header indicator */}
 
-      {/* ── Connection Status Indicator (Always Visible in Header) ── */}
+      {/* â”€â”€ Connection Status Indicator (Always Visible in Header) â”€â”€ */}
       {/* This will be integrated into the existing header health indicator */}
 
-      {/* ── Sticky Institutional Command Center (4-Row Architecture) ── */}
+      {/* â”€â”€ Sticky Institutional Command Center (4-Row Architecture) â”€â”€ */}
       {showHeader && (
         <header className="sticky top-0 z-[40] mb-4 lg:mb-6 rounded-none lg:rounded-b-3xl border-b border-x-0 lg:border-x border-white/10 bg-[#080F1B]/95 backdrop-blur-3xl px-3 py-2 sm:px-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] transition-all duration-300">
           {/* Subtle Dynamic Hub Glow */}
@@ -4897,7 +4981,7 @@ export default function ScreenerDashboard() {
 
                 {/* Live Engine Status Badge */}
                 <div className="flex items-center gap-2 px-3 py-1 bg-black/60 border border-white/[0.06] rounded-lg ml-1">
-                  <span className={cn("text-[10px] leading-none", isConnected ? "text-[#39FF14]" : "text-slate-600")}>✔</span>
+                  <span className={cn("text-[10px] leading-none", isConnected ? "text-[#39FF14]" : "text-slate-600")}>âœ”</span>
                   <span className="text-slate-400 text-[8px] font-black uppercase tracking-[0.15em] whitespace-nowrap">
                     Engine <span className={isConnected ? "text-[#39FF14]" : "text-slate-600"}>{isConnected ? "Live" : "Offline"}</span>
                     {data.length > 0 && <span className="text-slate-600 ml-1">({data.length} pairs)</span>}
@@ -4976,7 +5060,7 @@ export default function ScreenerDashboard() {
                   className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-2xl px-4 py-2 shadow-inner h-full hover:bg-white/5 transition-all group"
                 >
                   <span className="text-base">
-                    {activeAssetClass === 'crypto' ? '₿' : activeAssetClass === 'forex' ? '💱' : activeAssetClass === 'metals' ? '🥇' : '📈'}
+                    {activeAssetClass === 'crypto' ? 'â‚¿' : activeAssetClass === 'forex' ? 'ðŸ’±' : activeAssetClass === 'metals' ? 'ðŸ¥‡' : 'ðŸ“ˆ'}
                   </span>
                   <span className="text-[10px] font-black text-white uppercase tracking-widest">
                     {activeAssetClass === 'crypto' ? 'Crypto' : activeAssetClass === 'forex' ? 'Forex' : activeAssetClass === 'metals' ? 'Metals' : 'Stocks'}
@@ -4996,10 +5080,10 @@ export default function ScreenerDashboard() {
                       className="absolute top-full mt-2 left-0 z-[100] min-w-[220px] bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-2"
                     >
                       {[
-                        { id: 'crypto' as const, icon: '₿', label: 'Crypto', desc: 'Digital Assets', count: assetClassCounts.crypto },
-                        { id: 'forex' as const, icon: '💱', label: 'Forex', desc: 'Currency Pairs', count: assetClassCounts.forex },
-                        { id: 'metals' as const, icon: '🥇', label: 'Metals', desc: 'Precious & Industrial', count: assetClassCounts.metals },
-                        { id: 'stocks' as const, icon: '📈', label: 'Stocks', desc: 'Equities & Indices', count: assetClassCounts.stocks },
+                        { id: 'crypto' as const, icon: 'â‚¿', label: 'Crypto', desc: 'Digital Assets', count: assetClassCounts.crypto },
+                        { id: 'forex' as const, icon: 'ðŸ’±', label: 'Forex', desc: 'Currency Pairs', count: assetClassCounts.forex },
+                        { id: 'metals' as const, icon: 'ðŸ¥‡', label: 'Metals', desc: 'Precious & Industrial', count: assetClassCounts.metals },
+                        { id: 'stocks' as const, icon: 'ðŸ“ˆ', label: 'Stocks', desc: 'Equities & Indices', count: assetClassCounts.stocks },
                       ].map((ac) => (
                         <button
                           key={ac.id}
@@ -5200,7 +5284,7 @@ export default function ScreenerDashboard() {
               </div>
             </div>
 
-            {/* ─── MOBILE COMMAND CENTER (Enterprise Architecture) ─── */}
+            {/* â”€â”€â”€ MOBILE COMMAND CENTER (Enterprise Architecture) â”€â”€â”€ */}
             <div className="lg:hidden flex flex-col gap-2 relative z-10 w-full">
               {/* COMPACT COMMAND BAR (Mobile Row 1: Identity & Connectivity) */}
               <div className="flex items-center justify-between gap-3 h-10 px-1">
@@ -5338,7 +5422,7 @@ export default function ScreenerDashboard() {
         </header>
       )}
 
-      {/* ─── DERIVATIVES INTELLIGENCE PANEL (MINIMIZED) ─── */}
+      {/* â”€â”€â”€ DERIVATIVES INTELLIGENCE PANEL (MINIMIZED) â”€â”€â”€ */}
       <div className="mb-4 opacity-95 hover:opacity-100 transition-opacity">
         <DerivativesPanel
           fundingRates={fundingRates}
@@ -5353,7 +5437,7 @@ export default function ScreenerDashboard() {
         />
       </div>
 
-      {/* ─── SIGNAL WIN RATE TRACKER™ RIBBON ─── */}
+      {/* â”€â”€â”€ SIGNAL WIN RATE TRACKERâ„¢ RIBBON â”€â”€â”€ */}
       {globalWinRate && globalWinRate.evaluated15m >= 3 && (
         <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-2xl border border-white/[0.04] bg-white/[0.015] backdrop-blur-sm">
           <div className="flex items-center gap-1.5">
@@ -5393,7 +5477,7 @@ export default function ScreenerDashboard() {
       <CorrelationHeatmap open={showCorrelation} onClose={() => setShowCorrelation(false)} data={processedData} />
       <PortfolioScannerPanel open={showPortfolio} onClose={() => setShowPortfolio(false)} data={processedData} />
 
-      {/* Indicator Coverage Warning – shown when < 50% of symbols have indicators ready */}
+      {/* Indicator Coverage Warning â€“ shown when < 50% of symbols have indicators ready */}
       {!loading && processedData.length > 0 && indicatorReadyCount / processedData.length < 0.5 && (
         <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -5432,11 +5516,11 @@ export default function ScreenerDashboard() {
             </span>
             <span className="text-[10px] text-slate-400 uppercase tracking-wider">
               {lastSuccessfulFetchAt ? `Last success ${formatTimeAgo(lastSuccessfulFetchAt)} ago` : 'No successful fetch yet'}
-              {staleSince ? ` • stale ${formatTimeAgo(staleSince)} ago` : ''}
-              {consecutiveFetchFailures > 0 ? ` • failures ${consecutiveFetchFailures}` : ''}
-              {latencyStats.lastMs ? ` • last ${latencyStats.lastMs}ms` : ''}
-              {latencyStats.p50Ms ? ` • p50 ${latencyStats.p50Ms}ms` : ''}
-              {latencyStats.p95Ms ? ` • p95 ${latencyStats.p95Ms}ms` : ''}
+              {staleSince ? ` â€¢ stale ${formatTimeAgo(staleSince)} ago` : ''}
+              {consecutiveFetchFailures > 0 ? ` â€¢ failures ${consecutiveFetchFailures}` : ''}
+              {latencyStats.lastMs ? ` â€¢ last ${latencyStats.lastMs}ms` : ''}
+              {latencyStats.p50Ms ? ` â€¢ p50 ${latencyStats.p50Ms}ms` : ''}
+              {latencyStats.p95Ms ? ` â€¢ p95 ${latencyStats.p95Ms}ms` : ''}
             </span>
             {autoLoadShedding.active && autoLoadShedding.fromCount && autoLoadShedding.toCount && (
               <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
@@ -5466,7 +5550,7 @@ export default function ScreenerDashboard() {
 
 
 
-      {/* ── Main List (Table or Cards) ── */}
+      {/* â”€â”€ Main List (Table or Cards) â”€â”€ */}
       {isMobile ? (
         <div className="flex flex-col pb-32">
           {loading ? (
@@ -5580,7 +5664,7 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('rank') && (
                     <th className={cn("px-3 py-3 text-[10px] font-bold uppercase text-slate-500 text-left tracking-widest whitespace-nowrap", COL_WIDTHS.rank)}>#</th>
                   )}
-                  <th className={cn("px-2 py-3 text-[10px] font-bold text-slate-500 text-center uppercase tracking-widest", COL_WIDTHS.star)}>★</th>
+                  <th className={cn("px-2 py-3 text-[10px] font-bold text-slate-500 text-center uppercase tracking-widest", COL_WIDTHS.star)}>â˜…</th>
                   <SortHeader
                     label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="left"
                     widthClass={COL_WIDTHS.symbol}
@@ -5786,7 +5870,7 @@ export default function ScreenerDashboard() {
         </footer>
       )}
 
-      {/* ── Coin Settings Modal ── */}
+      {/* â”€â”€ Coin Settings Modal â”€â”€ */}
       <AnimatePresence>
         {selectedCoinForConfig && (
           <CoinSettingsModal
@@ -5970,7 +6054,7 @@ export default function ScreenerDashboard() {
                           activeAssetClass === ac ? "bg-[#39FF14]/10 border-[#39FF14]/30 text-[#39FF14]" : "bg-white/5 border-white/5 text-slate-500 hover:text-slate-300"
                         )}
                       >
-                        <span className="text-sm">{ac === 'crypto' ? '₿' : ac === 'forex' ? '💱' : ac === 'metals' ? '🥇' : '📈'}</span>
+                        <span className="text-sm">{ac === 'crypto' ? 'â‚¿' : ac === 'forex' ? 'ðŸ’±' : ac === 'metals' ? 'ðŸ¥‡' : 'ðŸ“ˆ'}</span>
                         <span className="text-[8px] font-black uppercase tracking-[0.1em]">{ac}</span>
                       </button>
                     ))}
@@ -6292,7 +6376,7 @@ export default function ScreenerDashboard() {
   );
 }
 
-// ─── Coin Settings Modal Component ─────────────────────────────
+// â”€â”€â”€ Coin Settings Modal Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CoinSettingsModal({
   symbol,
@@ -6528,10 +6612,10 @@ function CoinSettingsModal({
               {/* Priority Info */}
               <div className="p-2 rounded-xl bg-slate-950/30 border border-white/5">
                 <p className="text-[8px] text-slate-500 font-bold leading-tight">
-                  {config.priority === 'low' && '🔵 Low: Soft sound, 5s toast'}
-                  {config.priority === 'medium' && '🟢 Medium: Default sound, 8s toast'}
-                  {config.priority === 'high' && '🟠 High: Bell sound, 12s persistent'}
-                  {config.priority === 'critical' && '🔴 Critical: Urgent sound, requires interaction'}
+                  {config.priority === 'low' && 'ðŸ”µ Low: Soft sound, 5s toast'}
+                  {config.priority === 'medium' && 'ðŸŸ¢ Medium: Default sound, 8s toast'}
+                  {config.priority === 'high' && 'ðŸŸ  High: Bell sound, 12s persistent'}
+                  {config.priority === 'critical' && 'ðŸ”´ Critical: Urgent sound, requires interaction'}
                 </p>
               </div>
             </div>
@@ -6694,7 +6778,7 @@ function CoinSettingsModal({
   );
 }
 
-// ─── Sub-Components ──────────────────────────────────────────
+// â”€â”€â”€ Sub-Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const NumericAdjuster = memo(({
   label, value, onChange, min = 1, max = 99,
@@ -6785,7 +6869,7 @@ const NumericAdjuster = memo(({
 
 NumericAdjuster.displayName = 'NumericAdjuster';
 
-// ─── Stat Card ─────────────────────────────────────────────────
+// â”€â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Counter({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = useState(value);
@@ -6842,7 +6926,7 @@ function MiniStatCard({ label, value, color }: { label: string; value: number; c
   );
 }
 
-// ─── Alert History Panel ───────────────────────────────────────
+// â”€â”€â”€ Alert History Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Gap 6: Human-readable labels for alert types
 function formatAlertType(type: string): { label: string; isBullish: boolean } {
@@ -7437,7 +7521,7 @@ function GlobalSettingsModal({
                 </div>
               </div>
 
-              {/* ── Institutional Notification Health ── */}
+              {/* â”€â”€ Institutional Notification Health â”€â”€ */}
               <div className="p-5 rounded-3xl border border-[#39FF14]/20 bg-[#39FF14]/[0.02] shadow-[0_0_50px_-15px_rgba(57,255,20,0.1)] mb-6 group/health">
                 <div className="flex flex-col mb-4">
                   <div className="flex items-center justify-between mb-2">
@@ -7458,7 +7542,7 @@ function GlobalSettingsModal({
                   <button
                     onClick={() => {
                       notificationEngine.notify({
-                        title: "🔔 TEST SIGNAL: Success",
+                        title: "ðŸ”” TEST SIGNAL: Success",
                         body: "Notification engine is synchronized. Sound and vibrations verified.",
                         symbol: "TEST",
                         priority: "high",
@@ -7757,8 +7841,8 @@ function GlobalSettingsModal({
           {/* Reset to Default Button */}
           <button
             onClick={() => {
-              if (confirm('Reset all settings to institutional defaults?\n\n• All 12 strategy indicators ↑ ON\n• RSI period ↑ 14 (industry standard)\n• Thresholds ↑ 80/20 (institutional grade)\n• Signal mode ↑ Custom (expert)\n• Volatility detection ↑ ON (2.0x/2.5x)\n• Columns ↑ Optimal trading set\n• Keep your watchlist and alerts\n\nContinue?')) {
-                // Reset all indicators to default (all ON – expert mode)
+              if (confirm('Reset all settings to institutional defaults?\n\nâ€¢ All 12 strategy indicators â†‘ ON\nâ€¢ RSI period â†‘ 14 (industry standard)\nâ€¢ Thresholds â†‘ 80/20 (institutional grade)\nâ€¢ Signal mode â†‘ Custom (expert)\nâ€¢ Volatility detection â†‘ ON (2.0x/2.5x)\nâ€¢ Columns â†‘ Optimal trading set\nâ€¢ Keep your watchlist and alerts\n\nContinue?')) {
+                // Reset all indicators to default (all ON â€“ expert mode)
                 setGlobalUseRsi(true);
                 setGlobalUseMacd(true);
                 setGlobalUseBb(true);
@@ -7772,18 +7856,18 @@ function GlobalSettingsModal({
                 setGlobalUseWilliamsR(true);
                 setGlobalUseCci(true);
 
-                // Reset RSI – institutional-grade 80/20 thresholds
+                // Reset RSI â€“ institutional-grade 80/20 thresholds
                 setRsiPeriod(14);
                 setGlobalOverbought(80);
                 setGlobalOversold(20);
                 setGlobalThresholdsEnabled(true);
                 setGlobalThresholdTimeframes(['15m']);
 
-                // Reset signal display – custom mode for accuracy
+                // Reset signal display â€“ custom mode for accuracy
                 setGlobalShowSignalTags(true);
                 setGlobalSignalThresholdMode('custom');
 
-                // Reset volatility – enabled with institutional thresholds (2.0x/2.5x)
+                // Reset volatility â€“ enabled with institutional thresholds (2.0x/2.5x)
                 setGlobalVolatilityEnabled(true);
                 setGlobalLongCandleThreshold(2.0);
                 setGlobalVolumeSpikeThreshold(2.5);
