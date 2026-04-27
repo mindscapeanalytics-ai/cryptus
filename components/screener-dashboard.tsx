@@ -525,7 +525,7 @@ function SuperSignalBadge({ superSignal, isOwner }: { superSignal: ScreenerEntry
       title={title}
     >
       <span className="text-[9px] shrink-0">{style.icon}</span>
-      <span className="truncate">{superSignal.value}</span>
+      <span className="truncate">{superSignal.category.toUpperCase()}</span>
     </span>
   );
 }

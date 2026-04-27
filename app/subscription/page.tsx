@@ -221,7 +221,27 @@ function SubscriptionContent() {
           </div>
         ) : null}
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <PlanCard
+            name="14-Day Free Trial"
+            price="$0"
+            period="/14 days"
+            note="No Credit Card Required"
+            features={[
+              "Instant Platform Access",
+              "Live Global Market Scanner",
+              "Real-Time Institutional Signals",
+              "All Timeframes (1m - 4h)",
+              "Automatic Trial Activation",
+              "Zero Commitment",
+            ]}
+            highlight={isTrialing}
+            loading={false}
+            onClick={() => {}}
+            disabled={true}
+            buttonText={isTrialing ? (typeof daysLeft === "number" ? `ACTIVE: ${daysLeft} DAYS LEFT` : "TRIAL ACTIVE") : "TRIAL EXPIRED"}
+            hideCrypto={true}
+          />
           <PlanCard
             name="Professional"
             price="$20"
@@ -239,7 +259,7 @@ function SubscriptionContent() {
             loading={loadingPlan === "monthly"}
             onClick={() => handleSubscribe("monthly")}
             onCryptoClick={() => handleCryptoSubscribe("monthly")}
-            disabled={isTrialing || !!loadingPlan || !!loadingCrypto || (subscription?.plan === "monthly" && subscription?.status === "active")}
+            disabled={!!loadingPlan || !!loadingCrypto || (subscription?.plan === "monthly" && subscription?.status === "active")}
             loadingCrypto={loadingCrypto === "monthly"}
             buttonText={getButtonText("monthly")}
           />
@@ -261,7 +281,7 @@ function SubscriptionContent() {
             loading={loadingPlan === "yearly"}
             onClick={() => handleSubscribe("yearly")}
             onCryptoClick={() => handleCryptoSubscribe("yearly")}
-            disabled={isTrialing || !!loadingPlan || !!loadingCrypto || (subscription?.plan === "yearly" && subscription?.status === "active")}
+            disabled={!!loadingPlan || !!loadingCrypto || (subscription?.plan === "yearly" && subscription?.status === "active")}
             loadingCrypto={loadingCrypto === "yearly"}
             buttonText={getButtonText("yearly")}
           />
@@ -304,8 +324,9 @@ function PlanCard(props: {
   disabled: boolean;
   buttonText: string;
   loadingCrypto?: boolean;
+  hideCrypto?: boolean;
   onClick: () => void;
-  onCryptoClick: () => void;
+  onCryptoClick?: () => void;
 }) {
   return (
     <div className={`rounded-3xl border p-8 ${props.highlight ? "border-[#39FF14]/40 bg-[#0d1410]" : "border-white/10 bg-[#0a0f1a]"}`}>
@@ -331,40 +352,46 @@ function PlanCard(props: {
       <div className="relative">
         <button
           onClick={props.onClick}
-          disabled={true}
-          className={`mt-8 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-white/10 text-slate-500" : "bg-white/5 text-slate-500"} cursor-not-allowed flex items-center justify-center gap-2`}
+          disabled={props.disabled || props.hideCrypto !== true}
+          className={`mt-8 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-[#39FF14]/20 text-[#39FF14] border border-[#39FF14]/50" : "bg-white/5 text-slate-500"} ${props.disabled && props.hideCrypto !== true ? "cursor-not-allowed" : ""} flex items-center justify-center gap-2`}
         >
           {props.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {props.buttonText}
         </button>
-        <div className="absolute top-[32px] right-2 bg-amber-400 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
-          Coming Soon
-        </div>
+        {props.hideCrypto !== true && (
+          <div className="absolute top-[32px] right-2 bg-amber-400 text-black text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">
+            Coming Soon
+          </div>
+        )}
       </div>
 
-      <button
-        onClick={props.onCryptoClick}
-        disabled={props.disabled}
-        className={`mt-3 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-[#39FF14] text-black hover:bg-[#30de10]" : "bg-white text-black hover:bg-slate-200"} disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(57,255,20,0.15)]`}
-      >
-        {props.loadingCrypto ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Pay with Crypto (USDT, SOL, USDC)
-      </button>
-      
-      <div className="mt-4 flex flex-wrap justify-center gap-2">
-        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
-          <img src="https://nowpayments.io/images/coins/usdt_bsc.svg" className="h-3 w-3" alt="USDT" />
-          <span className="text-[8px] font-black tracking-widest uppercase">USDT (BSC)</span>
-        </div>
-        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
-          <img src="https://nowpayments.io/images/coins/sol.svg" className="h-3 w-3" alt="SOL" />
-          <span className="text-[8px] font-black tracking-widest uppercase">SOL (SOL)</span>
-        </div>
-        <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
-          <img src="https://nowpayments.io/images/coins/usdc.svg" className="h-3 w-3" alt="USDC" />
-          <span className="text-[8px] font-black tracking-widest uppercase">USDC (SOLANA)</span>
-        </div>
-      </div>
+      {!props.hideCrypto && (
+        <>
+          <button
+            onClick={props.onCryptoClick}
+            disabled={props.disabled}
+            className={`mt-3 w-full rounded-xl py-4 text-[11px] font-black uppercase tracking-[0.2em] transition ${props.highlight ? "bg-[#39FF14] text-black hover:bg-[#30de10]" : "bg-white text-black hover:bg-slate-200"} disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(57,255,20,0.15)]`}
+          >
+            {props.loadingCrypto ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Pay with Crypto (USDT, SOL, USDC)
+          </button>
+          
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+              <img src="https://nowpayments.io/images/coins/usdt_bsc.svg" className="h-3 w-3" alt="USDT" />
+              <span className="text-[8px] font-black tracking-widest uppercase">USDT (BSC)</span>
+            </div>
+            <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+              <img src="https://nowpayments.io/images/coins/sol.svg" className="h-3 w-3" alt="SOL" />
+              <span className="text-[8px] font-black tracking-widest uppercase">SOL (SOL)</span>
+            </div>
+            <div className="px-2 py-1 rounded bg-white/5 border border-white/5 flex items-center gap-1.5 opacity-60">
+              <img src="https://nowpayments.io/images/coins/usdc.svg" className="h-3 w-3" alt="USDC" />
+              <span className="text-[8px] font-black tracking-widest uppercase">USDC (SOLANA)</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
