@@ -177,7 +177,7 @@ const ConditionDisplayRow = memo(function ConditionDisplayRow({
   // Format value display
   const valueDisplay = condition.type === 'price_change'
     ? `${condition.value > 0 ? '+' : ''}${condition.value}%`
-    : condition.value.toString();
+    : condition.value?.toString() ?? '';
 
   const actualValueDisplay = actualValue !== undefined && actualValue !== null
     ? typeof actualValue === 'number'

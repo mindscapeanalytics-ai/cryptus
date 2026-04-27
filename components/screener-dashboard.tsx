@@ -2494,34 +2494,34 @@ export default function ScreenerDashboard() {
           isSyncingRef.current = true;
           try {
             if (prefs.watchlist) setWatchlist(new Set(prefs.watchlist));
-            if (prefs.globalThresholdsEnabled !== undefined) setGlobalThresholdsEnabled(prefs.globalThresholdsEnabled);
-            if (prefs.globalOverbought !== undefined) setGlobalOverbought(prefs.globalOverbought);
-            if (prefs.globalOversold !== undefined) setGlobalOversold(prefs.globalOversold);
-            if (prefs.globalThresholdTimeframes !== undefined) setGlobalThresholdTimeframes(prefs.globalThresholdTimeframes);
-            if (prefs.globalLongCandleThreshold !== undefined) setGlobalLongCandleThreshold(prefs.globalLongCandleThreshold);
-            if (prefs.globalVolumeSpikeThreshold !== undefined) setGlobalVolumeSpikeThreshold(prefs.globalVolumeSpikeThreshold);
-            if (prefs.globalVolatilityEnabled !== undefined) setGlobalVolatilityEnabled(prefs.globalVolatilityEnabled);
-            if (prefs.globalSignalThresholdMode !== undefined) setGlobalSignalThresholdMode(prefs.globalSignalThresholdMode as any);
-            if (prefs.globalUseRsi !== undefined) setGlobalUseRsi(prefs.globalUseRsi);
-            if (prefs.globalUseMacd !== undefined) setGlobalUseMacd(prefs.globalUseMacd);
-            if (prefs.globalUseBb !== undefined) setGlobalUseBb(prefs.globalUseBb);
-            if (prefs.globalUseStoch !== undefined) setGlobalUseStoch(prefs.globalUseStoch);
-            if (prefs.globalUseEma !== undefined) setGlobalUseEma(prefs.globalUseEma);
-            if (prefs.globalUseVwap !== undefined) setGlobalUseVwap(prefs.globalUseVwap);
-            if (prefs.globalUseConfluence !== undefined) setGlobalUseConfluence(prefs.globalUseConfluence);
-            if (prefs.globalUseDivergence !== undefined) setGlobalUseDivergence(prefs.globalUseDivergence);
-            if (prefs.globalUseMomentum !== undefined) setGlobalUseMomentum(prefs.globalUseMomentum);
-            if (prefs.globalUseObv !== undefined) setGlobalUseObv(prefs.globalUseObv);
-            if (prefs.globalUseWilliamsR !== undefined) setGlobalUseWilliamsR(prefs.globalUseWilliamsR);
-            if (prefs.globalUseCci !== undefined) setGlobalUseCci(prefs.globalUseCci);
-            if (prefs.visibleColumns !== undefined) setVisibleCols(new Set(prefs.visibleColumns as ColumnId[]));
-            if (prefs.refreshInterval !== undefined) setRefreshInterval(prefs.refreshInterval);
-            if (prefs.pairCount !== undefined) setPairCount(prefs.pairCount);
-            if (prefs.smartMode !== undefined) setSmartMode(prefs.smartMode);
-            if (prefs.showHeader !== undefined) setShowHeader(prefs.showHeader);
-            if (prefs.rsiPeriod !== undefined) setRsiPeriod(prefs.rsiPeriod);
-            if (prefs.soundEnabled !== undefined) setSoundEnabled(prefs.soundEnabled);
-            if (prefs.tradingStyle !== undefined) setTradingStyle(prefs.tradingStyle as TradingStyle);
+            if (prefs.globalThresholdsEnabled !== undefined) setGlobalThresholdsEnabled(prefs.globalThresholdsEnabled ?? true);
+            if (prefs.globalOverbought !== undefined) setGlobalOverbought(prefs.globalOverbought ?? 80);
+            if (prefs.globalOversold !== undefined) setGlobalOversold(prefs.globalOversold ?? 20);
+            if (prefs.globalThresholdTimeframes !== undefined) setGlobalThresholdTimeframes(prefs.globalThresholdTimeframes ?? ['1m', '5m', '15m', '1h']);
+            if (prefs.globalLongCandleThreshold !== undefined) setGlobalLongCandleThreshold(prefs.globalLongCandleThreshold ?? 2.0);
+            if (prefs.globalVolumeSpikeThreshold !== undefined) setGlobalVolumeSpikeThreshold(prefs.globalVolumeSpikeThreshold ?? 2.5);
+            if (prefs.globalVolatilityEnabled !== undefined) setGlobalVolatilityEnabled(prefs.globalVolatilityEnabled ?? true);
+            if (prefs.globalSignalThresholdMode !== undefined) setGlobalSignalThresholdMode((prefs.globalSignalThresholdMode as any) ?? 'custom');
+            if (prefs.globalUseRsi !== undefined) setGlobalUseRsi(prefs.globalUseRsi ?? true);
+            if (prefs.globalUseMacd !== undefined) setGlobalUseMacd(prefs.globalUseMacd ?? true);
+            if (prefs.globalUseBb !== undefined) setGlobalUseBb(prefs.globalUseBb ?? true);
+            if (prefs.globalUseStoch !== undefined) setGlobalUseStoch(prefs.globalUseStoch ?? true);
+            if (prefs.globalUseEma !== undefined) setGlobalUseEma(prefs.globalUseEma ?? true);
+            if (prefs.globalUseVwap !== undefined) setGlobalUseVwap(prefs.globalUseVwap ?? true);
+            if (prefs.globalUseConfluence !== undefined) setGlobalUseConfluence(prefs.globalUseConfluence ?? true);
+            if (prefs.globalUseDivergence !== undefined) setGlobalUseDivergence(prefs.globalUseDivergence ?? true);
+            if (prefs.globalUseMomentum !== undefined) setGlobalUseMomentum(prefs.globalUseMomentum ?? true);
+            if (prefs.globalUseObv !== undefined) setGlobalUseObv(prefs.globalUseObv ?? true);
+            if (prefs.globalUseWilliamsR !== undefined) setGlobalUseWilliamsR(prefs.globalUseWilliamsR ?? true);
+            if (prefs.globalUseCci !== undefined) setGlobalUseCci(prefs.globalUseCci ?? true);
+            if (prefs.visibleColumns !== undefined) setVisibleCols(new Set((prefs.visibleColumns as ColumnId[]) ?? []));
+            if (prefs.refreshInterval !== undefined) setRefreshInterval(prefs.refreshInterval ?? 30);
+            if (prefs.pairCount !== undefined) setPairCount(prefs.pairCount ?? 100);
+            if (prefs.smartMode !== undefined) setSmartMode(prefs.smartMode ?? true);
+            if (prefs.showHeader !== undefined) setShowHeader(prefs.showHeader ?? true);
+            if (prefs.rsiPeriod !== undefined) setRsiPeriod(prefs.rsiPeriod ?? 14);
+            if (prefs.soundEnabled !== undefined) setSoundEnabled(prefs.soundEnabled ?? true);
+            if (prefs.tradingStyle !== undefined) setTradingStyle((prefs.tradingStyle as TradingStyle) ?? 'intraday');
           } finally {
             setTimeout(() => { isSyncingRef.current = false; }, 200);
           }
@@ -6804,12 +6804,13 @@ const NumericAdjuster = memo(({
   colorClass = "text-white", bgClass = "bg-slate-950/50", borderClass = "border-white/5",
   description = "", loading = false
 }: any) => {
-  const [localValue, setLocalValue] = useState(value.toString());
+  const [localValue, setLocalValue] = useState(value?.toString() ?? '');
 
   useEffect(() => {
     // Sync local state if parent value changes (e.g. from buttons or initial load)
-    if (value.toString() !== localValue && document.activeElement !== document.getElementById(`input-${label}`)) {
-      setLocalValue(value.toString());
+    const valStr = value?.toString() ?? '';
+    if (valStr !== localValue && document.activeElement !== document.getElementById(`input-${label}`)) {
+      setLocalValue(valStr);
     }
   }, [value, label, localValue]);
 
@@ -6848,7 +6849,7 @@ const NumericAdjuster = memo(({
           type="button"
           disabled={loading || value <= min}
           onClick={() => {
-            const next = Math.max(min, value - 1);
+            const next = Math.max(min, (value ?? min) - 1);
             onChange(next);
             setLocalValue(next.toString());
           }}
@@ -6873,7 +6874,7 @@ const NumericAdjuster = memo(({
           type="button"
           disabled={loading || value >= max}
           onClick={() => {
-            const next = Math.min(max, value + 1);
+            const next = Math.min(max, (value ?? max) + 1);
             onChange(next);
             setLocalValue(next.toString());
           }}

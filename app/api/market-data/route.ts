@@ -7,17 +7,20 @@
  * distribution, or use of this software is strictly prohibited.
  *
  * Architecture:
- * 1. Primary: Yahoo Finance v7 Batch Quote (up to 50 symbols, 1 request).
- *    Provides: Price, Change, Volume, names, and Institutional SMAs (50/200).
- * 2. Secondary: Yahoo Finance v8 Chart (top 30 symbols, parallelized).
- *    Provides: 1m historical candles (2 hours) for technicals (RSI/EMA).
- * 3. Fallback: query2.finance.yahoo.com if query1 fails (geo-redundancy).
+ * 1. Cache Layer: 15min TTL (instant, no API calls)
+ * 2. Alpha Vantage: Intraday candles (25 calls/day FREE)
+ * 3. Twelve Data: Fallback intraday (800 calls/day FREE)
+ * 4. Yahoo Finance v7: Batch quotes (price, SMAs, market state)
+ * 5. Yahoo Finance v8: Chart data (2h history backup)
  *
  * Security: Session-gated - requires authenticated user with active subscription or trial.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/api-auth';
+import { getAlphaVantageClient } from '@/lib/data-sources/alpha-vantage';
+import { getTwelveDataClient } from '@/lib/data-sources/twelve-data';
+import { intradayCache } from '@/lib/data-sources/intraday-cache';
 
 // ── Rate Limiter (Per-IP, in-memory) ─────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -57,6 +60,84 @@ async function resilientFetch(path: string, timeoutMs = 6000): Promise<any> {
     }
   }
   return null;
+}
+
+// ── Intraday Data Fetcher (Alpha Vantage + Twelve Data + Cache) ──
+async function fetchIntradayData(symbols: string[]): Promise<Map<string, number[]>> {
+  const results = new Map<string, number[]>();
+  
+  // Only fetch top 10 visible symbols to stay within rate limits
+  const prioritySymbols = symbols.slice(0, 10);
+  
+  const alphaVantage = getAlphaVantageClient();
+  const twelveData = getTwelveDataClient();
+  
+  for (const symbol of prioritySymbols) {
+    // 1. Check cache first (15min TTL)
+    const cached = intradayCache.get(symbol, '1min');
+    if (cached) {
+      const closes = cached.map((c: any) => {
+        // Handle both Alpha Vantage and Twelve Data formats
+        if (typeof c === 'object' && c.close !== undefined) {
+          return typeof c.close === 'number' ? c.close : parseFloat(c.close);
+        }
+        return c;
+      }).filter((c: number) => Number.isFinite(c) && c > 0);
+      
+      if (closes.length > 0) {
+        results.set(symbol, closes);
+        continue;
+      }
+    }
+    
+    // 2. Try Alpha Vantage (primary source)
+    if (alphaVantage) {
+      try {
+        const data = await alphaVantage.getIntradayCandles(symbol, '1min', 'compact');
+        if (data && data.candles.length > 0) {
+          const closes = data.candles.map(c => c.close);
+          results.set(symbol, closes);
+          intradayCache.set(symbol, '1min', data.candles, 'alphavantage');
+          
+          // Rate limit: wait 12s between calls (5 calls/min = 1 call per 12s)
+          await new Promise(resolve => setTimeout(resolve, 12000));
+          continue;
+        }
+      } catch (error) {
+        console.error(`[IntradayData] Alpha Vantage error for ${symbol}:`, error);
+      }
+    }
+    
+    // 3. Fallback to Twelve Data
+    if (twelveData) {
+      try {
+        const data = await twelveData.getTimeSeries(symbol, '1min', 100);
+        if (data && data.candles.length > 0) {
+          const closes = data.candles.map((c: any) => parseFloat(c.close));
+          results.set(symbol, closes);
+          intradayCache.set(symbol, '1min', data.candles, 'twelvedata');
+          
+          // Rate limit: wait 8s between calls (8 calls/min = 1 call per 7.5s)
+          await new Promise(resolve => setTimeout(resolve, 8000));
+        }
+      } catch (error) {
+        console.error(`[IntradayData] Twelve Data error for ${symbol}:`, error);
+      }
+    }
+  }
+  
+  // Log stats for monitoring
+  if (results.size > 0) {
+    const cacheStats = intradayCache.getStats();
+    console.log('[IntradayData] Fetched:', {
+      symbols: results.size,
+      cacheHitRate: cacheStats.hitRate,
+      alphaVantage: alphaVantage?.getStats(),
+      twelveData: twelveData?.getStats(),
+    });
+  }
+  
+  return results;
 }
 
 // ── Types ────────────────────────────────────────────────────────
@@ -116,7 +197,10 @@ export async function GET(request: NextRequest) {
     // ── 4. Fetch Batch Quotes (v7) with fallback ──
     const quotePath = `/v7/finance/quote?symbols=${encodeURIComponent(symbols.join(','))}&fields=regularMarketPrice,regularMarketOpen,regularMarketPreviousClose,regularMarketChange,regularMarketChangePercent,regularMarketVolume,regularMarketDayHigh,regularMarketDayLow,fiftyDayAverage,twoHundredDayAverage,shortName,longName,marketState,currency`;
 
-    // ── 5. Fetch Charts for Technicals (v8) - Parallelized ──
+    // ── 5. Fetch Intraday Data (Alpha Vantage + Twelve Data + Cache) ──
+    const intradayData = await fetchIntradayData(symbols);
+    
+    // ── 6. Fetch Charts for Technicals (v8) - Parallelized (Yahoo backup) ──
     const techRequired = symbols.slice(0, 30);
 
     const [quoteResponse, ...chartResults] = await Promise.all([
@@ -129,7 +213,7 @@ export async function GET(request: NextRequest) {
     const quotes = quoteResponse?.quoteResponse?.result || [];
     const charMap = new Map<string, number[]>();
 
-    // Process charts into closes map
+    // Process charts into closes map (Yahoo backup)
     chartResults.forEach(chart => {
       const res = chart?.chart?.result?.[0];
       const sym = res?.meta?.symbol;
@@ -139,9 +223,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // ── 6. Merge into unified MarketDataEntry stream ──
+    // ── 7. Merge into unified MarketDataEntry stream ──
     const results: MarketDataEntry[] = quotes.map((q: any) => {
-      const histCloses = charMap.get(q.symbol) || [];
+      // Priority: Alpha Vantage/Twelve Data > Yahoo Chart > Empty
+      const histCloses = intradayData.get(q.symbol) || charMap.get(q.symbol) || [];
       const livePrice = q.regularMarketPrice || 0;
 
       // Append live price to closes tail for indicator accuracy
@@ -169,11 +254,21 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Determine data source for response
+    const dataSource = intradayData.size > 0 
+      ? 'hybrid-alphavantage-twelvedata-yahoo'
+      : 'hybrid-yahoo-v7v8';
+
     return NextResponse.json({
       data: results,
-      source: 'hybrid-yahoo-v7v8',
+      source: dataSource,
       timestamp: Date.now(),
       assetClass,
+      stats: {
+        intradaySymbols: intradayData.size,
+        yahooSymbols: charMap.size,
+        cacheStats: intradayCache.getStats(),
+      },
     }, {
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
