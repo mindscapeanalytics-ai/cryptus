@@ -1602,7 +1602,7 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
 ];
 
 
-// --- Main Dashboard ---
+// ─── Main Dashboard ─────────────────────────────────────────────────────────
 
 const REFRESH_OPTIONS = [
   { label: '15s', value: 15, maxPairs: 300 },
