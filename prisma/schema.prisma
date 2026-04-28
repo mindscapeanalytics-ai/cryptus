@@ -39,18 +39,18 @@ model UserPreference {
   user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // Global Alert Settings
-  globalThresholdsEnabled      Boolean  @default(false)
+  globalThresholdsEnabled      Boolean  @default(true)
   globalOverbought             Int      @default(80)
   globalOversold               Int      @default(20)
   globalThresholdTimeframes    String[] @default(["1m", "5m", "15m", "1h"])
   
   // Volatility Surge Settings
-  globalVolatilityEnabled      Boolean  @default(false)
+  globalVolatilityEnabled      Boolean  @default(true)
   globalLongCandleThreshold    Float    @default(2.0)
   globalVolumeSpikeThreshold   Float    @default(2.5)
   
   // UI & Indicator Settings
-  globalSignalThresholdMode    String   @default("default") // 'default' | 'custom'
+  globalSignalThresholdMode    String   @default("custom") // 'default' | 'custom'
   globalShowSignalTags         Boolean  @default(true)
   globalUseRsi                 Boolean  @default(true)
   globalUseMacd                Boolean  @default(true)
@@ -67,7 +67,7 @@ model UserPreference {
   
   // Dashboard State
   tradingStyle                 String   @default("intraday") // 'scalping' | 'intraday' | 'swing' | 'position'
-  visibleColumns               String[] @default(["rank", "winRate", "rsi15m", "emaCross", "macdHistogram", "stochK", "vwapDiff", "confluence", "divergence", "momentum", "adx", "longCandle", "volumeSpike", "fundingRate", "orderFlow", "smartMoney", "strategy"])
+  visibleColumns               String[] @default(["rank", "winRate", "rsi15m", "emaCross", "macdHistogram", "stochK", "vwapDiff", "confluence", "divergence", "momentum", "adx", "longCandle", "volumeSpike", "fundingRate", "orderFlow", "smartMoney", "finalAction", "superSignal", "strategy"])
   refreshInterval              Int      @default(30)
   pairCount                    Int      @default(100)
   smartMode                    Boolean  @default(true)

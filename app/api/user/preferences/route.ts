@@ -8,7 +8,11 @@ export async function GET(request: Request) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const prefs = await getUserPreferences(user.id);
+    let prefs = await getUserPreferences(user.id);
+    // Ensure a canonical institutional-grade row exists on first read.
+    if (!prefs) {
+      prefs = await updateUserPreferences(user.id, {});
+    }
     return NextResponse.json(prefs || {}, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',

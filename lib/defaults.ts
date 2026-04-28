@@ -75,6 +75,8 @@ export const DASHBOARD_DEFAULTS = {
     'fundingRate',    // Derivatives funding
     'orderFlow',      // Order flow pressure
     'smartMoney',     // Smart money score
+    'finalAction',    // Final fused execution signal
+    'superSignal',    // Institutional SUPER_SIGNAL
     'strategy',       // Strategy signal
   ] as readonly string[],
   /** Default trading style */
