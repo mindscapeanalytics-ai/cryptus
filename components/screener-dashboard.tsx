@@ -2750,7 +2750,9 @@ export default function ScreenerDashboard() {
 
   // Live WebSocket prices
   const symbolSet = useMemo(() => {
-    const baseSet = data.length > 0 ? new Set(data.map((e) => e.symbol)) : new Set<string>();
+    const baseSet = data.length > 0
+      ? new Set(data.map((e) => e.symbol).filter((s): s is string => typeof s === 'string' && s.length > 0))
+      : new Set<string>();
 
     // 🔥 Institutional Priority: Always include Watchlist symbols in the live set
     watchlist.forEach(s => baseSet.add(s));

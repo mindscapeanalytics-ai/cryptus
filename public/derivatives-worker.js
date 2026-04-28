@@ -1059,6 +1059,7 @@ function start(symbols) {
   isRunning = true;
   currentSymbols = new Set(
     symbols
+      .filter(s => typeof s === 'string' && s.length > 0)
       .map(s => s.toUpperCase())
       .filter(isFuturesUsdtSymbol)
   );
@@ -1150,6 +1151,7 @@ function updateSymbols(symbols) {
   const oldSymbols = new Set(currentSymbols);
   currentSymbols = new Set(
     symbols
+      .filter(s => typeof s === 'string' && s.length > 0)
       .map(s => s.toUpperCase())
       .filter(isFuturesUsdtSymbol)
   );

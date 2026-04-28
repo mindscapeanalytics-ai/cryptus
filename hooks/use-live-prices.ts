@@ -735,11 +735,15 @@ export function useSymbolPrice(symbol: string, initialPrice: number = 0, enabled
     // PERF: Poll the engine cache at 300ms intervals instead of per-tick events.
     // Previous approach dispatched one CustomEvent per symbol per flush (2000+/sec).
     // This polling approach has zero event overhead and still provides <300ms latency.
-    let lastPrice: number | undefined;
+    let lastSeenUpdatedAt: number | undefined;
     const pollInterval = setInterval(() => {
       const latest = engine.getLatest(symbol);
-      if (latest && latest.price !== lastPrice) {
-        lastPrice = latest.price;
+      // IMPORTANT:
+      // Price can remain unchanged while other live fields update (curCandleVol, curCandleSize,
+      // avg baselines, volatility booleans, etc). If we only update when price changes,
+      // many columns appear "stuck" or show '-' even though the worker is streaming data.
+      if (latest && latest.updatedAt !== lastSeenUpdatedAt) {
+        lastSeenUpdatedAt = latest.updatedAt;
         setTick(latest);
       }
     }, 300);
@@ -747,7 +751,7 @@ export function useSymbolPrice(symbol: string, initialPrice: number = 0, enabled
     // Grab latest once on mount
     const latest = engine.getLatest(symbol);
     if (latest) {
-      lastPrice = latest.price;
+      lastSeenUpdatedAt = latest.updatedAt;
       setTick(latest);
     }
 

@@ -107,6 +107,7 @@ const EXCHANGE_ALIASES: Record<string, string> = {
  * Priority: Exchange aliases → Yahoo aliases → smart cleanup.
  */
 export function getSymbolAlias(symbol: string): string {
+  if (!symbol) return '-';
   // 1. Check exchange-native aliases (Binance/Bybit)
   if (EXCHANGE_ALIASES[symbol]) return EXCHANGE_ALIASES[symbol];
 
@@ -136,6 +137,7 @@ export function getSymbolAlias(symbol: string): string {
  * For Yahoo symbols this strips the =X / =F suffix. For crypto it shows the pair.
  */
 export function getSymbolTicker(symbol: string): string {
+  if (!symbol) return '-';
   // Yahoo Forex: EURUSD=X → EUR/USD
   if (symbol.endsWith('=X')) {
     const base = symbol.replace('=X', '');
