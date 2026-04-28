@@ -1760,6 +1760,24 @@ function applyCurrentCycleCoherence(
   prevEntry: ScreenerEntry | undefined,
   nowTs: number
 ): void {
+  const getStrategyDirection = (signal: StrategySignal): 1 | -1 | 0 => {
+    if (signal === 'strong-buy' || signal === 'buy') return 1;
+    if (signal === 'strong-sell' || signal === 'sell') return -1;
+    return 0;
+  };
+  const getSuperDirection = (category?: string): 1 | -1 | 0 => {
+    if (!category) return 0;
+    if (category === 'Strong Buy' || category === 'Buy') return 1;
+    if (category === 'Strong Sell' || category === 'Sell') return -1;
+    return 0;
+  };
+  const getTrustedSuperScore = (): number | undefined => {
+    if (!entry.superSignal) return undefined;
+    if (entry.superSignal.status !== 'ok') return undefined;
+    if ((entry.superSignal.confidence ?? 0) < 60) return undefined;
+    return (entry.superSignal.value - 50) * 2;
+  };
+
   const strategy = computeStrategyScore({
     rsi1m: entry.rsi1m,
     rsi5m: entry.rsi5m,
@@ -1789,7 +1807,7 @@ function applyCurrentCycleCoherence(
     regime: entry.regime?.regime as any,
     tradingStyle,
     smartMoneyScore: entry.smartMoneyScore ?? undefined,
-    superSignalScore: entry.superSignal ? (entry.superSignal.value - 50) * 2 : undefined,
+    superSignalScore: getTrustedSuperScore(),
   });
 
   entry.strategyScore = strategy.score;
@@ -1797,9 +1815,33 @@ function applyCurrentCycleCoherence(
   entry.strategyLabel = strategy.label;
   entry.strategyReasons = strategy.reasons;
 
+  // Hard coherence gate:
+  // If SUPER_SIGNAL is high-confidence and directionally opposite, force Strategy to neutral
+  // to eliminate contradictory execution guidance in the table.
+  const superStatus = entry.superSignal?.status;
+  const superConfidence = entry.superSignal?.confidence ?? 0;
+  const superDirection = getSuperDirection(entry.superSignal?.category);
+  const strategyDirection = getStrategyDirection(entry.strategySignal);
+  const hasCriticalConflict =
+    superStatus === 'ok' &&
+    superConfidence >= 70 &&
+    superDirection !== 0 &&
+    strategyDirection !== 0 &&
+    superDirection !== strategyDirection;
+
+  if (hasCriticalConflict) {
+    entry.strategyScore = 0;
+    entry.strategySignal = 'neutral';
+    entry.strategyLabel = 'Neutral';
+    entry.strategyReasons = [
+      ...(entry.strategyReasons ?? []),
+      `Coherence gate: neutralized Strategy due to high-confidence Super Signal conflict (${entry.superSignal?.category}, conf ${superConfidence}%)`,
+    ];
+  }
+
   const primaryRsi = entry.rsi15m ?? entry.rsi1m;
   entry.signal = deriveCoherentSignal(
-    strategy.signal,
+    entry.strategySignal,
     primaryRsi,
     coinConfig?.overboughtThreshold,
     coinConfig?.oversoldThreshold

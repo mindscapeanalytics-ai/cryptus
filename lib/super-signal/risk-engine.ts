@@ -211,14 +211,21 @@ export async function computeRisk(
     // Get ATR multiplier for asset class
     const multiplier = getAtrMultiplier(assetClass);
     
-    // Determine trade direction from strategy signal
-    const direction = ['strong-buy', 'buy'].includes(strategySignal) ? 1 : -1;
+    // Determine trade direction from strategy signal.
+    // Neutral must stay directionless to avoid introducing short-bias in risk adjustments.
+    const direction = strategySignal === 'strong-buy' || strategySignal === 'buy'
+      ? 1
+      : strategySignal === 'strong-sell' || strategySignal === 'sell'
+        ? -1
+        : 0;
     
-    // Compute stop loss
-    const stopLoss = computeStopLoss(price, atr, multiplier, direction);
+    // For neutral strategy we still compute conservative risk metrics,
+    // but use long-side convention for technical fields (directionless risk score remains neutralized below).
+    const effectiveDirection = direction === 0 ? 1 : direction;
+    const stopLoss = computeStopLoss(price, atr, multiplier, effectiveDirection);
     
     // Compute take profit levels
-    const takeProfits = computeTakeProfits(price, stopLoss, [1.33, 2.0], direction);
+    const takeProfits = computeTakeProfits(price, stopLoss, [1.33, 2.0], effectiveDirection);
     
     // Compute position size (if account balance provided)
     const positionSize = computePositionSize(
@@ -237,7 +244,7 @@ export async function computeRisk(
     // - SM confirms Strategy direction → lower perceived risk (+5-15 score)
     // - SM contradicts Strategy direction → higher perceived risk (-5-15 score)
     // This ensures the Super Signal fusion engine reflects derivatives intelligence.
-    if (input.smartMoneyScore !== undefined && input.smartMoneyScore !== null && Math.abs(input.smartMoneyScore) >= 20) {
+    if (direction !== 0 && input.smartMoneyScore !== undefined && input.smartMoneyScore !== null && Math.abs(input.smartMoneyScore) >= 20) {
       const smDirection = input.smartMoneyScore > 0 ? 1 : -1;
       const smMagnitude = Math.min(Math.abs(input.smartMoneyScore), 100) / 100; // 0-1
       
@@ -265,7 +272,7 @@ export async function computeRisk(
     }
 
     // Order-flow confirmation: if flow aligns with strategy, reduce risk; else increase risk.
-    if (input.orderFlowRatio !== undefined && input.orderFlowRatio !== null) {
+    if (direction !== 0 && input.orderFlowRatio !== undefined && input.orderFlowRatio !== null) {
       const buyPressure = input.orderFlowRatio;
       const flowDirection = buyPressure > 0.55 ? 1 : buyPressure < 0.45 ? -1 : 0;
       if (flowDirection !== 0) {

@@ -3149,7 +3149,16 @@ export default function ScreenerDashboard() {
       // ─── Phase 2: Institutional Logic Overlay ───
       // We apply the same weighted strategy logic to all assets (Crypto & traditional).
       // If the backend hasn't provided a score yet (fallback mode), we calculate a local one.
-      if (merged.strategyScore === 0) {
+      // Only compute local fallback when strategy is missing/invalid.
+      // Score=0 is a valid authoritative neutral (including coherence-gated neutral),
+      // so never use "=== 0" as a recompute trigger.
+      if (!Number.isFinite(merged.strategyScore) || !merged.strategySignal) {
+        const trustedSuperScore =
+          merged.superSignal &&
+          merged.superSignal.status === 'ok' &&
+          (merged.superSignal.confidence ?? 0) >= 60
+            ? Math.round((merged.superSignal.value - 50) * 2)
+            : undefined;
         const strat = computeStrategyScore({
           rsi1m: merged.rsi1m,
           rsi5m: merged.rsi5m,
@@ -3166,6 +3175,7 @@ export default function ScreenerDashboard() {
           volumeSpike: merged.volumeSpike,
           price: merged.price,
           smartMoneyScore: merged.smartMoneyScore ?? undefined,
+          superSignalScore: trustedSuperScore,
           adx: merged.adx,
           hiddenDivergence: merged.hiddenDivergence,
           enabledIndicators: {
@@ -3191,6 +3201,37 @@ export default function ScreenerDashboard() {
           strategyLabel: strat.label,
           strategyReasons: strat.reasons,
         };
+      }
+
+      // Defense-in-depth coherence gate on client path:
+      // If a high-confidence Super Signal is opposite to Strategy, neutralize Strategy
+      // to prevent contradictory table outputs during transient client merges.
+      const superStatus = merged.superSignal?.status;
+      const superConfidence = merged.superSignal?.confidence ?? 0;
+      const superDirection = merged.superSignal?.category === 'Strong Buy' || merged.superSignal?.category === 'Buy'
+        ? 1
+        : merged.superSignal?.category === 'Strong Sell' || merged.superSignal?.category === 'Sell'
+          ? -1
+          : 0;
+      const strategyDirection = merged.strategySignal === 'strong-buy' || merged.strategySignal === 'buy'
+        ? 1
+        : merged.strategySignal === 'strong-sell' || merged.strategySignal === 'sell'
+          ? -1
+          : 0;
+      if (
+        superStatus === 'ok' &&
+        superConfidence >= 70 &&
+        superDirection !== 0 &&
+        strategyDirection !== 0 &&
+        superDirection !== strategyDirection
+      ) {
+        merged.strategyScore = 0;
+        merged.strategySignal = 'neutral';
+        merged.strategyLabel = 'Neutral';
+        merged.strategyReasons = [
+          ...(merged.strategyReasons ?? []),
+          `Client coherence gate: neutralized Strategy due to high-confidence Super conflict (${merged.superSignal?.category}, conf ${superConfidence}%)`,
+        ];
       }
 
       // ─── Phase 3: SMC Institutional Intelligence Wiring ───

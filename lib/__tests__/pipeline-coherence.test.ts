@@ -113,5 +113,106 @@ describe('Pipeline coherence (buildEntry/applyCurrentCycleCoherence)', () => {
     // Strategy signal must remain one of the allowed enums.
     expect(['strong-buy', 'buy', 'neutral', 'sell', 'strong-sell']).toContain(entry.strategySignal);
   });
+
+  it('ignores low-confidence Super Signal in strategy validation path', () => {
+    const now = Date.now();
+    const klines1m = makeKlines1m(210, now - 210 * 60_000, 100, 0.03);
+    const ticker = {
+      symbol: 'SOLUSDT',
+      lastPrice: '125',
+      priceChangePercent: '2',
+      highPrice: '128',
+      lowPrice: '98',
+      quoteVolume: '750000',
+    };
+
+    const entry = screenerTest.buildEntry(
+      'SOLUSDT',
+      klines1m,
+      null,
+      null,
+      null,
+      ticker as any,
+      now,
+      14,
+      undefined,
+      undefined,
+      'intraday'
+    );
+    expect(entry).not.toBeNull();
+    if (!entry) return;
+
+    // Baseline coherence run with no Super Signal.
+    screenerTest.applyCurrentCycleCoherence(entry, undefined as any, 'intraday', undefined, now);
+    const baselineScore = entry.strategyScore;
+    const baselineSignal = entry.strategySignal;
+
+    // Low-confidence/non-ok Super Signal should not influence strategy validation.
+    entry.superSignal = {
+      value: 90,
+      category: 'Strong Buy',
+      status: 'low-confidence',
+      confidence: 35,
+      diagnostics: ['insufficient correlated assets'],
+    } as any;
+    screenerTest.applyCurrentCycleCoherence(entry, undefined as any, 'intraday', undefined, now);
+
+    expect(entry.strategyScore).toBe(baselineScore);
+    expect(entry.strategySignal).toBe(baselineSignal);
+  });
+
+  it('never leaves opposite Strategy vs high-confidence Super Signal', () => {
+    const now = Date.now();
+    const klines1m = makeKlines1m(240, now - 240 * 60_000, 100, 0.04);
+    const ticker = {
+      symbol: 'FETUSDT',
+      lastPrice: '110',
+      priceChangePercent: '3',
+      highPrice: '112',
+      lowPrice: '96',
+      quoteVolume: '800000',
+    };
+
+    const entry = screenerTest.buildEntry(
+      'FETUSDT',
+      klines1m,
+      null,
+      null,
+      null,
+      ticker as any,
+      now,
+      14,
+      undefined,
+      undefined,
+      'intraday'
+    );
+    expect(entry).not.toBeNull();
+    if (!entry) return;
+
+    // First compute baseline strategy direction.
+    screenerTest.applyCurrentCycleCoherence(entry, undefined as any, 'intraday', undefined, now);
+    const baseline = entry.strategySignal;
+    const isBaselineBuy = baseline === 'buy' || baseline === 'strong-buy';
+
+    // Force an explicit high-confidence opposite Super Signal to baseline.
+    entry.superSignal = isBaselineBuy
+      ? ({ value: 20, category: 'Strong Sell', status: 'ok', confidence: 90, diagnostics: [] } as any)
+      : ({ value: 80, category: 'Strong Buy', status: 'ok', confidence: 90, diagnostics: [] } as any);
+
+    screenerTest.applyCurrentCycleCoherence(entry, undefined as any, 'intraday', undefined, now);
+    const strategyDir = entry.strategySignal === 'buy' || entry.strategySignal === 'strong-buy'
+      ? 'buy'
+      : entry.strategySignal === 'sell' || entry.strategySignal === 'strong-sell'
+        ? 'sell'
+        : 'neutral';
+    const superDir = entry.superSignal?.category?.includes('Buy')
+      ? 'buy'
+      : entry.superSignal?.category?.includes('Sell')
+        ? 'sell'
+        : 'neutral';
+
+    // Hard guarantee: with high-confidence Super Signal, Strategy should never remain opposite.
+    expect(!(strategyDir !== 'neutral' && superDir !== 'neutral' && strategyDir !== superDir)).toBe(true);
+  });
 });
 
