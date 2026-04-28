@@ -832,6 +832,9 @@ function processNormalizedTicker(t, exchangeName = 'binance') {
       williamsR: state.williamsR != null ? state.williamsR : null,
       hiddenDivergence: state.hiddenDivergence,
       regime: state.regime,
+      smartMoneyScore: state.smartMoneyScore,
+      fundingRate: state.fundingRate,
+      orderFlowRatio: state.orderFlowRatio,
       obThreshold: (config.overboughtThreshold != null && config.overboughtThreshold > 0) ? config.overboughtThreshold : globalOverbought,
       osThreshold: (config.oversoldThreshold != null && config.oversoldThreshold > 0) ? config.oversoldThreshold : globalOversold,
       globalLongCandleThreshold,
@@ -1683,15 +1686,9 @@ function computeWorkerStrategyScore(params) {
     obv: true, williamsR: true, cci: true
   };
 
-  // ── Session-Aware Quality Multiplier ──
-  let sessionQuality = 1.0;
-  if (params.market === 'Forex' || params.market === 'Metal') {
-    const hour = new Date().getUTCHours();
-    const isLondon = hour >= 8 && hour <= 16;
-    const isNY = hour >= 13 && hour <= 21;
-    if (!isLondon && !isNY) sessionQuality = 0.35; // Dead zone
-    else if (isLondon && isNY) sessionQuality = 1.2; // Peak overlap boost
-  }
+  // ── Deterministic Quality Multiplier ──
+  // Keep worker scoring deterministic (no wall-clock dependence).
+  const sessionQuality = 1.0;
 
   // ── Asset-Specific RSI Zone Calibration ──
   let rsiDeepOS = 20, rsiOS = 30, rsiOB = 70, rsiDeepOB = 80;
@@ -1700,6 +1697,10 @@ function computeWorkerStrategyScore(params) {
   } else if (params.market === 'Metal' || params.market === 'Index' || params.market === 'Stocks') {
     rsiDeepOS = 22; rsiOS = 32; rsiOB = 68; rsiDeepOB = 78;
   }
+
+  // Multi-TF agreement thresholds (asset-aware, matches server logic)
+  const buyThreshold = rsiOS + 15;
+  const sellThreshold = rsiOB - 15;
 
   const rsiScoreStyle = (val, weightKey, tf) => {
     if (val === null || val === undefined || enabled.rsi === false) return;
@@ -1712,8 +1713,8 @@ function computeWorkerStrategyScore(params) {
     else if (val <= rsiOS) score += 80 * effectiveWeight;
     else if (val >= rsiDeepOB) score -= 100 * effectiveWeight;
     else if (val >= rsiOB) score -= 80 * effectiveWeight;
-    else if (val < 45) score += 30 * effectiveWeight;
-    else if (val > 55) score -= 30 * effectiveWeight;
+    else if (val < buyThreshold) score += 30 * effectiveWeight;
+    else if (val > sellThreshold) score -= 30 * effectiveWeight;
   };
 
   // 1. RSI (Style-Adaptive)
@@ -1870,8 +1871,8 @@ function computeWorkerStrategyScore(params) {
 
   // ── TFA TREND GUARD ──
   if (params.rsi1h !== null && params.rsi1h !== undefined) {
-    const is1hBullishTrend = params.rsi1h < 45;
-    const is1hBearishTrend = params.rsi1h > 55;
+    const is1hBullishTrend = params.rsi1h < buyThreshold;
+    const is1hBearishTrend = params.rsi1h > sellThreshold;
     if (score > 0 && is1hBullishTrend) score *= 1.15;
     else if (score < 0 && is1hBearishTrend) score *= 1.15;
     else if (score > 0 && is1hBearishTrend) score *= 0.70;
@@ -1894,6 +1895,30 @@ function computeWorkerStrategyScore(params) {
     } else {
       score += (smDir * 10) * (volatilityMultiplier || 1);
       factors += 1.0;
+    }
+  }
+
+  // ── FUNDING + ORDER FLOW DERIVATIVES CONTEXT ──
+  if (params.fundingRate != null) {
+    const annualizedFundingPct = Math.abs(params.fundingRate) * 3 * 365 * 100;
+    if (annualizedFundingPct >= 80) {
+      // Extreme funding suggests crowded positioning; dampen conviction.
+      score *= 0.85;
+    } else if (annualizedFundingPct >= 30) {
+      score *= 0.93;
+    }
+  }
+
+  if (params.orderFlowRatio != null) {
+    const flowDirection = params.orderFlowRatio > 0.55 ? 1 : params.orderFlowRatio < 0.45 ? -1 : 0;
+    if (flowDirection !== 0) {
+      const scoreDir = score > 0 ? 1 : score < 0 ? -1 : 0;
+      if (scoreDir !== 0) {
+        score *= flowDirection === scoreDir ? 1.08 : 0.88;
+      } else {
+        score += flowDirection * 6;
+        factors += 0.5;
+      }
     }
   }
 
@@ -1923,10 +1948,10 @@ function computeWorkerStrategyScore(params) {
 
   // ── Multi-TF Agreement Gate ──
   const rsiDirections = [
-    params.rsi1m != null ? (params.rsi1m < 45 ? 'buy' : params.rsi1m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi5m != null ? (params.rsi5m < 45 ? 'buy' : params.rsi5m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi15m != null ? (params.rsi15m < 45 ? 'buy' : params.rsi15m > 55 ? 'sell' : 'neutral') : null,
-    params.rsi1h != null ? (params.rsi1h < 45 ? 'buy' : params.rsi1h > 55 ? 'sell' : 'neutral') : null,
+    params.rsi1m != null ? (params.rsi1m < buyThreshold ? 'buy' : params.rsi1m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi5m != null ? (params.rsi5m < buyThreshold ? 'buy' : params.rsi5m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi15m != null ? (params.rsi15m < buyThreshold ? 'buy' : params.rsi15m > sellThreshold ? 'sell' : 'neutral') : null,
+    params.rsi1h != null ? (params.rsi1h < buyThreshold ? 'buy' : params.rsi1h > sellThreshold ? 'sell' : 'neutral') : null,
   ].filter(d => d !== null);
   
   const buyAgreement = rsiDirections.filter(d => d === 'buy').length;

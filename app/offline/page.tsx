@@ -92,19 +92,19 @@ export default function OfflinePage() {
           {isOnline ? (
             <>
               {/* Force HARD navigation to break out of SW cache trap */}
-              <a
+              <Link
                 href="/terminal"
                 className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-[#39FF14] text-black font-black text-sm hover:bg-[#32e012] transition-colors active:scale-95 shadow-[0_20px_40px_rgba(57,255,20,0.1)]"
               >
                 <Home size={16} />
                 Enter Terminal
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/"
                 className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-white/5 text-slate-400 font-bold text-sm hover:bg-white/10 border border-white/5 transition-colors active:scale-95"
               >
                 Return Home
-              </a>
+              </Link>
               
               <button
                 onClick={handleForceClear}
@@ -122,13 +122,13 @@ export default function OfflinePage() {
                 <RefreshCw size={16} className={cn(isVerifying && "animate-spin")} />
                 {isVerifying ? 'Checking...' : 'Check Connection'}
               </button>
-              <a
+              <Link
                 href="/"
                 className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl bg-white/5 text-slate-400 font-bold text-sm hover:bg-white/10 border border-white/5 transition-colors active:scale-95"
               >
                 <Home size={16} />
                 View Cached State
-              </a>
+              </Link>
             </>
           )}
         </div>

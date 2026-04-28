@@ -170,20 +170,20 @@ function generateReport(result: any): string {
   lines.push('## Module Results');
   lines.push('');
 
-  for (const module of result.modules) {
-    const statusEmoji = module.status === 'pass' ? '✅' : module.status === 'warning' ? '⚠️' : '❌';
-    lines.push(`### ${statusEmoji} ${module.module}`);
+  for (const moduleResult of result.modules) {
+    const statusEmoji = moduleResult.status === 'pass' ? '✅' : moduleResult.status === 'warning' ? '⚠️' : '❌';
+    lines.push(`### ${statusEmoji} ${moduleResult.module}`);
     lines.push('');
-    lines.push(`**Status**: ${module.status.toUpperCase()}`);
-    lines.push(`**Duration**: ${(module.duration / 1000).toFixed(2)}s`);
+    lines.push(`**Status**: ${moduleResult.status.toUpperCase()}`);
+    lines.push(`**Duration**: ${(moduleResult.duration / 1000).toFixed(2)}s`);
     lines.push('');
-    lines.push(module.details);
+    lines.push(moduleResult.details);
     lines.push('');
 
-    if (module.issues.length > 0) {
+    if (moduleResult.issues.length > 0) {
       lines.push('**Issues**:');
       lines.push('');
-      for (const issue of module.issues) {
+      for (const issue of moduleResult.issues) {
         lines.push(`- [${issue.severity.toUpperCase()}] ${issue.message}`);
         if (issue.location) {
           lines.push(`  Location: ${issue.location}`);

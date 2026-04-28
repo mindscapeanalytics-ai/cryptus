@@ -133,8 +133,8 @@ describe('Preservation Tests (MUST PASS on unfixed code)', () => {
 
   describe('Preservation 3: Super Signal High-Confidence Penalty Preserved', () => {
     it('should return multiplier < 1.0 when superSignalScore=20 contradicts bullish strategy', () => {
-      // |20 - 50| = 30 > 10 → high confidence → penalty applies
-      const result = validateWithSuperSignal(60, 20);
+      // Normalized Super Signal: -60 contradicts bullish strategy (+60) → penalty applies
+      const result = validateWithSuperSignal(60, -60);
       expect(result.multiplier).toBeLessThan(1.0);
       expect(result.confidence).toBe('low');
     });

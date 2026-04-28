@@ -160,9 +160,9 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
       totalPoints += pts;
       pillars.momentum = true;
       
-      if (isDeep || v <= zones.os || v >= zones.ob) {
-        reasons.push(`${isBullish ? '📉' : '📈'} RSI(${r.label}) is ${zone} at ${formatNum(v)}`);
-      }
+      // Always narrate non-neutral RSI zones (including "approaching" zones).
+      // The narration is a diagnostics surface as much as an explanation layer.
+      reasons.push(`${isBullish ? '📉' : '📈'} RSI(${r.label}) is ${zone} at ${formatNum(v)}`);
     }
   });
 

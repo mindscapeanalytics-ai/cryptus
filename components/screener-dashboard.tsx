@@ -464,6 +464,37 @@ function StrategyBadge({ signal, label, reasons, entry, onViewNarration, isOwner
   );
 }
 
+function FinalBadge({ signal, source }: { signal: ScreenerEntry['strategySignal']; source: 'super' | 'strategy' }) {
+  const cfg: Record<string, { bg: string; text: string; border: string; icon: string }> = {
+    'strong-buy': { bg: 'bg-[#39FF14]/30', text: 'text-[#39FF14]', border: 'border-[#39FF14]/60', icon: '🔥' },
+    'buy': { bg: 'bg-[#39FF14]/20', text: 'text-[#39FF14]/90', border: 'border-[#39FF14]/40', icon: '↗️' },
+    'neutral': { bg: 'bg-slate-700/20', text: 'text-slate-400', border: 'border-slate-600/30', icon: '➖' },
+    'sell': { bg: 'bg-[#FF4B5C]/20', text: 'text-[#FF4B5C]/90', border: 'border-[#FF4B5C]/40', icon: '↘️' },
+    'strong-sell': { bg: 'bg-[#FF4B5C]/30', text: 'text-[#FF4B5C]', border: 'border-[#FF4B5C]/60', icon: '⚠️' },
+  };
+  const style = cfg[signal] || cfg.neutral;
+  const suffix = source === 'super' ? 'S' : 'T';
+  const label =
+    signal === 'strong-buy' ? `S BUY ${suffix}` :
+    signal === 'buy' ? `BUY ${suffix}` :
+    signal === 'strong-sell' ? `S SELL ${suffix}` :
+    signal === 'sell' ? `SELL ${suffix}` : `NEUTRAL ${suffix}`;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 px-1.5 py-1 w-full max-w-[105px]",
+        "text-[9px] font-black uppercase tracking-tight leading-none whitespace-nowrap overflow-hidden transition-all duration-200",
+        "rounded-lg border",
+        style.bg, style.text, style.border
+      )}
+      title={`Final Action (source: ${source})`}
+    >
+      <span className="text-[9px] shrink-0">{style.icon}</span>
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
 
 function SuperSignalBadge({ superSignal, isOwner }: { superSignal: ScreenerEntry['superSignal'], isOwner?: boolean }) {
   if (!superSignal) {
@@ -508,7 +539,8 @@ function SuperSignalBadge({ superSignal, isOwner }: { superSignal: ScreenerEntry
     }
   };
 
-  const style = config[superSignal.category] || config.Neutral;
+  const isConfidenceLimited = superSignal.status === 'low-confidence' || superSignal.status === 'insufficient-data';
+  const style = isConfidenceLimited ? config.Neutral : (config[superSignal.category] || config.Neutral);
 
   const diagnostics = superSignal.diagnostics?.length
     ? `\n\nDiagnostics:\n${superSignal.diagnostics.map((line) => `• ${line}`).join('\n')}`
@@ -529,7 +561,7 @@ function SuperSignalBadge({ superSignal, isOwner }: { superSignal: ScreenerEntry
     >
       <span className="text-[9px] shrink-0">{style.icon}</span>
       <span className="truncate">
-        {superSignal.status === 'insufficient-data'
+        {isConfidenceLimited
           ? 'LOW CONF'
           : superSignal.category.toUpperCase()}
       </span>
@@ -1316,6 +1348,15 @@ const ScreenerRow = memo(function ScreenerRow({
         <SignalBadge signal={display.signal.toLowerCase() as any} />
       </td>
 
+      {visibleCols.has('finalAction') && (
+        <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
+          <FinalBadge
+            signal={(entry as any).finalSignal ?? entry.strategySignal}
+            source={(entry as any).finalSource ?? 'strategy'}
+          />
+        </td>
+      )}
+
       {visibleCols.has('strategy') && (
         <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
           <StrategyBadge signal={display.strategySignal} label={display.strategyLabel} reasons={display.strategyReasons} entry={entry} onViewNarration={onViewNarration} isOwner={isOwner} />
@@ -1533,6 +1574,7 @@ type ColumnId =
   | 'rank' | 'winRate' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
   | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy' | 'superSignal'
+  | 'finalAction'
   | 'confluence' | 'divergence' | 'momentum'
   | 'atr' | 'adx'
   | 'fundingRate' | 'orderFlow' | 'smartMoney';
@@ -1571,6 +1613,7 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'orderFlow', label: 'Flow', group: 'Derivatives', defaultVisible: true },
   { id: 'smartMoney', label: 'Smart $', group: 'Derivatives', defaultVisible: true },
   { id: 'superSignal', label: 'SUPER SIGNAL', group: 'Intelligence', defaultVisible: true },
+  { id: 'finalAction', label: 'FINAL', group: 'Execution', defaultVisible: true },
   { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
 ];
 
@@ -2819,6 +2862,15 @@ export default function ScreenerDashboard() {
   ]);
 
   // ─── Derivatives Intelligence Engine ───
+  const derivativeSymbols = useMemo(() => {
+    const next = new Set<string>();
+    symbolSet.forEach((symbol) => {
+      const s = symbol.toUpperCase();
+      if (/^[A-Z0-9]{2,20}USDT$/.test(s)) next.add(s);
+    });
+    return next;
+  }, [symbolSet]);
+
   const {
     fundingRates,
     liquidations,
@@ -2829,8 +2881,26 @@ export default function ScreenerDashboard() {
     isConnected: derivativesConnected,
     isStale: derivativesStale,
     streamHealth: derivStreamHealth,
+    lastHealthPulse: derivativesLastPulse,
     updateConfig: updateDerivConfig,
-  } = useDerivativesIntel(symbolSet, activeAssetClass === 'crypto');
+  } = useDerivativesIntel(derivativeSymbols, derivativeSymbols.size > 0);
+
+  const derivativesLastUpdateMs = useMemo(() => Date.now() - (derivativesLastPulse || 0), [derivativesLastPulse, lastGlobalUpdate]);
+
+  const resolveFinal = useCallback((entry: ScreenerEntry) => {
+    const superOk = !!entry.superSignal && entry.superSignal.status === 'ok' && (entry.superSignal.confidence ?? 0) >= 60;
+    const mapSuper = (category: string): ScreenerEntry['strategySignal'] => {
+      if (category === 'Strong Buy') return 'strong-buy';
+      if (category === 'Buy') return 'buy';
+      if (category === 'Strong Sell') return 'strong-sell';
+      if (category === 'Sell') return 'sell';
+      return 'neutral';
+    };
+    const finalSignal = superOk ? mapSuper(entry.superSignal!.category) : entry.strategySignal;
+    const finalScore = superOk ? Math.round(((entry.superSignal!.value - 50) * 2)) : entry.strategyScore;
+    const finalSource: 'super' | 'strategy' = superOk ? 'super' : 'strategy';
+    return { finalSignal, finalScore, finalSource };
+  }, []);
 
   // ─── Multi-Asset Market Data (Forex, Metals, Stocks) ───
   const {
@@ -2847,6 +2917,25 @@ export default function ScreenerDashboard() {
   // via useSymbolPrice() to avoid re-running this expensive memo on every 100ms tick.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const processedData = useMemo<ScreenerEntry[]>(() => {
+    const getDerivativeComposite = (symbol: string): number | null => {
+      const sm = smartMoney.get(symbol)?.score;
+      if (sm !== undefined && sm !== null) return sm;
+      const funding = fundingRates.get(symbol)?.rate;
+      const flow = orderFlow.get(symbol)?.ratio;
+      let composite = 0;
+      let used = 0;
+      if (funding !== undefined && funding !== null) {
+        const fundingSignal = Math.max(-100, Math.min(100, -(funding * 3 * 365 * 100)));
+        composite += fundingSignal * 0.6;
+        used += 0.6;
+      }
+      if (flow !== undefined && flow !== null) {
+        const flowSignal = Math.max(-100, Math.min(100, (flow - 0.5) * 200));
+        composite += flowSignal * 0.4;
+        used += 0.4;
+      }
+      return used > 0 ? Math.round(composite / used) : null;
+    };
     // ─── Phase 1: Institutional Intelligence Normalization ───
     // We prioritize the hardened backend stream (data).
     // If backend data is warming up, we use the frontend hook (marketData) as a fallback.
@@ -2901,6 +2990,7 @@ export default function ScreenerDashboard() {
         const momentumPriceBaseline = closes.length >= 10 ? closes[closes.length - 10] : (closes[0] || md.price || 0);
 
         // Immediate Strategy Scoring
+        const derivativeScore = getDerivativeComposite(md.symbol);
         const baselineStrategy = computeStrategyScore({
           rsi1m: rsi1m,
           rsi5m: null,
@@ -2918,6 +3008,7 @@ export default function ScreenerDashboard() {
           confluence: baselineConfluence.score,
           price: md.price || 0,
           volumeSpike: false,
+          smartMoneyScore: derivativeScore,
           market: resolvedMarket,
           enabledIndicators: {
             rsi: true, ema: true, macd: true, bb: true, stoch: true, vwap: true,
@@ -2986,7 +3077,8 @@ export default function ScreenerDashboard() {
           updatedAt: md.updatedAt,
           open1m: vwapPriceBaseline,
           volStart1m: 0,
-          historicalCloses: closes.slice(-50)
+          historicalCloses: closes.slice(-50),
+          smartMoneyScore: derivativeScore
         };
         return entry;
       });
@@ -3036,8 +3128,9 @@ export default function ScreenerDashboard() {
           momentum: live.momentum ?? entry.momentum,
           atr: live.atr ?? entry.atr,
           adx: live.adx ?? entry.adx,
-          strategyScore: live.strategyScore ?? entry.strategyScore,
-          strategySignal: (live.strategySignal ?? entry.strategySignal) as any,
+          // Keep Strategy authoritative to server snapshot so it cannot diverge from SUPER_SIGNAL mid-tick.
+          strategyScore: entry.strategyScore,
+          strategySignal: entry.strategySignal,
           curCandleSize: mergedCandleSize,
           curCandleVol: mergedCandleVol,
           avgBarSize1m: mergedAvgBar,
@@ -3072,6 +3165,7 @@ export default function ScreenerDashboard() {
           vwapDiff: merged.vwapDiff,
           volumeSpike: merged.volumeSpike,
           price: merged.price,
+          smartMoneyScore: merged.smartMoneyScore ?? undefined,
           adx: merged.adx,
           hiddenDivergence: merged.hiddenDivergence,
           enabledIndicators: {
@@ -3136,10 +3230,15 @@ export default function ScreenerDashboard() {
       }
 
       // Type safety enforcement for the unions
-      if (live) {
-        if (live.emaCross) merged.emaCross = live.emaCross;
-        if (live.strategySignal) merged.strategySignal = live.strategySignal;
-      }
+      if (live && live.emaCross) merged.emaCross = live.emaCross;
+
+      // Derivatives intelligence passthrough for coherent narration/risk context.
+      const fr = fundingRates.get(entry.symbol);
+      const flow = orderFlow.get(entry.symbol);
+      const sm = smartMoney.get(entry.symbol);
+      merged.fundingRate = fr?.rate ?? null;
+      merged.orderFlowRatio = flow?.ratio ?? null;
+      merged.smartMoneyScore = sm?.score ?? getDerivativeComposite(entry.symbol);
 
       // 3. Apply custom RSI approximation if period changed
       if (merged.rsiStateCustom && (merged.rsiPeriodAtCreation !== rsiPeriod)) {
@@ -3170,8 +3269,16 @@ export default function ScreenerDashboard() {
     coinConfigs, globalThresholdsEnabled, globalOverbought, globalOversold,
     globalUseMacd, globalUseBb, globalUseStoch, globalUseEma, globalUseVwap,
     globalUseConfluence, globalUseDivergence, globalUseMomentum,
-    globalVolumeSpikeThreshold, globalLongCandleThreshold
+    globalVolumeSpikeThreshold, globalLongCandleThreshold,
+    fundingRates, orderFlow, smartMoney
   ]);
+
+  const processedWithFinal = useMemo(() => {
+    return processedData.map((e) => {
+      const f = resolveFinal(e);
+      return { ...e, finalSignal: f.finalSignal, finalScore: f.finalScore, finalSource: f.finalSource } as any;
+    });
+  }, [processedData, resolveFinal]);
 
   // ── Signal Narration Engine™ (Institutional Intelligence) ──
   const handleViewNarration = useCallback((entry: ScreenerEntry) => {
@@ -3259,6 +3366,9 @@ export default function ScreenerDashboard() {
           williamsR: entry.williamsR,
           regime: entry.regime?.regime,
           market: entry.market,
+          smartMoneyScore: entry.smartMoneyScore ?? null,
+          fundingRate: entry.fundingRate ?? null,
+          orderFlowRatio: entry.orderFlowRatio ?? null,
         };
       });
       syncStates({
@@ -4449,7 +4559,7 @@ export default function ScreenerDashboard() {
   }, [search, processedData, activeAssetClass]);
 
   const filtered = useMemo(() => {
-    let items = processedData;
+    let items: any[] = processedWithFinal as any[];
 
     // Watchlist filter
     if (showWatchlistOnly) {
@@ -4460,7 +4570,7 @@ export default function ScreenerDashboard() {
     if (signalFilter === 'oversold' || signalFilter === 'overbought') {
       items = items.filter((e) => e.signal === signalFilter);
     } else if (signalFilter !== 'all') {
-      items = items.filter((e) => e.strategySignal === signalFilter);
+      items = items.filter((e) => (e.finalSignal ?? e.strategySignal) === signalFilter);
     }
 
     // Search filter
@@ -4498,6 +4608,11 @@ export default function ScreenerDashboard() {
 
       let av = a[sortKey as keyof ScreenerEntry] as any;
       let bv = b[sortKey as keyof ScreenerEntry] as any;
+      
+      if (sortKey === 'finalScore') {
+        av = a.finalScore ?? a.strategyScore;
+        bv = b.finalScore ?? b.strategyScore;
+      }
 
       if (sortKey === 'longCandle') {
         av = (a.curCandleSize && a.avgBarSize1m) ? a.curCandleSize / a.avgBarSize1m : 0;
@@ -4527,7 +4642,7 @@ export default function ScreenerDashboard() {
     });
 
     return items;
-  }, [processedData, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist, activeAssetClass, fundingRates, orderFlow, smartMoney]);
+  }, [processedWithFinal, signalFilter, search, sortKey, sortDir, showWatchlistOnly, watchlist, activeAssetClass, fundingRates, orderFlow, smartMoney]);
 
   // Bulk Actions: Select all visible symbols (must be after filtered is defined)
   const selectAllSymbols = useCallback(() => {
@@ -4560,33 +4675,33 @@ export default function ScreenerDashboard() {
   };
   const showStrongBuys = () => {
     setSignalFilter('strong-buy');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
   };
   const showBuys = () => {
     setSignalFilter('buy');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
   };
   const showSells = () => {
     setSignalFilter('sell');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
   };
   const showStrongSells = () => {
     setSignalFilter('strong-sell');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
   };
   const showNeutrals = () => {
     setSignalFilter('neutral');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
   };
   const resetFilters = () => {
     setSearch('');
     setSignalFilter('all');
-    setSortKey('strategyScore');
+    setSortKey('finalScore');
     setSortDir('desc');
     setShowWatchlistOnly(false);
   };
@@ -4884,6 +4999,30 @@ export default function ScreenerDashboard() {
                             </span>
                           </div>
                         )}
+                        <div className="pt-1.5 mt-1 border-t border-white/10 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[7px] font-black text-slate-500 uppercase">Deriv Symbols</span>
+                            <span className="text-[7px] font-bold tabular-nums text-slate-300">{derivativeSymbols.size}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[7px] font-black text-slate-500 uppercase">Funding WS</span>
+                            <span className={cn("text-[7px] font-bold", derivStreamHealth?.funding ? "text-[#39FF14]" : "text-slate-600")}>
+                              {derivStreamHealth?.funding ? "OK" : "OFF"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[7px] font-black text-slate-500 uppercase">Whale WS</span>
+                            <span className={cn("text-[7px] font-bold", derivStreamHealth?.whale ? "text-[#39FF14]" : "text-slate-600")}>
+                              {derivStreamHealth?.whale ? "OK" : "OFF"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[7px] font-black text-slate-500 uppercase">Last Intel</span>
+                            <span className={cn("text-[7px] font-bold tabular-nums", derivativesLastUpdateMs <= 8000 ? "text-[#39FF14]" : "text-amber-500")}>
+                              {Math.min(99999, Math.round(derivativesLastUpdateMs))}ms
+                            </span>
+                          </div>
+                        </div>
                         <div className="pt-1 border-t border-white/5">
                           <p className="text-[6px] text-slate-600 leading-tight">Institutional-grade monitoring ensures zero-gap data liveness across all derivatives streams.</p>
                         </div>
@@ -5628,6 +5767,7 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('winRate') && <th className={cn("px-3 py-3 text-[10px] font-bold uppercase text-slate-500 text-right tracking-widest whitespace-nowrap", COL_WIDTHS.winRate)}>Win Rate</th>}
 
                   <SortHeader label="Signal" sortKey="signal" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />
+                  {visibleCols.has('finalAction') && <SortHeader label="Final" sortKey="finalScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
                   {visibleCols.has('strategy') && <SortHeader label="Strategy" sortKey="strategyScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
                   {visibleCols.has('superSignal') && (
                     <SortHeader

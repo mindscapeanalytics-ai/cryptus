@@ -407,6 +407,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     isConnected,
     isStale,
     streamHealth,
+    lastHealthPulse,
     updateConfig,
   };
 }

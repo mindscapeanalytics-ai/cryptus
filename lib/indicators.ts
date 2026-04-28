@@ -745,16 +745,10 @@ export function computeStrategyScore(params: {
   else if (params.market === 'Index' || params.market === 'Stocks') volatilityMultiplier = 2.5;
   else if (params.market === 'Metal') volatilityMultiplier = 1.5;
 
-  // ── Session-Aware Quality Multiplier ──
-  // Dampen signals outside peak liquidity hours for session-based markets.
-  let sessionQuality = 1.0;
-  if (params.market === 'Forex' || params.market === 'Metal') {
-    const hour = new Date().getUTCHours();
-    const isLondon = hour >= 8 && hour <= 16;
-    const isNY = hour >= 13 && hour <= 21;
-    if (!isLondon && !isNY) sessionQuality = 0.35; // Dead zone
-    else if (isLondon && isNY) sessionQuality = 1.2; // Peak overlap boost
-  }
+  // ── Session Quality (Deterministic) ──
+  // NOTE: Session-based dampening using real-time clock made scoring non-deterministic in tests
+  // and in server refreshes across regions. Keep deterministic for institutional reproducibility.
+  const sessionQuality = 1.0;
   let factors = 0;
   const reasons: string[] = [];
   const enabled = params.enabledIndicators || INDICATOR_DEFAULTS;
@@ -799,6 +793,11 @@ export function computeStrategyScore(params: {
     }
   }
 
+  // Multi-TF RSI agreement thresholds (asset-aware)
+  // Used both for scoring bias and for the Strong-signal gate.
+  const buyThreshold = rsiOS + 15; // e.g., Crypto: 30+15=45, Forex: 35+15=50
+  const sellThreshold = rsiOB - 15; // e.g., Crypto: 70-15=55, Forex: 65-15=50
+
   // RSI scoring (higher weight for longer timeframes)
   // Regime-aware: oscillator weight applied to all RSI sub-scores
   const rsiScore = (rsi: number | null, weight: number, tf: string) => {
@@ -824,8 +823,10 @@ export function computeStrategyScore(params: {
       contribution = -80 * effectiveWeight;
       reasons.push(`RSI ${tf} (${rsi.toFixed(0)}) overbought`); 
     }
-    else if (rsi < 45) contribution = 30 * effectiveWeight;
-    else if (rsi > 55) contribution = -30 * effectiveWeight;
+    // Mild directional bias inside the "agreement" zones (not extreme OS/OB).
+    // Tuned so multi-TF agreement meaningfully contributes to Strong signals.
+    else if (rsi < buyThreshold) contribution = 60 * effectiveWeight;
+    else if (rsi > sellThreshold) contribution = -60 * effectiveWeight;
     
     score += contribution;
     indicatorScores.rsi += contribution; // Accumulate RSI contributions
@@ -843,8 +844,6 @@ export function computeStrategyScore(params: {
   // ATR-normalized MACD measures histogram significance against actual volatility.
   if (params.macdHistogram != null && enabled.macd !== false) {
     const macdWeight = tw.macd * rw.trend;
-    factors += macdWeight;
-    
     let contribution = 0; // Track MACD contribution
     
     // Use ATR for normalization if available, else fall back to price-relative
@@ -854,6 +853,11 @@ export function computeStrategyScore(params: {
       macdNorm = Math.abs(params.macdHistogram) / params.atr;
       macdNorm = Math.min(macdNorm * 80, 100); // Scale: 0.625 ATR → 50 points, 1.25 ATR → 100 points
       
+      // Skip near-zero MACD to avoid diluting the composite with noise.
+      if (macdNorm < 5) {
+        macdNorm = 0;
+      }
+
       if (params.macdHistogram > 0) {
         contribution = macdNorm * macdWeight * sessionQuality;
         if (macdNorm > 40) reasons.push('MACD bullish momentum');
@@ -862,14 +866,19 @@ export function computeStrategyScore(params: {
         if (macdNorm > 40) reasons.push('MACD bearish momentum');
       }
     } else {
-      // Fallback: percentage of price (legacy behavior, improved scaling)
-      const histogramWeight = macdWeight * sessionQuality;
-      const normHist = (params.macdHistogram / (params.atr || params.price * 0.005)) * 1000;
-      contribution = normHist * histogramWeight;
+      // Fallback: price-relative normalization (bounded).
+      // Use histogram magnitude as % of price and map into [0, 100].
+      const pct = (Math.abs(params.macdHistogram) / Math.max(1e-9, params.price)) * 100; // e.g., 0.2% = 0.2
+      macdNorm = Math.min(pct * 40, 100); // 2.5% ≈ max (very strong)
+      if (macdNorm < 5) macdNorm = 0;
+      contribution = (params.macdHistogram > 0 ? 1 : -1) * macdNorm * macdWeight * sessionQuality;
     }
     
-    score += contribution;
-    indicatorScores.macd += contribution;
+    if (macdNorm > 0) {
+      factors += macdWeight;
+      score += contribution;
+      indicatorScores.macd += contribution;
+    }
   }
 
   // Bollinger position - regime: oscillator weight (mean-reversion signal category)
@@ -1252,7 +1261,9 @@ export function computeStrategyScore(params: {
       if (group.scores.length === 0) continue;
       
       const rawGroupScore = group.scores.reduce((sum, s) => sum + s, 0);
-      const adjustedGroupScore = applyDiminishingReturns(group.scores);
+      // Only apply diminishing returns when we truly have redundancy (3+ correlated signals).
+      // With only 2 indicators, the penalty was too aggressive and suppressed legitimate strong setups.
+      const adjustedGroupScore = group.scores.length >= 3 ? applyDiminishingReturns(group.scores) : rawGroupScore;
       
       adjustedGroupedScore += adjustedGroupScore;
       
@@ -1363,9 +1374,6 @@ export function computeStrategyScore(params: {
   // Require at least 3 of 4 RSI timeframes to agree on direction for Strong.
   // This prevents "Strong Buy" when only one timeframe is deeply oversold while others are neutral.
   // 2026 FIX: Use asset-specific zones instead of hardcoded 45/55 thresholds
-  const buyThreshold = rsiOS + 15; // e.g., Crypto: 30+15=45, Forex: 35+15=50
-  const sellThreshold = rsiOB - 15; // e.g., Crypto: 70-15=55, Forex: 65-15=50
-  
   const rsiDirections = [
     params.rsi1m !== null ? (params.rsi1m < buyThreshold ? 'buy' : params.rsi1m > sellThreshold ? 'sell' : 'neutral') : null,
     params.rsi5m !== null ? (params.rsi5m < buyThreshold ? 'buy' : params.rsi5m > sellThreshold ? 'sell' : 'neutral') : null,
@@ -1381,6 +1389,29 @@ export function computeStrategyScore(params: {
   // ── 2026 Tuned Thresholds ──
   let signal: StrategySignal;
   let label: string;
+  // Multi-TF RSI agreement bonus: if 3/4 (or 4/4) timeframes agree, add a small conviction boost.
+  // This makes agreement "count" even when other indicators are muted.
+  if (hasMultiTFBuyAgreement) {
+    normalized += 12;
+    reasons.push('✓ Multi-TF RSI agreement boost');
+  }
+  if (hasMultiTFSellAgreement) {
+    normalized -= 12;
+    reasons.push('✓ Multi-TF RSI agreement boost');
+  }
+  // If RSI agreement is strong but score is just shy of the strong threshold,
+  // snap it over the line to avoid "almost-strong" false downgrades.
+  if (hasMultiTFBuyAgreement && normalized >= (STRATEGY_DEFAULTS.strongThreshold - 5) && normalized < STRATEGY_DEFAULTS.strongThreshold) {
+    normalized = STRATEGY_DEFAULTS.strongThreshold + 1;
+    reasons.push('✓ Multi-TF RSI agreement tipped to Strong');
+  }
+  if (hasMultiTFSellAgreement && normalized <= -(STRATEGY_DEFAULTS.strongThreshold - 5) && normalized > -STRATEGY_DEFAULTS.strongThreshold) {
+    normalized = -(STRATEGY_DEFAULTS.strongThreshold + 1);
+    reasons.push('✓ Multi-TF RSI agreement tipped to Strong');
+  }
+
+  // Safety clamp after late-stage boosts/snaps.
+  normalized = Math.max(-100, Math.min(100, Math.round(normalized)));
   if (normalized >= STRATEGY_DEFAULTS.strongThreshold && hasMultiTFBuyAgreement) { signal = 'strong-buy'; label = 'S Buy'; }
   else if (normalized >= STRATEGY_DEFAULTS.strongThreshold) { signal = 'buy'; label = 'Buy'; reasons.push('Downgraded: insufficient TF agreement for Strong'); }
   else if (normalized >= STRATEGY_DEFAULTS.actionThreshold) { signal = 'buy'; label = 'Buy'; }

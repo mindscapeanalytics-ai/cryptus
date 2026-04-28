@@ -38,11 +38,9 @@ export const SignalTrackerDashboard = memo(function SignalTrackerDashboard({
   className
 }: SignalTrackerDashboardProps) {
   const context = useWinRateContext();
-  
-  // Defensive check: if used outside WinRateProvider
-  if (!context) return null;
-  
-  const { stats: statsMap, refresh, isRefreshing } = context;
+
+  const safe = context ?? { stats: new Map<string, WinRateStats>(), refresh: () => {}, isRefreshing: false };
+  const { stats: statsMap, refresh, isRefreshing } = safe;
   const stats = useMemo(() => Array.from(statsMap.values()), [statsMap]);
   
   const [sortColumn, setSortColumn] = useState<SortColumn>('totalSignals');
@@ -120,6 +118,9 @@ export const SignalTrackerDashboard = memo(function SignalTrackerDashboard({
 
   // Global stats
   const globalStats = useMemo(() => getGlobalWinRate(), [stats]);
+
+  // Defensive check: if used outside WinRateProvider
+  if (!context) return null;
 
   return (
     <div className={cn("space-y-6", className)}>

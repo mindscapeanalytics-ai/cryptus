@@ -12,10 +12,7 @@ import { cn } from '@/lib/utils';
 
 export function GlobalWinRateBadge() {
   const context = useWinRateContext();
-  
-  if (!context) return null;
-  
-  const { globalData } = context;
+  const globalData = context?.globalData;
   const localStats = getGlobalWinRate();
   
   // ── Intelligence: Global Production Blending ──
@@ -33,6 +30,8 @@ export function GlobalWinRateBadge() {
       evaluated1h:  localStats.evaluated1h + globalData.evaluated1h,
     };
   }, [localStats, globalData]);
+
+  if (!context) return null;
 
   // Calibrating state: need at least 10 evaluated signals (not just recorded)
   const totalEvaluated = stats.evaluated5m + stats.evaluated15m + stats.evaluated1h;

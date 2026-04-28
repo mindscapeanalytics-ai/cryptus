@@ -51,24 +51,24 @@ export class AuditEngine {
       : ['workflow', 'settings', 'accuracy', 'narrator', 'gaps', 'performance', 'realtime', 'strategy', 'calibration', 'sync'] as AuditModule[];
 
     // Execute each module with error isolation
-    for (const module of modulesToRun) {
+    for (const moduleName of modulesToRun) {
       try {
-        this.log(`\n📋 Running ${module} validation...`);
-        const result = await this.runModule(module);
+        this.log(`\n📋 Running ${moduleName} validation...`);
+        const result = await this.runModule(moduleName);
         modules.push(result);
 
         if (result.status === 'fail') {
-          this.log(`❌ ${module} validation failed`);
+          this.log(`❌ ${moduleName} validation failed`);
         } else if (result.status === 'warning') {
-          this.log(`⚠️  ${module} validation completed with warnings`);
+          this.log(`⚠️  ${moduleName} validation completed with warnings`);
         } else {
-          this.log(`✅ ${module} validation passed`);
+          this.log(`✅ ${moduleName} validation passed`);
         }
       } catch (error) {
-        const auditError = this.handleError(module, error);
+        const auditError = this.handleError(moduleName, error);
         this.errors.push(auditError);
         modules.push({
-          module,
+          module: moduleName,
           status: 'fail',
           duration: 0,
           details: auditError.message,

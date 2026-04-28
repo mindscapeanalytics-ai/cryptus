@@ -204,7 +204,8 @@ export type SortKey =
   | 'ema9' | 'ema21' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK' | 'vwapDiff' | 'volumeSpike'
   | 'strategyScore' | 'signal' | 'emaCross' | 'rsiDivergence'
   | 'confluence' | 'momentum' | 'atr' | 'adx' | 'cci' | 'longCandle'
-  | 'fundingRate' | 'orderFlow' | 'smartMoney' | 'superSignal';
+  | 'fundingRate' | 'orderFlow' | 'smartMoney' | 'superSignal'
+  | 'finalScore';
 
 export type SortDir = 'asc' | 'desc';
 export type TradingStyle = 'scalping' | 'intraday' | 'swing' | 'position';

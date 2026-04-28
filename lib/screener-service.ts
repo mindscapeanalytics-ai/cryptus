@@ -1789,7 +1789,7 @@ function applyCurrentCycleCoherence(
     regime: entry.regime?.regime as any,
     tradingStyle,
     smartMoneyScore: entry.smartMoneyScore ?? undefined,
-    superSignalScore: entry.superSignal?.value ?? undefined,
+    superSignalScore: entry.superSignal ? (entry.superSignal.value - 50) * 2 : undefined,
   });
 
   entry.strategyScore = strategy.score;
@@ -2375,4 +2375,12 @@ export async function getScreenerData(
     },
   };
 }
+
+// ── Test-only Exports (Pure helpers for deterministic unit tests) ──
+// These are intentionally exported to allow deep pipeline validation without mocking network IO.
+export const __test__ = {
+  aggregateKlines,
+  buildEntry,
+  applyCurrentCycleCoherence,
+};
 

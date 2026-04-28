@@ -41,6 +41,10 @@ const WHALE_WATCH_SYMBOLS = [
   'aptusdt', 'arbusdt', 'opusdt', 'suiusdt', 'pepeusdt'
 ];
 
+function isFuturesUsdtSymbol(symbol) {
+  return /^[A-Z0-9]{2,20}USDT$/.test((symbol || '').toUpperCase());
+}
+
 // ── Broadcast Channel for Service Worker Bridge (2026 Resilience) ──
 const alertChannel = typeof BroadcastChannel !== 'undefined'
   ? new BroadcastChannel('rsiq-alerts')
@@ -599,7 +603,9 @@ function connectWhaleStream() {
     // Combined stream: monitor top symbols + whatever the user is currently viewing
     const activeSet = new Set([
       ...WHALE_WATCH_SYMBOLS,
-      ...Array.from(currentSymbols).map(s => s.toLowerCase())
+      ...Array.from(currentSymbols)
+        .filter(isFuturesUsdtSymbol)
+        .map(s => s.toLowerCase())
     ]);
     const streams = Array.from(activeSet).slice(0, 100).map(s => `${s}@aggTrade`).join('/');
     
@@ -721,9 +727,9 @@ function connectWhaleStream() {
 async function pollOpenInterest() {
   // ── Intelligence: Dynamic Symbol Prioritization ──
   // Prioritize symbols user is viewing, then fill rest with top market cap symbols
-  const activeSymbols = Array.from(currentSymbols);
+  const activeSymbols = Array.from(currentSymbols).filter(isFuturesUsdtSymbol);
   const prioritizedSymbols = new Set([...activeSymbols, ...WHALE_WATCH_SYMBOLS.map(s => s.toUpperCase())]);
-  const OI_SYMBOLS = Array.from(prioritizedSymbols).slice(0, 25);
+  const OI_SYMBOLS = Array.from(prioritizedSymbols).filter(isFuturesUsdtSymbol).slice(0, 25);
 
   if (OI_SYMBOLS.length === 0) return;
 
@@ -832,7 +838,7 @@ async function pollOpenInterest() {
   // If WebSocket is offline, attempt to poll current rates via proxy
   if (!streamHealth.funding) {
     try {
-      const activeSymbols = Array.from(currentSymbols).slice(0, 10);
+      const activeSymbols = Array.from(currentSymbols).filter(isFuturesUsdtSymbol).slice(0, 10);
       if (activeSymbols.length > 0) {
         const res = await fetch(`/api/derivatives/funding?symbols=${activeSymbols.join(',')}`);
         if (res.ok) {
@@ -997,7 +1003,11 @@ function sendSnapshot() {
 function start(symbols) {
   if (isRunning) return;
   isRunning = true;
-  currentSymbols = new Set(symbols.map(s => s.toUpperCase()));
+  currentSymbols = new Set(
+    symbols
+      .map(s => s.toUpperCase())
+      .filter(isFuturesUsdtSymbol)
+  );
 
   console.log('[deriv-worker] Starting derivatives intelligence engine...');
   console.log(`[deriv-worker] Tracking ${currentSymbols.size} symbols`);
@@ -1084,7 +1094,11 @@ function stop() {
 
 function updateSymbols(symbols) {
   const oldSymbols = new Set(currentSymbols);
-  currentSymbols = new Set(symbols.map(s => s.toUpperCase()));
+  currentSymbols = new Set(
+    symbols
+      .map(s => s.toUpperCase())
+      .filter(isFuturesUsdtSymbol)
+  );
 
   cleanupBuffers();
 

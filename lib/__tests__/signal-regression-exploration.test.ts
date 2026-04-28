@@ -76,28 +76,26 @@ describe('Bug Condition Exploration Tests (EXPECTED TO FAIL on unfixed code)', (
 
   describe('Bug 1b: Super Signal Near-Neutral Penalty', () => {
     it('should return multiplier=1.0 when superSignalScore=44 (near-neutral, low confidence)', () => {
-      // superSignalScore=44 → normalizedSuper = (44-50)*2 = -12 → 'bearish'
+      // normalized superSignalScore=-6 (near-neutral, low confidence)
       // strategyScore=45 → 'bullish'
       // Bug: direction disagreement triggers penalty → multiplier < 1.0
-      // Fix: |44-50| = 6 ≤ 10 → confidence too low → skip penalty → multiplier = 1.0
-      const result = validateWithSuperSignal(45, 44);
+      // Fix: |-6| ≤ 10 → confidence too low → skip penalty → multiplier = 1.0
+      const result = validateWithSuperSignal(45, -6);
       expect(result.multiplier).toBe(1.0);
     });
 
     it('should return multiplier=1.0 when superSignalScore=50 (exact neutral)', () => {
-      // superSignalScore=50 → normalizedSuper = 0 → 'neutral'
-      // Current code: superDirection='neutral' → returns 1.0 (this path is OK in unfixed code)
-      // But we include it to document the full near-neutral range
-      const result = validateWithSuperSignal(60, 50);
+      // superSignalScore=0 → 'neutral'
+      const result = validateWithSuperSignal(60, 0);
       expect(result.multiplier).toBe(1.0);
     });
 
     it('should return multiplier=1.0 when superSignalScore=56 (slightly above neutral, near-neutral)', () => {
-      // superSignalScore=56 → normalizedSuper = (56-50)*2 = 12 → 'bullish'
+      // normalized superSignalScore=6 (near-neutral, low confidence)
       // strategyScore=-40 → 'bearish'
       // Bug: direction disagreement triggers penalty → multiplier < 1.0
-      // Fix: |56-50| = 6 ≤ 10 → confidence too low → skip penalty → multiplier = 1.0
-      const result = validateWithSuperSignal(-40, 56);
+      // Fix: |6| ≤ 10 → confidence too low → skip penalty → multiplier = 1.0
+      const result = validateWithSuperSignal(-40, 6);
       expect(result.multiplier).toBe(1.0);
     });
   });
