@@ -122,7 +122,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
         console.error('[SmartMoney] Calculation failed:', error);
         // Don't clear existing scores on error - keep last known good state
       }
-    }, 300); // FIX: Reduced to match worker flush interval for instant updates
+    }, 50); // FIX: Reduced to 50ms debounce to prevent race condition with worker's 300ms flush
     return () => {
       if (smartMoneyTimerRef.current) clearTimeout(smartMoneyTimerRef.current);
     };
