@@ -2887,6 +2887,39 @@ export default function ScreenerDashboard() {
 
   const derivativesLastUpdateMs = useMemo(() => Date.now() - (derivativesLastPulse || 0), [derivativesLastPulse, lastGlobalUpdate]);
 
+  const getDerivativesForEntry = useCallback((entry: ScreenerEntry) => {
+    const symbolKey = (entry.symbol || '').toUpperCase();
+    const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey);
+    const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey);
+    const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey);
+
+    const fundingRate = fr
+      ? { rate: fr.rate, annualized: fr.annualized }
+      : (entry.fundingRate != null ? { rate: entry.fundingRate, annualized: entry.fundingRate * 3 * 365 * 100 } : null);
+
+    const orderFlowData = flow
+      ? { ratio: flow.ratio, pressure: flow.pressure, buyVolume1m: flow.buyVolume1m, sellVolume1m: flow.sellVolume1m }
+      : (entry.orderFlowRatio != null
+          ? {
+              ratio: entry.orderFlowRatio,
+              pressure: entry.orderFlowRatio > 0.55 ? 'buy' : entry.orderFlowRatio < 0.45 ? 'sell' : 'neutral',
+              buyVolume1m: 0,
+              sellVolume1m: 0,
+            }
+          : null);
+
+    const smartMoneyScore = sm
+      ? { score: sm.score, label: sm.label }
+      : (entry.smartMoneyScore != null
+          ? {
+              score: entry.smartMoneyScore,
+              label: entry.smartMoneyScore >= 30 ? 'Strong Buy' : entry.smartMoneyScore <= -30 ? 'Strong Sell' : 'Neutral',
+            }
+          : null);
+
+    return { fundingRate, orderFlowData, smartMoneyScore };
+  }, [fundingRates, orderFlow, smartMoney]);
+
   const resolveFinal = useCallback((entry: ScreenerEntry) => {
     const superOk = !!entry.superSignal && entry.superSignal.status === 'ok' && (entry.superSignal.confidence ?? 0) >= 60;
     const mapSuper = (category: string): ScreenerEntry['strategySignal'] => {
@@ -3274,12 +3307,14 @@ export default function ScreenerDashboard() {
       if (live && live.emaCross) merged.emaCross = live.emaCross;
 
       // Derivatives intelligence passthrough for coherent narration/risk context.
-      const fr = fundingRates.get(entry.symbol);
-      const flow = orderFlow.get(entry.symbol);
-      const sm = smartMoney.get(entry.symbol);
-      merged.fundingRate = fr?.rate ?? null;
-      merged.orderFlowRatio = flow?.ratio ?? null;
-      merged.smartMoneyScore = sm?.score ?? getDerivativeComposite(entry.symbol);
+      const symbolKey = (entry.symbol || '').toUpperCase();
+      const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey);
+      const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey);
+      const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey);
+      // Preserve prior/server derivatives values when live maps are temporarily empty.
+      merged.fundingRate = fr?.rate ?? merged.fundingRate ?? entry.fundingRate ?? null;
+      merged.orderFlowRatio = flow?.ratio ?? merged.orderFlowRatio ?? entry.orderFlowRatio ?? null;
+      merged.smartMoneyScore = sm?.score ?? merged.smartMoneyScore ?? entry.smartMoneyScore ?? getDerivativeComposite(entry.symbol);
 
       // 3. Apply custom RSI approximation if period changed
       if (merged.rsiStateCustom && (merged.rsiPeriodAtCreation !== rsiPeriod)) {
@@ -5724,9 +5759,9 @@ export default function ScreenerDashboard() {
                   globalVolatilityEnabled={globalVolatilityEnabled}
                   globalLongCandleThreshold={globalLongCandleThreshold}
                   globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
-                  fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
-                  orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
-                  smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
+                  fundingRate={getDerivativesForEntry(entry).fundingRate}
+                  orderFlowData={getDerivativesForEntry(entry).orderFlowData}
+                  smartMoneyScore={getDerivativesForEntry(entry).smartMoneyScore}
                   derivativesConnected={derivativesConnected}
                   tradingStyle={tradingStyle}
                   onViewNarration={handleViewNarration}
@@ -5889,9 +5924,9 @@ export default function ScreenerDashboard() {
                         globalVolatilityEnabled={globalVolatilityEnabled}
                         globalLongCandleThreshold={globalLongCandleThreshold}
                         globalVolumeSpikeThreshold={globalVolumeSpikeThreshold}
-                        fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
-                        orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
-                        smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
+                        fundingRate={getDerivativesForEntry(entry).fundingRate}
+                        orderFlowData={getDerivativesForEntry(entry).orderFlowData}
+                        smartMoneyScore={getDerivativesForEntry(entry).smartMoneyScore}
                         derivativesConnected={derivativesConnected}
                         bulkMode={bulkMode}
                         isSelected={selectedSymbols.has(entry.symbol)}
