@@ -339,18 +339,6 @@ function connectFundingStream() {
       streamHealth.funding = true;
       resetReconnect(STREAM_KEY);
       clearTimeout(connectTimeout);
-
-      const sendPing = () => {
-        if (fundingWs && fundingWs.readyState === WebSocket.OPEN) {
-          try {
-            fundingWs.send(JSON.stringify({ method: 'PING', id: Date.now() }));
-            fundingWs._pingTimeout = setTimeout(sendPing, 25000);
-          } catch (e) {
-            console.warn('[deriv-worker] Failed to send funding ping', e);
-          }
-        }
-      };
-      fundingWs._pingTimeout = setTimeout(sendPing, 25000);
     };
 
     fundingWs.onmessage = (event) => {
@@ -459,10 +447,14 @@ function connectBybitLiquidationStream() {
         ...Array.from(currentSymbols)
       ]);
 
-      const topics = Array.from(symbolsToWatch).slice(0, 50).map(s => `allLiquidation.${s}`);
+      const topics = Array.from(symbolsToWatch).slice(0, 50).map(s => `liquidation.${s}`);
 
       if (liquidationWs.readyState === WebSocket.OPEN) {
-        liquidationWs.send(JSON.stringify({ op: 'subscribe', args: topics }));
+        // Bybit V5 allows max 10 args per request
+        for (let i = 0; i < topics.length; i += 10) {
+          const batch = topics.slice(i, i + 10);
+          liquidationWs.send(JSON.stringify({ op: 'subscribe', args: batch }));
+        }
       }
     };
 
@@ -472,9 +464,9 @@ function connectBybitLiquidationStream() {
         lastDataReceived = Date.now();
         if (data.op === 'pong' || data.op === 'subscribe') return;
 
-        if (data.topic && data.topic.startsWith('allLiquidation.') && data.data) {
+        if (data.topic && data.topic.startsWith('liquidation.') && data.data) {
           const liq = data.data;
-          const symbol = (liq.symbol || data.topic.replace('allLiquidation.', '')).toUpperCase();
+          const symbol = (liq.symbol || data.topic.replace('liquidation.', '')).toUpperCase();
           const size = parseFloat(liq.size) || 0;
           const price = parseFloat(liq.price) || lastPrices.get(symbol) || 0;
           const valueUsd = size * price;
@@ -683,18 +675,6 @@ function connectWhaleStream() {
         resetReconnect(STREAM_KEY);
         clearTimeout(connectTimeout);
         console.log(`[deriv-worker] Whale/OrderFlow stream ${socketKey} connected (${chunk.length} symbols)`);
-
-        const sendPing = () => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            try {
-              ws.send(JSON.stringify({ method: 'PING', id: Date.now() }));
-              ws._pingTimeout = setTimeout(sendPing, 25000);
-            } catch (e) {
-              console.warn('[deriv-worker] Failed to send whale ping', e);
-            }
-          }
-        };
-        ws._pingTimeout = setTimeout(sendPing, 25000);
       };
 
       ws.onmessage = (event) => {
@@ -1179,16 +1159,22 @@ function updateSymbols(symbols) {
 
     try {
       if (removedSymbols.length > 0) {
-        liquidationWs.send(JSON.stringify({
-          op: 'unsubscribe',
-          args: removedSymbols.slice(0, 50).map(s => `allLiquidation.${s}`)
-        }));
+        const removeTopics = removedSymbols.slice(0, 50).map(s => `liquidation.${s}`);
+        for (let i = 0; i < removeTopics.length; i += 10) {
+          liquidationWs.send(JSON.stringify({
+            op: 'unsubscribe',
+            args: removeTopics.slice(i, i + 10)
+          }));
+        }
       }
       if (addedSymbols.length > 0) {
-        liquidationWs.send(JSON.stringify({
-          op: 'subscribe',
-          args: addedSymbols.slice(0, 50).map(s => `allLiquidation.${s}`)
-        }));
+        const addTopics = addedSymbols.slice(0, 50).map(s => `liquidation.${s}`);
+        for (let i = 0; i < addTopics.length; i += 10) {
+          liquidationWs.send(JSON.stringify({
+            op: 'subscribe',
+            args: addTopics.slice(i, i + 10)
+          }));
+        }
       }
     } catch (e) {
       console.warn('[deriv-worker] Mutation subscription failed', e.message);
