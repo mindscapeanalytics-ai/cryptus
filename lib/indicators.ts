@@ -1184,8 +1184,16 @@ export function computeStrategyScore(params: {
   }
 
   // ── PHASE 2: CORRELATION PENALTY APPLICATION ────────────────────
-  // Apply diminishing returns to correlated indicators to prevent score inflation
+  // Apply diminishing returns to correlated indicators to prevent score inflation.
+  // FIX: Only adjust the grouped indicator sub-scores (RSI, Stoch, WilliamsR, CCI, BB,
+  // MACD, EMA, OBV, VWAP, VolumeSpike). Non-grouped contributions (confluence, divergence,
+  // momentum, smart money, hidden divergence, ADX, TFA, RSI crossover) are preserved.
   if (SIGNAL_FEATURES.useCorrelationPenalty) {
+    // Capture the sum of all grouped indicator contributions
+    const groupedOnlyScore = Object.values(indicatorScores).reduce((sum, v) => sum + v, 0);
+    // Non-grouped = everything else added to score (confluence, divergence, momentum, etc.)
+    const nonGroupedScore = score - groupedOnlyScore;
+
     // Group indicators by correlation
     const groups = groupCorrelatedIndicators({
       rsiScore: indicatorScores.rsi,
@@ -1200,8 +1208,8 @@ export function computeStrategyScore(params: {
       volumeSpikeScore: indicatorScores.volumeSpike,
     });
     
-    // Calculate adjusted score with diminishing returns
-    let adjustedScore = 0;
+    // Calculate adjusted grouped score with diminishing returns
+    let adjustedGroupedScore = 0;
     const adjustmentDetails: string[] = [];
     
     for (const group of groups) {
@@ -1210,7 +1218,7 @@ export function computeStrategyScore(params: {
       const rawGroupScore = group.scores.reduce((sum, s) => sum + s, 0);
       const adjustedGroupScore = applyDiminishingReturns(group.scores);
       
-      adjustedScore += adjustedGroupScore;
+      adjustedGroupedScore += adjustedGroupScore;
       
       // Log adjustment if significant
       if (group.scores.length > 1 && Math.abs(rawGroupScore - adjustedGroupScore) > 5) {
@@ -1222,8 +1230,8 @@ export function computeStrategyScore(params: {
       }
     }
     
-    // Replace score with adjusted score
-    score = adjustedScore;
+    // Reconstruct full score: adjusted grouped indicators + preserved non-grouped contributions
+    score = adjustedGroupedScore + nonGroupedScore;
     
     // Add explanation to reasons
     if (adjustmentDetails.length > 0) {

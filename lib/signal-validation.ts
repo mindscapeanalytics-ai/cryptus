@@ -42,6 +42,18 @@ export function validateWithSuperSignal(
       reason: '',
     };
   }
+
+  // Confidence gate: Super Signal near 50 means it defaulted due to missing component data
+  // (no correlated signals, no historical closes, null ATR). Skip validation to avoid
+  // penalizing real signals against a meaningless neutral default.
+  const superConfidence = Math.abs(superSignalScore - 50);
+  if (superConfidence <= 10) {
+    return {
+      multiplier: 1.0,
+      confidence: 'medium',
+      reason: '',
+    };
+  }
   
   // Super Signal arrives as 0-100, but logic expects -100 to +100
   // Remap 0-100 to -100 to +100 (where 50 is 0)

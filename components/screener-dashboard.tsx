@@ -660,6 +660,7 @@ const ScreenerRow = memo(function ScreenerRow({
   fundingRate,
   orderFlowData,
   smartMoneyScore,
+  derivativesConnected,
   bulkMode,
   isSelected,
   onToggleSelection,
@@ -701,6 +702,7 @@ const ScreenerRow = memo(function ScreenerRow({
   fundingRate: { rate: number; annualized: number } | null;
   orderFlowData: { ratio: number; pressure: string; buyVolume1m: number; sellVolume1m: number } | null;
   smartMoneyScore: { score: number; label: string } | null;
+  derivativesConnected?: boolean;
   bulkMode?: boolean;
   isSelected?: boolean;
   onToggleSelection?: (symbol: string) => void;
@@ -863,9 +865,9 @@ const ScreenerRow = memo(function ScreenerRow({
       strategyScore: tick.strategyScore ?? liveStrategy.score,
       strategySignal: (tick.strategySignal as any) ?? liveStrategy.signal,
       strategyLabel: tick.strategyScore !== undefined
-        ? (tick.strategyScore >= 60 ? 'Strong Buy'
+        ? (tick.strategyScore >= 55 ? 'Strong Buy'
           : tick.strategyScore >= 25 ? 'Buy'
-            : tick.strategyScore <= -60 ? 'Strong Sell'
+            : tick.strategyScore <= -55 ? 'Strong Sell'
               : tick.strategyScore <= -25 ? 'Sell'
                 : 'Neutral')
         : liveStrategy.label,
@@ -1311,19 +1313,25 @@ const ScreenerRow = memo(function ScreenerRow({
 
       {visibleCols.has('orderFlow') && (
         <td className={cn("px-3 py-3 text-center overflow-hidden", COL_WIDTHS.flow)}>
-          <OrderFlowIndicator
-            data={orderFlowData ? {
-              symbol: entry.symbol,
-              pressure: orderFlowData.pressure as any,
-              ratio: orderFlowData.ratio,
-              buyVolume1m: orderFlowData.buyVolume1m,
-              sellVolume1m: orderFlowData.sellVolume1m,
-              tradeCount1m: 0,
-              updatedAt: entry.updatedAt || Date.now()
-            } : undefined}
-            compact={true}
-            showTooltip={true}
-          />
+          {orderFlowData ? (
+            <OrderFlowIndicator
+              data={{
+                symbol: entry.symbol,
+                pressure: orderFlowData.pressure as any,
+                ratio: orderFlowData.ratio,
+                buyVolume1m: orderFlowData.buyVolume1m,
+                sellVolume1m: orderFlowData.sellVolume1m,
+                tradeCount1m: 0,
+                updatedAt: entry.updatedAt || Date.now()
+              }}
+              compact={true}
+              showTooltip={true}
+            />
+          ) : derivativesConnected ? (
+            <span className="text-slate-600 text-[9px] tracking-widest">···</span>
+          ) : (
+            <span className="text-slate-800 text-[9px]">—</span>
+          )}
         </td>
       )}
 
@@ -1703,6 +1711,7 @@ const ScreenerCard = memo(function ScreenerCard({
   fundingRate,
   orderFlowData,
   smartMoneyScore,
+  derivativesConnected,
   tradingStyle,
   onViewNarration,
   isOwner,
@@ -1741,6 +1750,7 @@ const ScreenerCard = memo(function ScreenerCard({
   fundingRate: { rate: number; annualized: number } | null;
   orderFlowData: { ratio: number; pressure: string; buyVolume1m: number; sellVolume1m: number } | null;
   smartMoneyScore: { score: number; label: string } | null;
+  derivativesConnected?: boolean;
   tradingStyle: TradingStyle;
   onViewNarration: (entry: ScreenerEntry) => void;
   isOwner?: boolean;
@@ -1902,9 +1912,9 @@ const ScreenerCard = memo(function ScreenerCard({
       strategyScore: tick.strategyScore ?? liveStrategy.score,
       strategySignal: (tick.strategySignal as any) ?? liveStrategy.signal,
       strategyLabel: tick.strategyScore !== undefined
-        ? (tick.strategyScore >= 60 ? 'Strong Buy'
+        ? (tick.strategyScore >= 55 ? 'Strong Buy'
           : tick.strategyScore >= 25 ? 'Buy'
-            : tick.strategyScore <= -60 ? 'Strong Sell'
+            : tick.strategyScore <= -55 ? 'Strong Sell'
               : tick.strategyScore <= -25 ? 'Sell'
                 : 'Neutral')
         : liveStrategy.label,
@@ -5646,6 +5656,7 @@ export default function ScreenerDashboard() {
                   fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
                   orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
                   smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
+                  derivativesConnected={derivativesConnected}
                   tradingStyle={tradingStyle}
                   onViewNarration={handleViewNarration}
                   isOwner={isOwner}
@@ -5809,6 +5820,7 @@ export default function ScreenerDashboard() {
                         fundingRate={fundingRates.get(entry.symbol) ? { rate: fundingRates.get(entry.symbol)!.rate, annualized: fundingRates.get(entry.symbol)!.annualized } : null}
                         orderFlowData={orderFlow.get(entry.symbol) ? { ratio: orderFlow.get(entry.symbol)!.ratio, pressure: orderFlow.get(entry.symbol)!.pressure, buyVolume1m: orderFlow.get(entry.symbol)!.buyVolume1m, sellVolume1m: orderFlow.get(entry.symbol)!.sellVolume1m } : null}
                         smartMoneyScore={smartMoney.get(entry.symbol) ? { score: smartMoney.get(entry.symbol)!.score, label: smartMoney.get(entry.symbol)!.label } : null}
+                        derivativesConnected={derivativesConnected}
                         bulkMode={bulkMode}
                         isSelected={selectedSymbols.has(entry.symbol)}
                         onToggleSelection={toggleSymbolSelection}
