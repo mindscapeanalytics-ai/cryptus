@@ -11,6 +11,8 @@
 
 import { validateWithSuperSignal } from '../signal-validation';
 import { computeStrategyScore } from '../indicators';
+import { computeRisk } from '../super-signal/risk-engine';
+import { SuperSignalInput } from '../super-signal/types';
 
 // ─── BUG 1 FIX: Super Signal Validation Uses Normalized Scores ───
 
@@ -181,10 +183,10 @@ describe('Signal-Strategy Consistency', () => {
     // When strategy says "strong-buy", signal should not say "overbought"
     // (unless RSI is at deep extremes >=80)
     const result = computeStrategyScore({
-      rsi1m: null,
-      rsi5m: null,
-      rsi15m: 65, // Not overbought by standard
-      rsi1h: null,
+      rsi1m: 40,  // Bullish (below 45)
+      rsi5m: 35,  // Bullish (below 45)
+      rsi15m: 30, // Bullish (oversold)
+      rsi1h: 40,  // Bullish trend
       rsi4h: null,
       rsi1d: null,
       macdHistogram: 0.5,
@@ -192,7 +194,7 @@ describe('Signal-Strategy Consistency', () => {
       stochK: 30,
       stochD: 35,
       emaCross: 'bullish',
-      vwapDiff: -0.5,
+      vwapDiff: 0.6, // Now positive/bullish
       volumeSpike: true,
       price: 100,
       confluence: 40,
@@ -200,13 +202,48 @@ describe('Signal-Strategy Consistency', () => {
       momentum: 5,
       adx: 35,
       atr: 2,
-      cci: 50,
+      cci: -150, // Oversold bullish
       obvTrend: 'bullish',
-      williamsR: -60,
+      williamsR: -80, // Oversold bullish
       market: 'Crypto',
     });
 
     // With all these bullish signals, strategy should be buy or strong-buy
     expect(result.signal).toMatch(/buy/);
+  });
+});
+
+// ─── Component 3: Smart Money Risk Integration ───
+
+describe('Super Signal Risk Engine - Smart Money Integration', () => {
+  const baseInput: SuperSignalInput = {
+    symbol: 'BTCUSDT',
+    price: 50000,
+    atr: 100, // Lower ATR to get a non-zero base score
+    assetClass: 'Crypto',
+    strategySignal: 'buy',
+    historicalCloses: [50000, 50100, 50200, 50150, 50300, 50400, 50350, 50500, 50600, 50550, 50700, 50800, 50750, 50900, 51000, 50950, 51100, 51200, 51150, 51300, 51400, 51350, 51500, 51600, 51550, 51700, 51800, 51750, 51900, 52000],
+    regime: 'ranging',
+    change24h: 0,
+    bbUpper: 51000,
+    bbLower: 49000,
+  };
+
+  it('should boost risk score when Smart Money confirms Strategy (Bullish)', async () => {
+    // No Smart Money
+    const baseRisk = await computeRisk({ ...baseInput, symbol: 'BTC_R1', smartMoneyScore: null });
+    // Bullish Smart Money (+80) confirming Bullish Strategy
+    const boostedRisk = await computeRisk({ ...baseInput, symbol: 'BTC_R2', smartMoneyScore: 80 });
+
+    expect(boostedRisk.score).toBeGreaterThan(baseRisk.score);
+  });
+
+  it('should penalize risk score when Smart Money contradicts Strategy', async () => {
+    // No Smart Money
+    const baseRisk = await computeRisk({ ...baseInput, symbol: 'BTC_R3', smartMoneyScore: null });
+    // Bearish Smart Money (-80) contradicting Bullish Strategy
+    const penalizedRisk = await computeRisk({ ...baseInput, symbol: 'BTC_R4', smartMoneyScore: -80 });
+
+    expect(penalizedRisk.score).toBeLessThan(baseRisk.score);
   });
 });
