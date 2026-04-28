@@ -82,6 +82,7 @@ let fundingWs = null;
 let liquidationWs = null;      // Bybit
 let binanceLiqWs = null;       // Binance Aggregated Force Orders
 let whaleWsSockets = new Map();     // symbol → WebSocket
+let whaleOpenSockets = 0;
 
 // Reconnection tracking
 let reconnectAttempts = new Map();  // streamKey → attempt count
@@ -637,134 +638,141 @@ function connectWhaleStream() {
     try { ws.close(); } catch (e) { }
   });
   whaleWsSockets.clear();
+  whaleOpenSockets = 0;
+  streamHealth.whale = false;
 
   const STREAM_KEY = 'whale';
   try {
-    // Combined stream: monitor top symbols + whatever the user is currently viewing
+    // Combined stream shards: monitor top symbols + currently viewed symbols.
+    // Sharding improves coverage so Flow/Smart columns don't go blank for large universes.
     const activeSet = new Set([
       ...WHALE_WATCH_SYMBOLS,
       ...Array.from(currentSymbols)
         .filter(isFuturesUsdtSymbol)
         .map(s => s.toLowerCase())
     ]);
-    const streams = Array.from(activeSet).slice(0, 100).map(s => `${s}@aggTrade`).join('/');
-    
-    // CRITICAL: Use fstream.binance.com for FUTURES market order flow, not Spot
-    const url = `wss://fstream.binance.com/stream?streams=${streams}`;
-    const ws = new WebSocket(url);
-    const connectTimeout = setTimeout(() => {
-      try {
-        if (ws && ws.readyState !== WebSocket.OPEN) {
-          console.warn('[deriv-worker] Whale WS connect timeout - forcing reconnect');
-          ws.close();
-        }
-      } catch (e) {}
-    }, WS_CONNECT_TIMEOUT_MS);
+    const allSymbols = Array.from(activeSet);
+    const MAX_SYMBOLS_PER_SOCKET = 80;
+    const MAX_WHALE_SOCKETS = 3;
+    const targetSymbols = allSymbols.slice(0, MAX_SYMBOLS_PER_SOCKET * MAX_WHALE_SOCKETS);
 
-    ws.onopen = () => {
-      console.log(`[deriv-worker] Whale/OrderFlow stream connected (${WHALE_WATCH_SYMBOLS.length} symbols)`);
-      streamHealth.whale = true;
-      resetReconnect(STREAM_KEY);
-      clearTimeout(connectTimeout);
+    const chunks = [];
+    for (let i = 0; i < targetSymbols.length; i += MAX_SYMBOLS_PER_SOCKET) {
+      chunks.push(targetSymbols.slice(i, i + MAX_SYMBOLS_PER_SOCKET));
+    }
 
-      const sendPing = () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          try {
-            ws.send(JSON.stringify({ method: 'PING', id: Date.now() }));
-            ws._pingTimeout = setTimeout(sendPing, 25000);
-          } catch (e) {
-            console.warn('[deriv-worker] Failed to send whale ping', e);
+    chunks.forEach((chunk, idx) => {
+      if (chunk.length === 0) return;
+      const streams = chunk.map(s => `${s}@aggTrade`).join('/');
+      const url = `wss://fstream.binance.com/stream?streams=${streams}`;
+      const ws = new WebSocket(url);
+      const socketKey = `combined-${idx}`;
+
+      const connectTimeout = setTimeout(() => {
+        try {
+          if (ws && ws.readyState !== WebSocket.OPEN) {
+            console.warn(`[deriv-worker] Whale WS ${socketKey} connect timeout - forcing reconnect`);
+            ws.close();
           }
+        } catch (e) {}
+      }, WS_CONNECT_TIMEOUT_MS);
+
+      ws.onopen = () => {
+        whaleOpenSockets += 1;
+        streamHealth.whale = whaleOpenSockets > 0;
+        resetReconnect(STREAM_KEY);
+        clearTimeout(connectTimeout);
+        console.log(`[deriv-worker] Whale/OrderFlow stream ${socketKey} connected (${chunk.length} symbols)`);
+
+        const sendPing = () => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            try {
+              ws.send(JSON.stringify({ method: 'PING', id: Date.now() }));
+              ws._pingTimeout = setTimeout(sendPing, 25000);
+            } catch (e) {
+              console.warn('[deriv-worker] Failed to send whale ping', e);
+            }
+          }
+        };
+        ws._pingTimeout = setTimeout(sendPing, 25000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const wrapper = JSON.parse(event.data);
+          const data = wrapper.data;
+          if (!data || !data.s) return;
+
+          lastDataReceived = Date.now();
+
+          const symbol = data.s.toUpperCase();
+          const price = parseFloat(data.p) || lastPrices.get(symbol) || 0;
+          const quantity = parseFloat(data.q);
+          const isBuyerMaker = data.m;
+          const tradeTime = data.T || Date.now();
+          const valueUsd = price * quantity;
+
+          let flow = orderFlowBuffer.get(symbol);
+          const now = Date.now();
+          if (!flow || (now - flow.windowStart) > ORDER_FLOW_WINDOW_MS) {
+            flow = { buyVol: 0, sellVol: 0, tradeCount: 0, windowStart: now };
+          }
+
+          if (isBuyerMaker) flow.sellVol += valueUsd;
+          else flow.buyVol += valueUsd;
+          flow.tradeCount++;
+          orderFlowBuffer.set(symbol, flow);
+          orderFlowDirty = true;
+
+          const side = isBuyerMaker ? 'sell' : 'buy';
+          updateCVD(symbol, side, valueUsd, now);
+          advancedDirty = true;
+
+          if (valueUsd >= WHALE_THRESHOLD_USD) {
+            const whaleEvent = {
+              id: generateId(),
+              symbol,
+              side: isBuyerMaker ? 'sell' : 'buy',
+              price,
+              quantity,
+              valueUsd,
+              exchange: 'binance',
+              timestamp: tradeTime
+            };
+
+            whaleBuffer.push(whaleEvent);
+            if (whaleBuffer.length > MAX_WHALE_ALERTS) {
+              whaleBuffer = whaleBuffer.slice(-MAX_WHALE_ALERTS);
+            }
+
+            broadcast({ type: 'WHALE_TRADE', payload: whaleEvent });
+            const sizeLabel = valueUsd >= MEGA_WHALE_THRESHOLD_USD ? '🐋 MEGA WHALE' : '🐳 WHALE';
+            console.log(`[deriv-worker] ${sizeLabel}: ${symbol} ${whaleEvent.side.toUpperCase()} $${Math.round(valueUsd / 1000)}K @ ${price}`);
+          }
+        } catch (e) {
+          // Silent
         }
       };
-      ws._pingTimeout = setTimeout(sendPing, 25000);
-    };
 
-    ws.onmessage = (event) => {
-      try {
-        const wrapper = JSON.parse(event.data);
-        const data = wrapper.data;
-        if (!data || !data.s) return;
-
-        lastDataReceived = Date.now();
-
-        const symbol = data.s.toUpperCase();
-        const price = parseFloat(data.p) || lastPrices.get(symbol) || 0;
-        const quantity = parseFloat(data.q);
-        const isBuyerMaker = data.m;  // true = seller is taker (sell), false = buyer is taker (buy)
-        const tradeTime = data.T || Date.now();
-        const valueUsd = price * quantity;
-
-        // ── Order Flow Accumulation ──
-        let flow = orderFlowBuffer.get(symbol);
-        const now = Date.now();
-        if (!flow || (now - flow.windowStart) > ORDER_FLOW_WINDOW_MS) {
-          // New window
-          flow = { buyVol: 0, sellVol: 0, tradeCount: 0, windowStart: now };
+      ws.onclose = () => {
+        if (ws && ws._pingTimeout) clearTimeout(ws._pingTimeout);
+        clearTimeout(connectTimeout);
+        whaleWsSockets.delete(socketKey);
+        whaleOpenSockets = Math.max(0, whaleOpenSockets - 1);
+        streamHealth.whale = whaleOpenSockets > 0;
+        if (isRunning && whaleOpenSockets === 0) {
+          console.log('[deriv-worker] All whale streams closed');
+          scheduleReconnect(STREAM_KEY, connectWhaleStream);
         }
+      };
 
-        if (isBuyerMaker) {
-          // Seller is the taker → sell pressure
-          flow.sellVol += valueUsd;
-        } else {
-          // Buyer is the taker → buy pressure
-          flow.buyVol += valueUsd;
-        }
-        flow.tradeCount++;
-        orderFlowBuffer.set(symbol, flow);
-        orderFlowDirty = true;
+      ws.onerror = () => {
+        clearTimeout(connectTimeout);
+        ws?.close();
+      };
 
-        // Phase 1: Update CVD (Persistent Pressure)
-        const side = isBuyerMaker ? 'sell' : 'buy';
-        updateCVD(symbol, side, valueUsd, now);
-        advancedDirty = true;
-
-        // ── Whale Detection ──
-        if (valueUsd >= WHALE_THRESHOLD_USD) {
-          const whaleEvent = {
-            id: generateId(),
-            symbol,
-            side: isBuyerMaker ? 'sell' : 'buy',
-            price,
-            quantity,
-            valueUsd,
-            exchange: 'binance',
-            timestamp: tradeTime
-          };
-
-          whaleBuffer.push(whaleEvent);
-          if (whaleBuffer.length > MAX_WHALE_ALERTS) {
-            whaleBuffer = whaleBuffer.slice(-MAX_WHALE_ALERTS);
-          }
-
-          // Broadcast immediately - whale alerts are time-critical
-          broadcast({ type: 'WHALE_TRADE', payload: whaleEvent });
-
-          const sizeLabel = valueUsd >= MEGA_WHALE_THRESHOLD_USD ? '🐋 MEGA WHALE' : '🐳 WHALE';
-          console.log(`[deriv-worker] ${sizeLabel}: ${symbol} ${whaleEvent.side.toUpperCase()} $${Math.round(valueUsd / 1000)}K @ ${price}`);
-        }
-      } catch (e) {
-        // Silent
-      }
-    };
-
-    ws.onclose = () => {
-      console.log('[deriv-worker] Whale stream closed');
-      if (ws && ws._pingTimeout) {
-        clearTimeout(ws._pingTimeout);
-      }
-      streamHealth.whale = false;
-      whaleWsSockets.delete('combined');
-      clearTimeout(connectTimeout);
-      if (isRunning) scheduleReconnect(STREAM_KEY, connectWhaleStream);
-    };
-
-    ws.onerror = () => {
-      clearTimeout(connectTimeout);
-      ws?.close();
-    };
-
-    whaleWsSockets.set('combined', ws);
+      whaleWsSockets.set(socketKey, ws);
+    });
   } catch (e) {
     console.error('[deriv-worker] Whale stream error:', e);
     if (isRunning) scheduleReconnect(STREAM_KEY, connectWhaleStream);
@@ -898,6 +906,7 @@ async function pollOpenInterest() {
             Object.entries(json.data).forEach(([symbol, rateData]) => {
               const prev = fundingBuffer.get(symbol);
               fundingBuffer.set(symbol, {
+                symbol,
                 ...(prev || {}),
                 ...rateData,
                 updatedAt: Date.now()

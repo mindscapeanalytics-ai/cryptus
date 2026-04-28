@@ -51,6 +51,11 @@ function getOrCreateWorker(): Worker | null {
 // ── Hook ─────────────────────────────────────────────────────────
 
 export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = true) {
+  const normalizedSymbols = useRef<string[]>([]);
+  normalizedSymbols.current = Array.from(symbols)
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .map((s) => s.toUpperCase());
+
   const [fundingRates, setFundingRates] = useState<Map<string, FundingRateData>>(new Map());
   const [liquidations, setLiquidations] = useState<LiquidationEvent[]>([]);
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleTradeEvent[]>([]);
@@ -99,7 +104,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     smartMoneyTimerRef.current = setTimeout(() => {
       try {
         const result = computeAllSmartMoney(
-          Array.from(symbols),
+          normalizedSymbols.current,
           fundingRates,
           liquidations,
           whaleAlerts,
@@ -145,7 +150,14 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
 
         case 'SNAPSHOT': {
           const { fundingRates, liquidations, whaleAlerts, orderFlow, openInterest, cvd, fundingHistory, oiAnalysis, cascadeRisk, optionsIntel } = payload;
-          if (fundingRates) setFundingRates(new Map(fundingRates));
+          if (fundingRates) {
+            const normalizedFunding = new Map<string, FundingRateData>(
+              (fundingRates as [string, FundingRateData][])
+                .filter(([sym]) => typeof sym === 'string' && sym.length > 0)
+                .map(([sym, data]) => [sym, { ...data, symbol: data?.symbol || sym } as FundingRateData])
+            );
+            setFundingRates(normalizedFunding);
+          }
           if (liquidations) setLiquidations(liquidations);
           if (whaleAlerts) setWhaleAlerts(whaleAlerts);
           if (orderFlow) setOrderFlow(new Map(orderFlow));
@@ -181,7 +193,8 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
           setFundingRates(prev => {
             const next = new Map(prev);
             for (const [sym, data] of entries) {
-              next.set(sym, data);
+              if (typeof sym !== 'string' || sym.length === 0) continue;
+              next.set(sym, { ...data, symbol: data?.symbol || sym });
             }
             return next;
           });
@@ -351,14 +364,14 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     if (!workerStarted) {
       worker.postMessage({
         type: 'START',
-        payload: { symbols: Array.from(symbols) }
+        payload: { symbols: normalizedSymbols.current }
       });
       workerStarted = true;
     } else {
       // Update symbols if worker is already running
       worker.postMessage({
         type: 'UPDATE_SYMBOLS',
-        payload: { symbols: Array.from(symbols) }
+        payload: { symbols: normalizedSymbols.current }
       });
       // Also request a snapshot immediately since the worker is already running
       // but our local hook state is empty
@@ -377,7 +390,7 @@ export function useDerivativesIntel(symbols: Set<string>, enabled: boolean = tru
     if (!enabled || !derivativesWorker) return;
     derivativesWorker.postMessage({
       type: 'UPDATE_SYMBOLS',
-      payload: { symbols: Array.from(symbols) }
+      payload: { symbols: normalizedSymbols.current }
     });
   }, [symbols, enabled]);
 

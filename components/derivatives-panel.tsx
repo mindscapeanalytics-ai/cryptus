@@ -325,7 +325,8 @@ export const DerivativesPanel = memo(function DerivativesPanel({
 
   // Sort funding rates by absolute value (most extreme first)
   const sortedFunding = useMemo(
-    () => Array.from(fundingRates.values())
+    () => Array.from(fundingRates.entries())
+      .map(([sym, data]) => ({ ...data, symbol: data?.symbol || sym }))
       .sort((a, b) => Math.abs(b.rate) - Math.abs(a.rate))
       .slice(0, 30),
     [fundingRates]

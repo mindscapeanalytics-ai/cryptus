@@ -2237,7 +2237,9 @@ const ScreenerCard = memo(function ScreenerCard({
 function loadWatchlist(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    return JSON.parse(localStorage.getItem('crypto-rsi-watchlist') ?? '[]');
+    const parsed = JSON.parse(localStorage.getItem('crypto-rsi-watchlist') ?? '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
   } catch {
     return [];
   }
@@ -2755,7 +2757,9 @@ export default function ScreenerDashboard() {
       : new Set<string>();
 
     // 🔥 Institutional Priority: Always include Watchlist symbols in the live set
-    watchlist.forEach(s => baseSet.add(s));
+    watchlist.forEach(s => {
+      if (typeof s === 'string' && s.length > 0) baseSet.add(s);
+    });
 
     // Intelligent Search Candidate: If search looks like a ticker, warm it up instantly
     if (search && search.length >= 2 && search.length <= 10 && !search.includes(' ')) {
@@ -2867,6 +2871,7 @@ export default function ScreenerDashboard() {
   const derivativeSymbols = useMemo(() => {
     const next = new Set<string>();
     symbolSet.forEach((symbol) => {
+      if (typeof symbol !== 'string' || symbol.length === 0) return;
       const s = symbol.toUpperCase();
       if (/^[A-Z0-9]{2,20}USDT$/.test(s)) next.add(s);
     });
