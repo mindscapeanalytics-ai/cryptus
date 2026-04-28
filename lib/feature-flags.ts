@@ -52,7 +52,7 @@ export const DEFAULT_FLAGS: SignalFeatureFlags = {
   useRelaxedSuppression: true,        // ✅ Catches 30-40% more momentum trades
   useStrongSmartMoney: true,          // ✅ Component-aware Smart Money boost (20-40%)
   useSuperSignalValidation: true,     // ✅ Cross-validates with Super Signal
-  useRegimeThresholds: false,         // Future: Dynamic thresholds
+  useRegimeThresholds: true,          // ✅ Phase 6: Regime-adaptive RSI zones
   useWeightedTFAgreement: false,      // Future: Importance-based TF agreement
   maxTrialRecords: 100,
   maxSubscribedRecords: 500,

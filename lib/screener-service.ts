@@ -1468,8 +1468,8 @@ function buildEntry(
 
     const volumeSpike = detectVolumeSpike(volumes1m);
 
-    // Signals use custom thresholds if provided, else standard 70/30
-    const signal = deriveSignal(rsi15m ?? rsi1m, config?.overboughtThreshold, config?.oversoldThreshold);
+    // RSI-based signal baseline (used for extreme state detection)
+    const rsiSignal = deriveSignal(rsi15m ?? rsi1m, config?.overboughtThreshold, config?.oversoldThreshold);
     const stdRsiDivergence = detectRsiDivergence(closes15m, r15mP, 40);
 
     // Intelligence indicators (Using coin-specific periods)
@@ -1603,6 +1603,30 @@ function buildEntry(
       tradingStyle,
       superSignalScore: prevEntry?.superSignal?.value ?? undefined,
     });
+
+    // ── UNIFIED SIGNAL: Combine RSI extremes with Strategy direction ──
+    // Eliminates contradictions between Signal and Strategy columns.
+    // Rule: Signal shows RSI extreme state (oversold/overbought) ONLY when
+    // Strategy direction agrees OR RSI is at truly extreme levels (deep zones).
+    // Otherwise, derive from Strategy output to maintain consistency.
+    const primaryRsi = rsi15m ?? rsi1m;
+    let signal: 'oversold' | 'overbought' | 'neutral';
+    if (rsiSignal === 'oversold' && !strategy.signal.includes('sell')) {
+      // RSI says oversold AND Strategy doesn't disagree → show oversold
+      signal = 'oversold';
+    } else if (rsiSignal === 'overbought' && !strategy.signal.includes('buy')) {
+      // RSI says overbought AND Strategy doesn't disagree → show overbought
+      signal = 'overbought';
+    } else if (primaryRsi !== null && primaryRsi <= 20) {
+      // Deep oversold zone always shows regardless of Strategy
+      signal = 'oversold';
+    } else if (primaryRsi !== null && primaryRsi >= 80) {
+      // Deep overbought zone always shows regardless of Strategy
+      signal = 'overbought';
+    } else {
+      // Default: derive from Strategy direction for consistency
+      signal = rsiSignal;
+    }
 
     // Custom analysis (Isolated from strategy)
     const customDivergence = detectRsiDivergence(closes15m, rsiPeriod, 40);

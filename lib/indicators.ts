@@ -765,6 +765,40 @@ export function computeStrategyScore(params: {
   const zones = RSI_ZONES[market] || RSI_ZONES.Crypto;
   let { deepOS: rsiDeepOS, os: rsiOS, ob: rsiOB, deepOB: rsiDeepOB } = zones;
 
+  // ── PHASE 6: REGIME-ADAPTIVE RSI THRESHOLDS ──────────────────────
+  // Dynamically shift RSI zones based on market regime to improve signal accuracy.
+  // Trending: RSI stays elevated/depressed longer → widen zones to avoid premature triggers.
+  // Volatile: Whipsaws through extremes faster → tighten zones to catch them sooner.
+  // Breakout: Momentum is dominant → widen deep zones so signals aren't suppressed.
+  // Ranging: Use standard asset-specific thresholds (no adjustment).
+  if (SIGNAL_FEATURES.useRegimeThresholds && params.regime) {
+    switch (params.regime) {
+      case 'trending':
+        // In trends, RSI stays elevated/depressed longer — widen zones
+        rsiDeepOS -= 3;  // e.g., 20 → 17
+        rsiOS -= 3;      // e.g., 30 → 27
+        rsiOB += 3;      // e.g., 70 → 73
+        rsiDeepOB += 3;  // e.g., 80 → 83
+        reasons.push('📊 Regime: Trending (widened RSI zones)');
+        break;
+      case 'volatile':
+        // In volatile markets, extremes are hit quickly — tighten zones
+        rsiDeepOS += 3;  // e.g., 20 → 23
+        rsiOS += 3;      // e.g., 30 → 33
+        rsiOB -= 3;      // e.g., 70 → 67
+        rsiDeepOB -= 3;  // e.g., 80 → 77
+        reasons.push('📊 Regime: Volatile (tightened RSI zones)');
+        break;
+      case 'breakout':
+        // Breakout momentum is strong — widen deep zones to avoid suppressing signals
+        rsiDeepOS -= 5;  // e.g., 20 → 15
+        rsiDeepOB += 5;  // e.g., 80 → 85
+        reasons.push('📊 Regime: Breakout (expanded deep zones)');
+        break;
+      // 'ranging': default thresholds — no adjustment needed
+    }
+  }
+
   // RSI scoring (higher weight for longer timeframes)
   // Regime-aware: oscillator weight applied to all RSI sub-scores
   const rsiScore = (rsi: number | null, weight: number, tf: string) => {
@@ -972,27 +1006,29 @@ export function computeStrategyScore(params: {
     else if (params.confluence <= -20) reasons.push('Multi-TF bearish alignment');
   }
 
-  // RSI crossover
+  // RSI crossover - regime: oscillator weight applied
   if (params.rsiCrossover && params.rsiCrossover !== 'none' && enabled.rsi !== false) {
     factors += 1.5; // Increased from 1.0
+    const crossW = 1.5 * rw.oscillators * sessionQuality;
     if (params.rsiCrossover === 'bullish_reversal') {
-      score += 70 * 1.5 * sessionQuality;
+      score += 70 * crossW;
       reasons.push('Bullish RSI reversal trend');
     } else {
-      score -= 70 * 1.5 * sessionQuality;
+      score -= 70 * crossW;
       reasons.push('Bearish RSI reversal trend');
     }
   }
 
-  // RSI divergence (Style-adaptive weighting)
+  // RSI divergence (Style-adaptive weighting) - regime: momentum weight applied
   if (params.rsiDivergence && params.rsiDivergence !== 'none' && enabled.divergence !== false) {
     const divWeight = tw.divergenceBonus;
     factors += divWeight; 
+    const divW = divWeight * rw.momentum * sessionQuality;
     if (params.rsiDivergence === 'bullish') {
-      score += 75 * divWeight * sessionQuality;
+      score += 75 * divW;
       reasons.push('Bullish RSI Divergence');
     } else {
-      score -= 75 * divWeight * sessionQuality;
+      score -= 75 * divW;
       reasons.push('Bearish RSI Divergence');
     }
   }

@@ -153,6 +153,9 @@ export interface SuperSignalInput {
   
   strategySignal: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
   
+  // Smart Money derivatives intelligence (-100 to +100)
+  smartMoneyScore?: number | null;
+  
   // Historical data for entropy
   historicalCloses?: number[];
   

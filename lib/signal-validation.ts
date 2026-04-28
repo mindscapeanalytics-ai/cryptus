@@ -73,10 +73,12 @@ export function validateWithSuperSignal(
   
   // Agreement: Boost confidence
   if (stratDirection === superDirection) {
-    // Calculate agreement strength based on minimum of both scores
+    // Calculate agreement strength based on minimum of both normalized scores
+    // FIX: Use normalizedSuper (-100 to +100) instead of raw superSignalScore (0-100)
+    // to prevent inflated boosts when Super Signal is non-neutral
     const agreement = Math.min(
       Math.abs(strategyScore),
-      Math.abs(superSignalScore)
+      Math.abs(normalizedSuper)
     ) / 100;
     
     return {
@@ -87,7 +89,8 @@ export function validateWithSuperSignal(
   }
   
   // Disagreement: Dampen + warn
-  const disagreement = Math.abs(strategyScore - superSignalScore) / 200;
+  // FIX: Use normalizedSuper (-100 to +100) for correct scale comparison
+  const disagreement = Math.abs(strategyScore - normalizedSuper) / 200;
   
   return {
     multiplier: 1.0 - (disagreement * 0.30), // Up to 30% penalty

@@ -229,8 +229,28 @@ export async function computeRisk(
       config.risk.maxPositionPct
     );
     
-    // Compute risk score
-    const score = computeRiskScore(atr, historicalCloses);
+    // Compute base risk score from ATR volatility
+    let score = computeRiskScore(atr, historicalCloses);
+    
+    // ── Smart Money Risk Adjustment ──
+    // When Smart Money derivatives data is available, adjust risk score:
+    // - SM confirms Strategy direction → lower perceived risk (+5-15 score)
+    // - SM contradicts Strategy direction → higher perceived risk (-5-15 score)
+    // This ensures the Super Signal fusion engine reflects derivatives intelligence.
+    if (input.smartMoneyScore !== undefined && input.smartMoneyScore !== null && Math.abs(input.smartMoneyScore) >= 20) {
+      const smDirection = input.smartMoneyScore > 0 ? 1 : -1;
+      const smMagnitude = Math.min(Math.abs(input.smartMoneyScore), 100) / 100; // 0-1
+      
+      if (smDirection === direction) {
+        // Smart Money confirms Strategy → reduce risk (boost score)
+        const boost = Math.round(smMagnitude * 15); // Up to +15
+        score = Math.min(100, score + boost);
+      } else {
+        // Smart Money contradicts Strategy → increase risk (penalize score)
+        const penalty = Math.round(smMagnitude * 15); // Up to -15
+        score = Math.max(0, score - penalty);
+      }
+    }
     
     const result: ComponentScore = {
       score,

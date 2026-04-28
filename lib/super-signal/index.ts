@@ -40,6 +40,7 @@ function convertToInput(entry: ScreenerEntry): SuperSignalInput {
     bbLower: entry.bbLower,
     change24h: entry.change24h,
     strategySignal: entry.strategySignal,
+    smartMoneyScore: entry.smartMoneyScore ?? null,
     historicalCloses: entry.historicalCloses,
     regime: entry.regime,
   };
