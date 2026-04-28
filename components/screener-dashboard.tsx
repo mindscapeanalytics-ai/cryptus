@@ -38,7 +38,7 @@ import { OrderFlowIndicator } from '@/components/order-flow-indicator';
 import { CorrelationHeatmap } from '@/components/correlation-heatmap';
 import { PortfolioScannerPanel } from '@/components/portfolio-scanner-panel';
 import { approximateRsi, approximateEma, calculateRsiWithState } from '@/lib/rsi';
-import { computeStrategyScore, deriveSignal, calculateRsi, latestEma, detectEmaCross, calculateMacd, calculateBollinger, calculateStochRsi, calculateROC, calculateConfluence, latestEmaWithState, calculateMacdWithState, calculateBollingerWithState, calculateATR, calculateADX, calculateFibonacciLevels, computeRiskParameters } from '@/lib/indicators';
+import { computeStrategyScore, deriveSignal, deriveCoherentSignal, calculateRsi, latestEma, detectEmaCross, calculateMacd, calculateBollinger, calculateStochRsi, calculateROC, calculateConfluence, latestEmaWithState, calculateMacdWithState, calculateBollingerWithState, calculateATR, calculateADX, calculateFibonacciLevels, computeRiskParameters } from '@/lib/indicators';
 import { classifyRegime } from '@/lib/market-regime';
 import { getSymbolAlias, getSymbolTicker } from '@/lib/symbol-utils';
 import { generateSignalNarration } from '@/lib/signal-narration';
@@ -512,9 +512,9 @@ function FinalBadge({
   const sourceLabel = source === 'super' ? 'SUPER' : 'STRAT';
   const label =
     signal === 'strong-buy' ? 'STR BUY' :
-    signal === 'buy' ? 'BUY' :
-    signal === 'strong-sell' ? 'STR SELL' :
-    signal === 'sell' ? 'SELL' : 'NEUTRAL';
+      signal === 'buy' ? 'BUY' :
+        signal === 'strong-sell' ? 'STR SELL' :
+          signal === 'sell' ? 'SELL' : 'NEUTRAL';
   return (
     <span
       className={cn(
@@ -894,9 +894,10 @@ const ScreenerRow = memo(function ScreenerRow({
     const strategySignal = entry.strategySignal;
     // Intelligence: Derive real-time signal tag based on user threshold preferences
     const isCustomMode = globalSignalThresholdMode === 'custom';
+    const rsiVal = rsi15m ?? rsi1m;
     const signal = isCustomMode
-      ? deriveSignal(rsi15m ?? rsi1m, obT, osT)
-      : deriveSignal(rsi15m ?? rsi1m, globalOverbought, globalOversold);
+      ? deriveCoherentSignal(strategySignal, rsiVal, obT, osT)
+      : deriveCoherentSignal(strategySignal, rsiVal, globalOverbought, globalOversold);
     return {
       price: tick.price,
       change24h: tick.change24h,
@@ -1672,23 +1673,23 @@ interface ColumnDef {
 const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'rank', label: 'Rank #', group: 'Asset', defaultVisible: true },
   { id: 'winRate', label: 'Win Rate', group: 'Intelligence', defaultVisible: true },
-  { id: 'rsi1m', label: 'RSI 1m', group: 'RSI', defaultVisible: false },
-  { id: 'rsi5m', label: 'RSI 5m', group: 'RSI', defaultVisible: false },
+  { id: 'rsi1m', label: 'RSI 1m', group: 'RSI', defaultVisible: true },
+  { id: 'rsi5m', label: 'RSI 5m', group: 'RSI', defaultVisible: true },
   { id: 'rsi15m', label: 'RSI 15m', group: 'RSI', defaultVisible: true },
-  { id: 'rsi1h', label: 'RSI 1h', group: 'RSI', defaultVisible: false },
-  { id: 'ema9', label: 'EMA 9', group: 'Moving Avg', defaultVisible: false },
-  { id: 'ema21', label: 'EMA 21', group: 'Moving Avg', defaultVisible: false },
+  { id: 'rsi1h', label: 'RSI 1h', group: 'RSI', defaultVisible: true },
+  { id: 'ema9', label: 'EMA 9', group: 'Moving Avg', defaultVisible: true },
+  { id: 'ema21', label: 'EMA 21', group: 'Moving Avg', defaultVisible: true },
   { id: 'emaCross', label: 'Trend', group: 'Indicators', defaultVisible: true },
   { id: 'macdHistogram', label: 'MACD', group: 'Indicators', defaultVisible: true },
-  { id: 'bbUpper', label: 'BB Upper', group: 'Volatility', defaultVisible: false },
-  { id: 'bbLower', label: 'BB Lower', group: 'Volatility', defaultVisible: false },
-  { id: 'bbPosition', label: 'BB Pos', group: 'Volatility', defaultVisible: false },
+  { id: 'bbUpper', label: 'BB Upper', group: 'Volatility', defaultVisible: true },
+  { id: 'bbLower', label: 'BB Lower', group: 'Volatility', defaultVisible: true },
+  { id: 'bbPosition', label: 'BB Pos', group: 'Volatility', defaultVisible: true },
   { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: true },
   { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: true },
   { id: 'confluence', label: 'Confluence', group: 'Intelligence', defaultVisible: true },
   { id: 'divergence', label: 'Div / Rev', group: 'Intelligence', defaultVisible: true },
   { id: 'momentum', label: 'Momentum', group: 'Intelligence', defaultVisible: true },
-  { id: 'atr', label: 'ATR', group: 'Volatility', defaultVisible: false },
+  { id: 'atr', label: 'ATR', group: 'Volatility', defaultVisible: true },
   { id: 'adx', label: 'ADX', group: 'Volatility', defaultVisible: true },
   { id: 'longCandle', label: 'Long Candle', group: 'Volatility', defaultVisible: true },
   { id: 'volumeSpike', label: 'Vol Spike', group: 'Volatility', defaultVisible: true },
@@ -1912,9 +1913,10 @@ const ScreenerCard = memo(function ScreenerCard({
 
     // Intelligence: Derive real-time signal tag based on user threshold preferences
     const isCustomMode = globalSignalThresholdMode === 'custom';
+    const rsiVal = rsi15m ?? rsi1m;
     const signal = isCustomMode
-      ? deriveSignal(rsi15m ?? rsi1m, obT, osT)
-      : deriveSignal(rsi15m ?? rsi1m, globalOverbought, globalOversold);
+      ? deriveCoherentSignal(strategySignal, rsiVal, obT, osT)
+      : deriveCoherentSignal(strategySignal, rsiVal, globalOverbought, globalOversold);
 
 
 
@@ -2420,22 +2422,22 @@ export default function ScreenerDashboard() {
   const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('finalScore');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [refreshInterval, setRefreshInterval] = useState(DASHBOARD_DEFAULTS.refreshInterval);
-  const [pairCount, setPairCount] = useState(DASHBOARD_DEFAULTS.pairCount);
+  const [refreshInterval, setRefreshInterval] = useState<number>(DASHBOARD_DEFAULTS.refreshInterval);
+  const [pairCount, setPairCount] = useState<number>(DASHBOARD_DEFAULTS.pairCount);
   const [entitlements, setEntitlements] = useState<DashboardEntitlements>(DEFAULT_ENTITLEMENTS);
-  const [smartMode, setSmartMode] = useState(smartModeDefault);
-  const [showHeader, setShowHeader] = useState(DASHBOARD_DEFAULTS.showHeader);
+  const [smartMode, setSmartMode] = useState<boolean>(smartModeDefault);
+  const [showHeader, setShowHeader] = useState<boolean>(DASHBOARD_DEFAULTS.showHeader);
   // Disable heavy animations for large lists OR when user prefers reduced motion
   // Use useState with lazy init to avoid TDZ issues in minified bundle
   const [prefersReducedMotion] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
-  const [rsiPeriod, setRsiPeriod] = useState(RSI_DEFAULTS.period);
+  const [rsiPeriod, setRsiPeriod] = useState<number>(RSI_DEFAULTS.period);
 
   // Compute useAnimations with useMemo to avoid TDZ issues in production build
   const useAnimations = useMemo(() => !prefersReducedMotion && pairCount <= 300, [prefersReducedMotion, pairCount]);
-  const [countdown, setCountdown] = useState(DASHBOARD_DEFAULTS.refreshInterval);
+  const [countdown, setCountdown] = useState<number>(DASHBOARD_DEFAULTS.refreshInterval);
   const [refreshing, setRefreshing] = useState(false);
   const [lastSuccessfulFetchAt, setLastSuccessfulFetchAt] = useState<number | null>(null);
   const [staleSince, setStaleSince] = useState<number | null>(null);
@@ -2451,31 +2453,31 @@ export default function ScreenerDashboard() {
     fromCount: null,
     toCount: null,
   });
-  const [globalThresholdsEnabled, setGlobalThresholdsEnabled] = useState(true);
-  const [globalOverbought, setGlobalOverbought] = useState(RSI_DEFAULTS.overbought);
-  const [globalOversold, setGlobalOversold] = useState(RSI_DEFAULTS.oversold);
+  const [globalThresholdsEnabled, setGlobalThresholdsEnabled] = useState<boolean>(true);
+  const [globalOverbought, setGlobalOverbought] = useState<number>(RSI_DEFAULTS.overbought);
+  const [globalOversold, setGlobalOversold] = useState<number>(RSI_DEFAULTS.oversold);
   const [globalThresholdTimeframes, setGlobalThresholdTimeframes] = useState<string[]>(['1m', '5m', '15m', '1h']);
-  const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState(VOLATILITY_DEFAULTS.longCandleThreshold);
-  const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState(VOLATILITY_DEFAULTS.volumeSpikeThreshold);
-  const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState(true);
+  const [globalLongCandleThreshold, setGlobalLongCandleThreshold] = useState<number>(VOLATILITY_DEFAULTS.longCandleThreshold);
+  const [globalVolumeSpikeThreshold, setGlobalVolumeSpikeThreshold] = useState<number>(VOLATILITY_DEFAULTS.volumeSpikeThreshold);
+  const [globalVolatilityEnabled, setGlobalVolatilityEnabled] = useState<boolean>(true);
   // ── Signal Tag Display Controls ──
-  const [globalShowSignalTags, setGlobalShowSignalTags] = useState(true);
+  const [globalShowSignalTags, setGlobalShowSignalTags] = useState<boolean>(true);
   const [globalSignalThresholdMode, setGlobalSignalThresholdMode] = useState<'default' | 'custom'>('custom');
   const [tradingStyle, setTradingStyle] = useState<TradingStyle>('intraday');
 
   // ── Indicator Feature Flags ──
-  const [globalUseRsi, setGlobalUseRsi] = useState(INDICATOR_DEFAULTS.rsi);
-  const [globalUseMacd, setGlobalUseMacd] = useState(INDICATOR_DEFAULTS.macd);
-  const [globalUseBb, setGlobalUseBb] = useState(INDICATOR_DEFAULTS.bb);
-  const [globalUseStoch, setGlobalUseStoch] = useState(INDICATOR_DEFAULTS.stoch);
-  const [globalUseEma, setGlobalUseEma] = useState(INDICATOR_DEFAULTS.ema);
-  const [globalUseVwap, setGlobalUseVwap] = useState(INDICATOR_DEFAULTS.vwap);
-  const [globalUseConfluence, setGlobalUseConfluence] = useState(INDICATOR_DEFAULTS.confluence);
-  const [globalUseDivergence, setGlobalUseDivergence] = useState(INDICATOR_DEFAULTS.divergence);
-  const [globalUseMomentum, setGlobalUseMomentum] = useState(INDICATOR_DEFAULTS.momentum);
-  const [globalUseObv, setGlobalUseObv] = useState(INDICATOR_DEFAULTS.obv);
-  const [globalUseWilliamsR, setGlobalUseWilliamsR] = useState(INDICATOR_DEFAULTS.williamsR);
-  const [globalUseCci, setGlobalUseCci] = useState(INDICATOR_DEFAULTS.cci);
+  const [globalUseRsi, setGlobalUseRsi] = useState<boolean>(INDICATOR_DEFAULTS.rsi);
+  const [globalUseMacd, setGlobalUseMacd] = useState<boolean>(INDICATOR_DEFAULTS.macd);
+  const [globalUseBb, setGlobalUseBb] = useState<boolean>(INDICATOR_DEFAULTS.bb);
+  const [globalUseStoch, setGlobalUseStoch] = useState<boolean>(INDICATOR_DEFAULTS.stoch);
+  const [globalUseEma, setGlobalUseEma] = useState<boolean>(INDICATOR_DEFAULTS.ema);
+  const [globalUseVwap, setGlobalUseVwap] = useState<boolean>(INDICATOR_DEFAULTS.vwap);
+  const [globalUseConfluence, setGlobalUseConfluence] = useState<boolean>(INDICATOR_DEFAULTS.confluence);
+  const [globalUseDivergence, setGlobalUseDivergence] = useState<boolean>(INDICATOR_DEFAULTS.divergence);
+  const [globalUseMomentum, setGlobalUseMomentum] = useState<boolean>(INDICATOR_DEFAULTS.momentum);
+  const [globalUseObv, setGlobalUseObv] = useState<boolean>(INDICATOR_DEFAULTS.obv);
+  const [globalUseWilliamsR, setGlobalUseWilliamsR] = useState<boolean>(INDICATOR_DEFAULTS.williamsR);
+  const [globalUseCci, setGlobalUseCci] = useState<boolean>(INDICATOR_DEFAULTS.cci);
   const [activeTab, setActiveTab] = useState<'home' | 'alerts' | 'watchlist' | 'settings'>('home');
   const [coinConfigs, setCoinConfigs] = useState<Record<string, any>>({});
   const coinConfigsRef = useRef<Record<string, any>>({});
@@ -2995,22 +2997,22 @@ export default function ScreenerDashboard() {
     const orderFlowData = flow
       ? { ratio: flow.ratio, pressure: flow.pressure, buyVolume1m: flow.buyVolume1m, sellVolume1m: flow.sellVolume1m }
       : (entry.orderFlowRatio != null
-          ? {
-              ratio: entry.orderFlowRatio,
-              pressure: entry.orderFlowRatio > 0.55 ? 'buy' : entry.orderFlowRatio < 0.45 ? 'sell' : 'neutral',
-              buyVolume1m: 0,
-              sellVolume1m: 0,
-            }
-          : null);
+        ? {
+          ratio: entry.orderFlowRatio,
+          pressure: entry.orderFlowRatio > 0.55 ? 'buy' : entry.orderFlowRatio < 0.45 ? 'sell' : 'neutral',
+          buyVolume1m: 0,
+          sellVolume1m: 0,
+        }
+        : null);
 
     const smartMoneyScore = sm
       ? { score: sm.score, label: sm.label }
       : (entry.smartMoneyScore != null
-          ? {
-              score: entry.smartMoneyScore,
-              label: entry.smartMoneyScore >= 30 ? 'Strong Buy' : entry.smartMoneyScore <= -30 ? 'Strong Sell' : 'Neutral',
-            }
-          : null);
+        ? {
+          score: entry.smartMoneyScore,
+          label: entry.smartMoneyScore >= 30 ? 'Strong Buy' : entry.smartMoneyScore <= -30 ? 'Strong Sell' : 'Neutral',
+        }
+        : null);
 
     return { fundingRate, orderFlowData, smartMoneyScore };
   }, [fundingRates, orderFlow, smartMoney]);
@@ -3076,12 +3078,12 @@ export default function ScreenerDashboard() {
         : (strong ? 'strong-sell' : 'sell');
     }
     const finalScore = finalDir === 0 ? 0 : (finalDir > 0 ? blendedStrength : -blendedStrength);
-    const finalSource: 'super' | 'strategy' = superOk && superDir !== 0 ? 'super' : 'strategy';
+    const finalSource: 'super' | 'strategy' = (finalDir !== 0 && superOk && superDir === finalDir) ? 'super' : 'strategy';
 
     // Keep Strategy column consistent with FINAL when FINAL has stronger consensus.
     const strategyAlignedSignal =
       finalSignal !== 'neutral' &&
-      (strategySignal === 'neutral' || toDir(strategySignal) !== toDir(finalSignal) || Math.abs(finalScore) > Math.abs(entry.strategyScore ?? 0))
+        (strategySignal === 'neutral' || toDir(strategySignal) !== toDir(finalSignal) || Math.abs(finalScore) > Math.abs(entry.strategyScore ?? 0))
         ? finalSignal
         : strategySignal;
     const strategyAlignedScore =
@@ -3352,8 +3354,8 @@ export default function ScreenerDashboard() {
       // Strategy column (not only in fallback mode).
       const trustedSuperScore =
         merged.superSignal &&
-        merged.superSignal.status === 'ok' &&
-        (merged.superSignal.confidence ?? 0) >= 60
+          merged.superSignal.status === 'ok' &&
+          (merged.superSignal.confidence ?? 0) >= 60
           ? Math.round((merged.superSignal.value - 50) * 2)
           : undefined;
       const strat = computeStrategyScore({
@@ -3499,7 +3501,7 @@ export default function ScreenerDashboard() {
           osT = cfg?.oversoldThreshold ?? osT;
         }
         const rsiVal = merged.rsi15m ?? merged.rsi1m ?? merged.rsiCustom;
-        merged.signal = deriveSignal(rsiVal, obT, osT);
+        merged.signal = deriveCoherentSignal(merged.strategySignal, rsiVal, obT, osT);
       } else {
         merged.signal = 'neutral';
       }
@@ -4864,7 +4866,7 @@ export default function ScreenerDashboard() {
 
       let av = a[sortKey as keyof ScreenerEntry] as any;
       let bv = b[sortKey as keyof ScreenerEntry] as any;
-      
+
       if (sortKey === 'finalScore') {
         av = a.finalScore ?? a.strategyScore;
         bv = b.finalScore ?? b.strategyScore;

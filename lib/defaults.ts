@@ -61,22 +61,31 @@ export const DASHBOARD_DEFAULTS = {
   visibleColumns: [
     'rank',           // Asset ranking
     'winRate',        // Historical win rate
+    'rsi1m',          // 1m RSI timeframe
+    'rsi5m',          // 5m RSI timeframe
     'rsi15m',         // Primary RSI timeframe
+    'rsi1h',          // 1h RSI timeframe
+    'ema9',           // Fast EMA
+    'ema21',          // Slow EMA
     'emaCross',       // Trend direction
     'macdHistogram',  // Momentum
+    'bbUpper',        // Bollinger Upper
+    'bbLower',        // Bollinger Lower
+    'bbPosition',     // Bollinger Position
     'stochK',         // Stochastic RSI
     'vwapDiff',       // Volume-weighted price
     'confluence',     // Multi-indicator agreement
     'divergence',     // Divergence/reversal signals
     'momentum',       // Price momentum
+    'atr',            // Average True Range
     'adx',            // Trend strength
     'longCandle',     // Volatility detection
     'volumeSpike',    // Volume surge detection
     'fundingRate',    // Derivatives funding
     'orderFlow',      // Order flow pressure
     'smartMoney',     // Smart money score
-    'finalAction',    // Final fused execution signal
     'superSignal',    // Institutional SUPER_SIGNAL
+    'finalAction',    // Final fused execution signal
     'strategy',       // Strategy signal
   ] as readonly string[],
   /** Default trading style */
