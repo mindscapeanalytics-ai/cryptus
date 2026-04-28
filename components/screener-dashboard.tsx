@@ -3119,8 +3119,18 @@ export default function ScreenerDashboard() {
           smartMoneyScore: derivativeScore,
           market: resolvedMarket,
           enabledIndicators: {
-            rsi: true, ema: true, macd: true, bb: true, stoch: true, vwap: true,
-            obv: true, williamsR: true, cci: true,
+            rsi: globalUseRsi,
+            macd: globalUseMacd,
+            bb: globalUseBb,
+            stoch: globalUseStoch,
+            ema: globalUseEma,
+            vwap: globalUseVwap,
+            confluence: globalUseConfluence,
+            divergence: globalUseDivergence,
+            momentum: globalUseMomentum,
+            obv: globalUseObv,
+            williamsR: globalUseWilliamsR,
+            cci: globalUseCci,
           }
         });
 
@@ -3256,60 +3266,57 @@ export default function ScreenerDashboard() {
 
       // ─── Phase 2: Institutional Logic Overlay ───
       // We apply the same weighted strategy logic to all assets (Crypto & traditional).
-      // If the backend hasn't provided a score yet (fallback mode), we calculate a local one.
-      // Only compute local fallback when strategy is missing/invalid.
-      // Score=0 is a valid authoritative neutral (including coherence-gated neutral),
-      // so never use "=== 0" as a recompute trigger.
-      if (!Number.isFinite(merged.strategyScore) || !merged.strategySignal) {
-        const trustedSuperScore =
-          merged.superSignal &&
-          merged.superSignal.status === 'ok' &&
-          (merged.superSignal.confidence ?? 0) >= 60
-            ? Math.round((merged.superSignal.value - 50) * 2)
-            : undefined;
-        const strat = computeStrategyScore({
-          rsi1m: merged.rsi1m,
-          rsi5m: merged.rsi5m,
-          rsi15m: merged.rsi15m,
-          rsi1h: merged.rsi1h,
-          rsi4h: merged.rsi4h,
-          rsi1d: merged.rsi1d,
-          macdHistogram: merged.macdHistogram,
-          bbPosition: merged.bbPosition,
-          stochK: merged.stochK,
-          stochD: merged.stochD,
-          emaCross: merged.emaCross,
-          vwapDiff: merged.vwapDiff,
-          volumeSpike: merged.volumeSpike,
-          price: merged.price,
-          smartMoneyScore: merged.smartMoneyScore ?? undefined,
-          superSignalScore: trustedSuperScore,
-          adx: merged.adx,
-          hiddenDivergence: merged.hiddenDivergence,
-          enabledIndicators: {
-            rsi: globalUseRsi,
-            macd: globalUseMacd,
-            bb: globalUseBb,
-            stoch: globalUseStoch,
-            ema: globalUseEma,
-            vwap: globalUseVwap,
-            confluence: globalUseConfluence,
-            divergence: globalUseDivergence,
-            momentum: globalUseMomentum,
-            obv: globalUseObv,
-            williamsR: globalUseWilliamsR,
-            cci: globalUseCci,
-          },
-          tradingStyle
-        });
-        merged = {
-          ...merged,
-          strategyScore: strat.score,
-          strategySignal: strat.signal,
-          strategyLabel: strat.label,
-          strategyReasons: strat.reasons,
-        };
-      }
+      // Always recompute Strategy from current global settings so custom toggles
+      // and institutional feature flags are reflected deterministically in the
+      // Strategy column (not only in fallback mode).
+      const trustedSuperScore =
+        merged.superSignal &&
+        merged.superSignal.status === 'ok' &&
+        (merged.superSignal.confidence ?? 0) >= 60
+          ? Math.round((merged.superSignal.value - 50) * 2)
+          : undefined;
+      const strat = computeStrategyScore({
+        rsi1m: merged.rsi1m,
+        rsi5m: merged.rsi5m,
+        rsi15m: merged.rsi15m,
+        rsi1h: merged.rsi1h,
+        rsi4h: merged.rsi4h,
+        rsi1d: merged.rsi1d,
+        macdHistogram: merged.macdHistogram,
+        bbPosition: merged.bbPosition,
+        stochK: merged.stochK,
+        stochD: merged.stochD,
+        emaCross: merged.emaCross,
+        vwapDiff: merged.vwapDiff,
+        volumeSpike: merged.volumeSpike,
+        price: merged.price,
+        smartMoneyScore: merged.smartMoneyScore ?? undefined,
+        superSignalScore: trustedSuperScore,
+        adx: merged.adx,
+        hiddenDivergence: merged.hiddenDivergence,
+        enabledIndicators: {
+          rsi: globalUseRsi,
+          macd: globalUseMacd,
+          bb: globalUseBb,
+          stoch: globalUseStoch,
+          ema: globalUseEma,
+          vwap: globalUseVwap,
+          confluence: globalUseConfluence,
+          divergence: globalUseDivergence,
+          momentum: globalUseMomentum,
+          obv: globalUseObv,
+          williamsR: globalUseWilliamsR,
+          cci: globalUseCci,
+        },
+        tradingStyle
+      });
+      merged = {
+        ...merged,
+        strategyScore: strat.score,
+        strategySignal: strat.signal,
+        strategyLabel: strat.label,
+        strategyReasons: strat.reasons,
+      };
 
       // Defense-in-depth coherence gate on client path:
       // If a high-confidence Super Signal is opposite to Strategy, neutralize Strategy
@@ -3424,8 +3431,9 @@ export default function ScreenerDashboard() {
     coinConfigs, globalThresholdsEnabled, globalOverbought, globalOversold,
     globalUseMacd, globalUseBb, globalUseStoch, globalUseEma, globalUseVwap,
     globalUseConfluence, globalUseDivergence, globalUseMomentum,
+    globalUseObv, globalUseWilliamsR, globalUseCci, tradingStyle,
     globalVolumeSpikeThreshold, globalLongCandleThreshold,
-    fundingRates, orderFlow, smartMoney
+    fundingRates, orderFlow, smartMoney, livePrices
   ]);
 
   const processedWithFinal = useMemo(() => {

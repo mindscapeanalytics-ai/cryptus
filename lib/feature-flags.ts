@@ -112,6 +112,24 @@ export function getFeatureFlags(): SignalFeatureFlags {
 }
 
 /**
+ * Update active feature flags at runtime.
+ * Note: this is process-memory scoped and intended for live ops toggling.
+ */
+export function updateFeatureFlags(
+  updates: Partial<SignalFeatureFlags>
+): SignalFeatureFlags {
+  const next = { ...SIGNAL_FEATURES };
+  (Object.keys(updates) as Array<keyof SignalFeatureFlags>).forEach((key) => {
+    const value = updates[key];
+    if (value !== undefined) {
+      (next as any)[key] = value;
+    }
+  });
+  Object.assign(SIGNAL_FEATURES, next);
+  return { ...SIGNAL_FEATURES };
+}
+
+/**
  * Check if a specific feature is enabled
  */
 export function isFeatureEnabled(feature: keyof SignalFeatureFlags): boolean {
