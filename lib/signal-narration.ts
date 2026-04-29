@@ -579,12 +579,15 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
     // ── Gold: Safe-Haven / USD Inverse / Central Bank Demand ──
     if (isGold) {
+      const currentYear = new Date().getFullYear();
+      const psychLevel = Math.floor((entry.price || 0) / 100) * 100;
+      
       if (isBullish) {
-        reasons.push('🏅 Gold Macro Context: Bullish 2026 Cycle. Sovereign debt monetization fears and central bank accumulation are driving structural demand above $4,500.');
+        reasons.push(`🏅 Gold Macro Context: Bullish ${currentYear} Cycle. Sovereign debt monetization fears and central bank accumulation are driving structural demand above the $${psychLevel} psychological handle.`);
       } else if (isBearish) {
-        reasons.push('🏅 Gold Macro Context: Bearish pressure in 2026 often signals yield curve normalization or temporary USD liquidity spikes. Central bank demand remains a hard floor.');
+        reasons.push(`🏅 Gold Macro Context: Bearish pressure in ${currentYear} often signals yield curve normalization or temporary liquidity spikes. Structural demand remains a hard floor.`);
       } else {
-        reasons.push('🏅 Gold Macro Context: 2026 Consolidation. Market is pricing in the upcoming sovereign debt maturity cycle. Awaiting Fed/Treasury liquidity injection cues.');
+        reasons.push(`🏅 Gold Macro Context: ${currentYear} Consolidation. Market is pricing in the current sovereign debt maturity cycle. Awaiting institutional liquidity cues.`);
       }
       pillars.structure = true;
     }
@@ -758,8 +761,19 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
   reasons.unshift(`🛡️ Strategy Mode: ${styleLabel} - Indicators are ${styleExplanation}`);
   
-  // ── 21. 2026-04-29 Institutional Analyst Note ──
-  reasons.push('🏛️ Analyst Note: Current session (April 29, 2026) aligns with the late-cycle peak. Institutional flows are rotating into Hard Assets to hedge Sovereign Liquidity risk.');
+  // ── 21. Dynamic Institutional Analyst Note ──
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const year = now.getFullYear();
+  
+  // Dynamic 4-Year Market Cycle Logic
+  let cycleContext = "";
+  if (year % 4 === 0) cycleContext = "Halving Year / Accumulation Phase";
+  else if (year % 4 === 1) cycleContext = "Post-Halving / Parabolic Expansion Phase";
+  else if (year % 4 === 2) cycleContext = "Late-Cycle / Distribution Phase";
+  else cycleContext = "Cyclical Bottom / Re-accumulation Phase";
+
+  reasons.push(`🏛️ Analyst Note: Current session (${dateStr}) aligns with the ${cycleContext}. Institutional liquidity is currently optimized for ${year} market regimes.`);
 
   // ── 20. Institutional Recommendation Summary ──
   let recommendation = "";
