@@ -1644,7 +1644,7 @@ export function computeRiskParameters(
   atr: number,
   direction: 'buy' | 'sell',
   market: 'Crypto' | 'Metal' | 'Forex' | 'Index' | 'Stocks' = 'Crypto',
-  smc?: { orderBlock?: { type: string; top: number; bottom: number } | null }
+  smc?: { orderBlock?: { type: string; top: number; bottom: number } | null } | null
 ): RiskParameters {
   const multiplierMap: Record<string, number> = {
     Crypto: 1.5,
