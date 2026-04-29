@@ -296,6 +296,23 @@ export function computeSmartMoneyPressure(
   else if (clampedScore <= -30) label = 'Fear';
   else label = 'Neutral';
 
+  // ── Data Source Confidence ──
+  // Count how many sources contributed non-zero signals
+  const dataSources = [
+    fundingSignal !== 0,
+    liquidationSignal !== 0,
+    whaleSignal !== 0,
+    orderFlowSignal !== 0,
+    cvdSignal !== 0,
+    optionsSignal !== 0,
+  ].filter(Boolean).length;
+
+  const confidence: SmartMoneyPressure['confidence'] =
+    dataSources >= 5 ? 'high' :
+    dataSources >= 4 ? 'medium' :
+    dataSources >= 2 ? 'low' :
+    'insufficient';
+
   return {
     symbol,
     score: clampedScore,
@@ -308,6 +325,8 @@ export function computeSmartMoneyPressure(
       cvdSignal: Math.round(cvdSignal),
       optionsSignal: Math.round(optionsSignal),
     },
+    dataSources,
+    confidence,
     updatedAt: Date.now(),
   };
 }

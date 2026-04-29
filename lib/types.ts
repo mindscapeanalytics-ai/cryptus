@@ -41,6 +41,15 @@ export interface ScreenerEntry {
   strategySignal: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
   strategyLabel: string;
   strategyReasons: string[];
+  // ── Pre-coherence strategy values (preserved for audit/display) ──
+  /** Original strategy score before coherence gate / FINAL alignment. */
+  rawStrategyScore?: number;
+  /** Original strategy signal before coherence gate / FINAL alignment. */
+  rawStrategySignal?: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
+  /** Original strategy label before coherence gate / FINAL alignment. */
+  rawStrategyLabel?: string;
+  /** True if the coherence gate forced strategy to neutral due to Super Signal conflict. */
+  coherenceGated?: boolean;
   // ── Intelligence indicators ──
   confluence: number;
   confluenceLabel?: string;
@@ -146,6 +155,13 @@ export interface ScreenerEntry {
     timestamp: number;
     inputHash?: string;
   } | null;
+  // ── FINAL column (unified decision output) ──
+  /** Fused final signal from Strategy + Super Signal + RSI Signal. */
+  finalSignal?: 'strong-buy' | 'buy' | 'neutral' | 'sell' | 'strong-sell';
+  /** Fused final score (-100 to +100). */
+  finalScore?: number;
+  /** Attribution source for the final decision. */
+  finalSource?: 'super' | 'strategy';
 }
 
 export interface ScreenerResponse {

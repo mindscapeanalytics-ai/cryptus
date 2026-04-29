@@ -515,6 +515,17 @@ function FinalBadge({
       signal === 'buy' ? 'BUY' :
         signal === 'strong-sell' ? 'STR SELL' :
           signal === 'sell' ? 'SELL' : 'NEUTRAL';
+
+  // ── Data Quality Indicator ──
+  // Show warning when Super Signal has insufficient data or low confidence,
+  // so traders know the FINAL decision is based only on Strategy (reduced conviction).
+  const superStatus = entry?.superSignal?.status;
+  const isLowData = !entry?.superSignal || superStatus === 'insufficient-data' || superStatus === 'low-confidence';
+  const superConf = entry?.superSignal?.confidence ?? 0;
+  const isLowConf = superStatus === 'ok' && superConf < 60;
+
+  const qualityTag = isLowData ? 'LOW DATA' : isLowConf ? 'LOW CONF' : null;
+
   return (
     <span
       className={cn(
@@ -523,11 +534,15 @@ function FinalBadge({
         "rounded-lg border",
         style.bg, style.text, style.border
       )}
-      title={`Final Action (source: ${source})`}
+      title={`Final Action (source: ${source})${qualityTag ? ` — ${qualityTag}` : ''}`}
     >
       <span className="text-[9px] shrink-0">{style.icon}</span>
       <span className="truncate">{label}</span>
-      <span className="text-[7px] font-black px-1 py-0.5 rounded bg-black/20 border border-white/10 text-white/70">{sourceLabel}</span>
+      {qualityTag ? (
+        <span className="text-[7px] font-black px-1 py-0.5 rounded bg-amber-500/20 border border-amber-500/30 text-amber-400/90">{qualityTag}</span>
+      ) : (
+        <span className="text-[7px] font-black px-1 py-0.5 rounded bg-black/20 border border-white/10 text-white/70">{sourceLabel}</span>
+      )}
       {entry && onViewNarration && (
         <button
           onClick={(e) => {
@@ -1445,8 +1460,8 @@ const ScreenerRow = memo(function ScreenerRow({
       {visibleCols.has('finalAction') && (
         <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
           <FinalBadge
-            signal={(entry as any).finalSignal ?? entry.strategySignal}
-            source={(entry as any).finalSource ?? 'strategy'}
+            signal={entry.finalSignal ?? entry.strategySignal}
+            source={entry.finalSource ?? 'strategy'}
             entry={entry}
             onViewNarration={onViewNarration}
           />
@@ -3023,15 +3038,12 @@ export default function ScreenerDashboard() {
       if (s === 'strong-sell' || s === 'sell') return -1;
       return 0;
     };
-    const strategyLabelFromSignal = (s: ScreenerEntry['strategySignal']): string => {
-      if (s === 'strong-buy') return 'Strong Buy';
-      if (s === 'buy') return 'Buy';
-      if (s === 'strong-sell') return 'Strong Sell';
-      if (s === 'sell') return 'Sell';
-      return 'Neutral';
-    };
 
-    const superOk = !!entry.superSignal && entry.superSignal.status === 'ok' && (entry.superSignal.confidence ?? 0) >= 55;
+    // ── Unified Confidence Threshold ──
+    // Must match SUPER_CONFIDENCE_THRESHOLD in screener-service.ts (60%)
+    const SUPER_CONF_THRESHOLD = 60;
+
+    const superOk = !!entry.superSignal && entry.superSignal.status === 'ok' && (entry.superSignal.confidence ?? 0) >= SUPER_CONF_THRESHOLD;
     const mapSuper = (category: string): ScreenerEntry['strategySignal'] => {
       if (category === 'Strong Buy') return 'strong-buy';
       if (category === 'Buy') return 'buy';
@@ -3059,7 +3071,8 @@ export default function ScreenerDashboard() {
       signalDir * (signalStrength > 0 ? 0.20 : 0) +
       superDir * (superStrength >= 55 ? 0.45 : superStrength >= 30 ? 0.35 : superStrength > 0 ? 0.25 : 0);
 
-    const finalDir = Math.abs(vote) >= 0.22 ? (vote > 0 ? 1 : -1) : 0;
+    // ── Tightened threshold: 0.30 (was 0.22) for institutional-grade conviction ──
+    const finalDir = Math.abs(vote) >= 0.30 ? (vote > 0 ? 1 : -1) : 0;
     const agreementBonus =
       (strategyDir !== 0 && strategyDir === signalDir ? 10 : 0) +
       (strategyDir !== 0 && strategyDir === superDir ? 14 : 0) +
@@ -3072,7 +3085,8 @@ export default function ScreenerDashboard() {
 
     let finalSignal: ScreenerEntry['strategySignal'] = 'neutral';
     if (finalDir !== 0) {
-      const strong = blendedStrength >= 48 || Math.abs(vote) >= 0.62;
+      // ── Tightened strong threshold: 55 (was 48) for institutional conviction ──
+      const strong = blendedStrength >= 55 || Math.abs(vote) >= 0.65;
       finalSignal = finalDir > 0
         ? (strong ? 'strong-buy' : 'buy')
         : (strong ? 'strong-sell' : 'sell');
@@ -3080,29 +3094,18 @@ export default function ScreenerDashboard() {
     const finalScore = finalDir === 0 ? 0 : (finalDir > 0 ? blendedStrength : -blendedStrength);
     const finalSource: 'super' | 'strategy' = (finalDir !== 0 && superOk && superDir === finalDir) ? 'super' : 'strategy';
 
-    // Keep Strategy column consistent with FINAL when FINAL has stronger consensus.
-    const strategyAlignedSignal =
-      finalSignal !== 'neutral' &&
-        (strategySignal === 'neutral' || toDir(strategySignal) !== toDir(finalSignal) || Math.abs(finalScore) > Math.abs(entry.strategyScore ?? 0))
-        ? finalSignal
-        : strategySignal;
-    const strategyAlignedScore =
-      strategyAlignedSignal === strategySignal ? (entry.strategyScore ?? 0) : finalScore;
-    const strategyAlignedLabel = strategyLabelFromSignal(strategyAlignedSignal);
-
-    // FIX: Suppress contradictory base signals (e.g., 'overbought' during a 'buy' signal)
-    // to prevent UI contradictions that confuse institutional traders.
+    // ── FIX: Strategy column is NO LONGER overwritten by FINAL ──
+    // The Strategy column always shows the true computeStrategyScore output.
+    // Only the SIGNAL (base) column gets contradiction suppression.
     let alignedBaseSignal = entry.signal;
-    if (toDir(strategyAlignedSignal) === 1 && entry.signal === 'overbought') alignedBaseSignal = 'neutral';
-    if (toDir(strategyAlignedSignal) === -1 && entry.signal === 'oversold') alignedBaseSignal = 'neutral';
+    const finalDirection = toDir(finalSignal);
+    if (finalDirection === 1 && entry.signal === 'overbought') alignedBaseSignal = 'neutral';
+    if (finalDirection === -1 && entry.signal === 'oversold') alignedBaseSignal = 'neutral';
 
     return { 
       finalSignal, 
       finalScore, 
       finalSource, 
-      strategyAlignedSignal, 
-      strategyAlignedScore, 
-      strategyAlignedLabel,
       alignedBaseSignal
     };
   }, []);
@@ -3539,13 +3542,12 @@ export default function ScreenerDashboard() {
       return {
         ...e,
         signal: f.alignedBaseSignal,
-        strategySignal: f.strategyAlignedSignal,
-        strategyScore: f.strategyAlignedScore,
-        strategyLabel: f.strategyAlignedLabel,
+        // Strategy column is NO LONGER overwritten — it shows the true computeStrategyScore output.
+        // strategySignal, strategyScore, strategyLabel remain untouched.
         finalSignal: f.finalSignal,
         finalScore: f.finalScore,
         finalSource: f.finalSource
-      } as any;
+      } as ScreenerEntry;
     });
   }, [processedData, resolveFinal]);
 

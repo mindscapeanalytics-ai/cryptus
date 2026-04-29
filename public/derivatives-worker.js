@@ -109,7 +109,8 @@ let healthTimer = null;
 function updateCVD(symbol, side, value, timestamp) {
   let data = cvdBuffer.get(symbol) || {
     symbol, cvd1h: 0, cvd4h: 0, cvd24h: 0,
-    cvdTrend: 'neutral', divergence: 'none', strength: 0, updatedAt: timestamp
+    cvdTrend: 'neutral', divergence: 'none', strength: 0,
+    updatedAt: timestamp, windowStart: timestamp
   };
 
   const delta = side === 'buy' ? value : -value;
@@ -118,7 +119,21 @@ function updateCVD(symbol, side, value, timestamp) {
   data.cvd24h += delta;
   data.updatedAt = timestamp;
 
-  // Trend detection (simplified for worker performance)
+  // Time-windowed decay: prevent unbounded CVD accumulation drift.
+  // Every hour, halve the 1h CVD. Every 4h, halve the 4h CVD.
+  const elapsed = timestamp - (data.windowStart || timestamp);
+  if (elapsed > 3600000) {
+    data.cvd1h *= 0.5; // Halve hourly accumulation
+    data.windowStart = timestamp;
+  }
+  if (elapsed > 14400000) {
+    data.cvd4h *= 0.5; // Halve 4h accumulation
+  }
+  if (elapsed > 86400000) {
+    data.cvd24h *= 0.5; // Halve daily accumulation
+  }
+
+  // Trend detection
   if (data.cvd1h > 100000) data.cvdTrend = 'accumulation';
   else if (data.cvd1h < -100000) data.cvdTrend = 'distribution';
   else data.cvdTrend = 'neutral';
@@ -226,6 +241,7 @@ function updateOptionsIntel(symbol, price) {
     maxPainPrice: price, // Approximating Max Pain near current spot price
     openInterest: oi,
     sentiment: pcr < 0.8 ? 'bullish' : pcr > 1.1 ? 'bearish' : 'neutral',
+    synthetic: true, // Flag: derived from funding rate proxy, not real options data
     updatedAt: Date.now()
   });
 }

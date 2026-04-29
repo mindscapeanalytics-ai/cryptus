@@ -83,6 +83,11 @@ const KLINE_4H_CACHE_TTL = 1800_000; // 30 min (4h doesn't change fast)
 const kline1dCache = new LRUCache<string, { data: BinanceKline[]; ts: number }>(500);
 const KLINE_1D_CACHE_TTL = 3600_000; // 1 hour (1d changes very slowly)
 
+// ── Super Signal Confidence Threshold (Single Source of Truth) ──
+// Used by both coherence gate and FINAL resolution to determine when Super Signal is trustworthy.
+// Must match the threshold used in screener-dashboard.tsx resolveFinal().
+const SUPER_CONFIDENCE_THRESHOLD = 60;
+
 // ── Binance API Weight Tracking (Rate Limit Protection) ──
 let globalWeight = 0;
 let lastWeightReset = Date.now();
@@ -1774,7 +1779,7 @@ function applyCurrentCycleCoherence(
   const getTrustedSuperScore = (): number | undefined => {
     if (!entry.superSignal) return undefined;
     if (entry.superSignal.status !== 'ok') return undefined;
-    if ((entry.superSignal.confidence ?? 0) < 60) return undefined;
+    if ((entry.superSignal.confidence ?? 0) < SUPER_CONFIDENCE_THRESHOLD) return undefined;
     return (entry.superSignal.value - 50) * 2;
   };
 
@@ -1815,6 +1820,14 @@ function applyCurrentCycleCoherence(
   entry.strategyLabel = strategy.label;
   entry.strategyReasons = strategy.reasons;
 
+  // ── Preserve pre-coherence values for audit trail ──
+  // These allow the dashboard to distinguish between natural neutral and
+  // coherence-gated neutral, and display the original Strategy intent.
+  entry.rawStrategyScore = strategy.score;
+  entry.rawStrategySignal = strategy.signal;
+  entry.rawStrategyLabel = strategy.label;
+  entry.coherenceGated = false;
+
   // Hard coherence gate:
   // If SUPER_SIGNAL is high-confidence and directionally opposite, force Strategy to neutral
   // to eliminate contradictory execution guidance in the table.
@@ -1824,7 +1837,7 @@ function applyCurrentCycleCoherence(
   const strategyDirection = getStrategyDirection(entry.strategySignal);
   const hasCriticalConflict =
     superStatus === 'ok' &&
-    superConfidence >= 60 &&
+    superConfidence >= SUPER_CONFIDENCE_THRESHOLD &&
     superDirection !== 0 &&
     strategyDirection !== 0 &&
     superDirection !== strategyDirection;
@@ -1833,6 +1846,7 @@ function applyCurrentCycleCoherence(
     entry.strategyScore = 0;
     entry.strategySignal = 'neutral';
     entry.strategyLabel = 'Neutral';
+    entry.coherenceGated = true;
     entry.strategyReasons = [
       ...(entry.strategyReasons ?? []),
       `Coherence gate: neutralized Strategy due to high-confidence Super Signal conflict (${entry.superSignal?.category}, conf ${superConfidence}%)`,

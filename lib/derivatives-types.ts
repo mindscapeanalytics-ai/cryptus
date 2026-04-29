@@ -77,6 +77,10 @@ export interface SmartMoneyPressure {
     cvdSignal?: number;          // -100 to +100 (Phase 1 addition)
     optionsSignal?: number;      // -100 to +100 (Phase 1 addition)
   };
+  /** Number of active data sources (0-6). Higher = more reliable. */
+  dataSources: number;
+  /** Confidence label based on data coverage. */
+  confidence: 'high' | 'medium' | 'low' | 'insufficient';
   updatedAt: number;
 }
 
@@ -149,6 +153,8 @@ export interface OptionsIntelligence {
   maxPainPrice: number;      // Price level magnet
   openInterest: number;      // Options OI
   sentiment: 'bullish' | 'bearish' | 'neutral';
+  /** True if derived from funding-rate proxy instead of real options data */
+  synthetic?: boolean;
   updatedAt: number;
 }
 
