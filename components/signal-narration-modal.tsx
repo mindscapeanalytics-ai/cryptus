@@ -409,6 +409,38 @@ Powered by Mindscape Analytics Signal Narration Engine™
                     );
                   })}
                 </div>
+                
+                {/* Institutional Recommendation Summary (NEW) */}
+                {narration.recommendation && (
+                  <div className="mt-4 p-4 rounded-xl bg-white/[0.03] border border-white/10 relative overflow-hidden group/recommendation">
+                    <div className={cn(
+                      "absolute top-0 left-0 w-1 h-full",
+                      narration.recommendation.startsWith('BUY') ? "bg-[#39FF14]" : 
+                      narration.recommendation.startsWith('SELL') ? "bg-[#FF4B5C]" : "bg-orange-500"
+                    )} />
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "mt-0.5 p-1.5 rounded-lg",
+                        narration.recommendation.startsWith('BUY') ? "bg-[#39FF14]/10 text-[#39FF14]" : 
+                        narration.recommendation.startsWith('SELL') ? "bg-[#FF4B5C]/10 text-[#FF4B5C]" : "bg-orange-500/10 text-orange-400"
+                      )}>
+                        <ShieldAlert size={14} />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className={cn(
+                          "text-[9px] font-black uppercase tracking-widest",
+                          narration.recommendation.startsWith('BUY') ? "text-[#39FF14]/70" : 
+                          narration.recommendation.startsWith('SELL') ? "text-[#FF4B5C]/70" : "text-orange-400/70"
+                        )}>
+                          Analyst Recommendation
+                        </h4>
+                        <p className="text-[11px] sm:text-[12px] font-black text-white leading-relaxed">
+                          {narration.recommendation}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Data Surveillance Matrix (NEW - Institutional Alignment) */}
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-white/5 pt-4">
