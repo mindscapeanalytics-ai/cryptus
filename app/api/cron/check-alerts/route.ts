@@ -117,7 +117,7 @@ async function handleCronRequest(request: Request) {
     // 3. Group configs by exchange for exchange-aware scanning
     const configsByExchange = new Map<string, typeof configs>();
     for (const config of configs) {
-      const exchange = (config as any).exchange || 'binance';
+      const exchange = config.exchange || 'binance';
       const list = configsByExchange.get(exchange) || [];
       list.push(config);
       configsByExchange.set(exchange, list);
@@ -190,7 +190,7 @@ async function handleCronRequest(request: Request) {
         const entry = dataMap.get(config.symbol);
         if (!entry) continue;
 
-        const userId = (config as any).userId || 'global';
+        const userId = config.userId || 'global';
         const alias = getSymbolAlias(config.symbol);
         const obT = config.overboughtThreshold;
         const osT = config.oversoldThreshold;

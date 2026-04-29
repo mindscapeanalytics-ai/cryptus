@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
   const symbols = symbolsParam
     .split(',')
     .map(s => s.trim().toUpperCase())
-    .filter((s) => /^[A-Z0-9]{2,20}USDT$/.test(s))
-    .slice(0, 50);
+    .filter((s) => /^[A-Z0-9]{2,30}$/.test(s)) // Removed strict USDT requirement to support USDC/BUSD/others
+    .slice(0, 100); // Increased from 50 to 100 for full dashboard support
   if (symbols.length === 0) return NextResponse.json({ data: {} });
 
   try {
