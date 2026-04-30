@@ -444,6 +444,46 @@ Powered by Mindscape Analytics Signal Narration Engine™
 
                 {/* Data Surveillance Matrix (NEW - Institutional Alignment) */}
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 border-t border-white/5 pt-4">
+                  
+                  {/* Institutional Validation Protocol */}
+                  {entry?.institutionalDecision && (
+                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                      <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldAlert size={12} className={cn(
+                            entry.institutionalDecision.decision === 'VALID TRADE' ? 'text-[#39FF14]' :
+                            entry.institutionalDecision.decision === 'LOW CONFIDENCE SETUP' ? 'text-amber-500' : 'text-rose-500'
+                          )} />
+                          Institutional Protocol: {entry.institutionalDecision.decision}
+                        </div>
+                        <span className="text-[9px] font-black tabular-nums">Score: {entry.institutionalDecision.score}/10</span>
+                      </h4>
+                      <p className="text-[9px] font-medium text-slate-500 mt-1 mb-2">
+                        {entry.institutionalDecision.message}
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                        {[
+                          { label: 'Liquidity Sweep', passed: entry.institutionalDecision.checklist.liquiditySweep },
+                          { label: 'Zone Alignment', passed: entry.institutionalDecision.checklist.zoneAlignment },
+                          { label: 'Momentum Flow', passed: entry.institutionalDecision.checklist.momentumFlow },
+                          { label: 'Volume Expansion', passed: entry.institutionalDecision.checklist.volumeExpansion },
+                          { label: 'BOS Confirmed', passed: entry.institutionalDecision.checklist.bosConfirmed },
+                        ].map(item => (
+                          <div key={item.label} className="flex items-center gap-1.5 bg-black/40 border border-white/5 p-1.5 rounded-lg">
+                            <div className={cn(
+                              "w-2 h-2 rounded-full",
+                              item.passed ? "bg-[#39FF14] shadow-[0_0_8px_rgba(57,255,20,0.5)]" : "bg-rose-500/20 border border-rose-500/50"
+                            )} />
+                            <span className={cn(
+                              "text-[8px] font-black uppercase tracking-tight",
+                              item.passed ? "text-slate-300" : "text-slate-600"
+                            )}>{item.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* RSI Spectrum Heatmap */}
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3">
                     <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2.5 flex items-center gap-1.5">

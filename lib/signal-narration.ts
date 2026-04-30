@@ -15,6 +15,7 @@
 
 import type { ScreenerEntry, TradingStyle } from './types';
 import { RSI_ZONES, TF_WEIGHTS } from './defaults';
+import { evaluateInstitutionalProtocol } from './institutional-engine';
 
 // ── Output Types ─────────────────────────────────────────────────
 
@@ -71,6 +72,8 @@ function formatNum(n: number | null, decimals = 1): string {
 // ── Core Narration Engine ────────────────────────────────────────
 
 export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: TradingStyle = 'intraday'): SignalNarration {
+  const instDec = evaluateInstitutionalProtocol(entry);
+  
   const reasons: string[] = [];
   let bullishPoints = 0;
   let bearishPoints = 0;
@@ -740,6 +743,17 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
     emoji = '⚪';
   }
 
+  // Institutional Hard Override
+  if (instDec.decision !== 'VALID TRADE') {
+    if (headline.includes('Buy') || headline.includes('Bullish')) {
+      headline = 'Bullish Indicators | ' + instDec.message;
+      emoji = '🟡';
+    } else if (headline.includes('Sell') || headline.includes('Bearish')) {
+      headline = 'Bearish Indicators | ' + instDec.message;
+      emoji = '🟡';
+    }
+  }
+
   // If no reasons were generated, provide a neutral baseline
   if (reasons.length === 0) {
     reasons.push('📊 All indicators within normal ranges - no actionable signals');
@@ -777,30 +791,40 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
 
   // ── 20. Institutional Recommendation Summary ──
   let recommendation = "";
-  const isBullish = netBias > 25;
-  const isBearish = netBias < -25;
-  const isIndecision = (totalPoints > 40 || (pillarCount >= 2 && Math.abs(netBias) < 15)) && !isBullish && !isBearish;
 
-  if (isBullish) {
-    if (conviction >= 85) {
-      recommendation = "BUY: High-conviction entry. Structural demand is confirmed across multiple timeframes with strong institutional momentum.";
-    } else if (conviction >= 60) {
-      recommendation = "WATCH: Bullish setup forming. Monitor for lower timeframe structural break or RSI stabilization before committing capital.";
-    } else {
-      recommendation = "NEUTRAL: Minor bullish bias detected, but lack of institutional confluence suggests high risk. Await clearer signal.";
-    }
-  } else if (isBearish) {
-    if (conviction >= 85) {
-      recommendation = "SELL: High-conviction short setup. Supply zones are active and bearish momentum is accelerating through key levels.";
-    } else if (conviction >= 60) {
-      recommendation = "WATCH: Bearish distribution in progress. Monitor for supply zone confirmation before executing shorts.";
-    } else {
-      recommendation = "NEUTRAL: Slight bearish lean, but insufficient confluence for execution. Risk-off recommended.";
-    }
-  } else if (isIndecision) {
-    recommendation = "STAND ASIDE: Conflicting indicators detected (e.g., oversold oscillators vs. bearish trend). Market is searching for direction.";
+  if (instDec.decision === 'NO TRADE') {
+    recommendation = `NO TRADE - ${instDec.message}. Market state: ${instDec.state}.`;
+  } else if (instDec.decision === 'WAIT') {
+    recommendation = `WAIT - ${instDec.message}. Await confirmation before entry.`;
+  } else if (instDec.decision === 'LOW CONFIDENCE SETUP') {
+    recommendation = `LOW CONFIDENCE - ${instDec.message}.`;
   } else {
-    recommendation = "EQUILIBRIUM: No clear institutional edge. Market is in a balanced state. Await breakout from current range.";
+    // VALID TRADE
+    const isBullish = netBias > 25;
+    const isBearish = netBias < -25;
+    const isIndecision = (totalPoints > 40 || (pillarCount >= 2 && Math.abs(netBias) < 15)) && !isBullish && !isBearish;
+
+    if (isBullish) {
+      if (conviction >= 85) {
+        recommendation = "BUY: High-conviction entry. Structural demand is confirmed across multiple timeframes with strong institutional momentum.";
+      } else if (conviction >= 60) {
+        recommendation = "WATCH: Bullish setup forming. Monitor for lower timeframe structural break or RSI stabilization before committing capital.";
+      } else {
+        recommendation = "NEUTRAL: Minor bullish bias detected, but lack of institutional confluence suggests high risk. Await clearer signal.";
+      }
+    } else if (isBearish) {
+      if (conviction >= 85) {
+        recommendation = "SELL: High-conviction short setup. Supply zones are active and bearish momentum is accelerating through key levels.";
+      } else if (conviction >= 60) {
+        recommendation = "WATCH: Bearish distribution in progress. Monitor for supply zone confirmation before executing shorts.";
+      } else {
+        recommendation = "NEUTRAL: Slight bearish lean, but insufficient confluence for execution. Risk-off recommended.";
+      }
+    } else if (isIndecision) {
+      recommendation = "STAND ASIDE: Conflicting indicators detected (e.g., oversold oscillators vs. bearish trend). Market is searching for direction.";
+    } else {
+      recommendation = "EQUILIBRIUM: No clear institutional edge. Market is in a balanced state. Await breakout from current range.";
+    }
   }
 
   return {

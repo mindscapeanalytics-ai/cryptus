@@ -142,6 +142,8 @@ export interface ScreenerEntry {
       strength: 'weak' | 'moderate' | 'strong';
     } | null;
   } | null;
+  // ── 2026 Intelligence: Institutional Decision ──
+  institutionalDecision?: any;
   // ── Derivatives / Smart Money (injected at display layer) ──
   /** Smart Money Pressure Index score (-100 to +100). Injected from useDerivativesIntel. */
   smartMoneyScore?: number | null;
@@ -251,3 +253,4 @@ export interface ScreenerOptions {
 
 export type SignalFilter = 'all' | 'oversold' | 'overbought' | 'neutral'
   | 'strong-buy' | 'buy' | 'sell' | 'strong-sell';
+

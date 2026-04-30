@@ -19,10 +19,10 @@ import { getSymbolAlias } from './symbol-utils';
 import { validateKline } from './data-validator';
 import { metricsCollector } from './metrics-collector';
 import { createInstanceCacheKey } from './instance-id';
-import { 
-  FOREX_SYMBOLS, 
-  METALS_SYMBOLS, 
-  STOCKS_SYMBOLS 
+import {
+  FOREX_SYMBOLS,
+  METALS_SYMBOLS,
+  STOCKS_SYMBOLS
 } from './asset-classes';
 import { getMarketType } from './market-utils';
 import { redisService } from './redis-service';
@@ -520,7 +520,7 @@ async function fetchBybitApiWithRetry<T>(
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const fetchSignal = signal 
+      const fetchSignal = signal
         ? (AbortSignal as any).any([signal, AbortSignal.timeout(KLINE_TIMEOUT_MS)])
         : AbortSignal.timeout(KLINE_TIMEOUT_MS);
 
@@ -529,18 +529,18 @@ async function fetchBybitApiWithRetry<T>(
         headers: FETCH_HEADERS,
         cache: 'no-store' as RequestCache,
       });
-      
+
       // Permanent geo-block - fail fast
       if (res.status === 403 || res.status === 451) {
         debugWarn(`[bybit] ${label} permanently geo-blocked (${res.status}). Failing fast.`);
         throw new Error(`${label}: geo-blocked (${res.status})`);
       }
-      
+
       // Rate limit - exponential backoff
       if (res.status === 429) {
         const retryAfter = res.headers.get('Retry-After');
-        const wait = retryAfter 
-          ? parseInt(retryAfter, 10) * 1000 
+        const wait = retryAfter
+          ? parseInt(retryAfter, 10) * 1000
           : Math.min(2000 * (attempt + 1), 8000);
         debugLog(`[bybit] ${label}: Rate limited (429), waiting ${wait}ms before retry ${attempt + 1}/${retries}`);
         await new Promise((r) => setTimeout(r, wait));
@@ -550,7 +550,7 @@ async function fetchBybitApiWithRetry<T>(
       // Bybit specific rate limit headers - proactive throttling
       const ratelimitRemain = res.headers.get('X-Bapi-Limit-Status');
       const ratelimitReset = res.headers.get('X-Bapi-Limit-Reset-Timestamp');
-      
+
       if (ratelimitRemain) {
         const remaining = parseInt(ratelimitRemain, 10);
         if (remaining < 10) {
@@ -564,14 +564,14 @@ async function fetchBybitApiWithRetry<T>(
       }
 
       if (!res.ok) throw new Error(`${label}: HTTP ${res.status}`);
-      
+
       const data = await res.json();
-      
+
       // Bybit API returns errors in response body even with 200 status
       if (data.retCode && data.retCode !== 0) {
         throw new Error(`${label}: Bybit API error ${data.retCode}: ${data.retMsg || 'Unknown error'}`);
       }
-      
+
       return data;
     } catch (err) {
       lastError = err;
@@ -780,7 +780,7 @@ async function fetchWithRetry(
   for (let attempt = 0; attempt <= retries; attempt++) {
     const base = BINANCE_APIS[(startIdx + attempt) % BINANCE_APIS.length];
     try {
-      const fetchSignal = signal 
+      const fetchSignal = signal
         ? (AbortSignal as any).any([signal, AbortSignal.timeout(KLINE_TIMEOUT_MS)])
         : AbortSignal.timeout(KLINE_TIMEOUT_MS);
 
@@ -873,12 +873,12 @@ async function fetchYahooKlines(symbol: string, interval: string = '1m'): Promis
       throw new Error(`Yahoo HTTP ${res.status}`);
     }
     const json = await res.json();
-    
+
     if (!json.chart || !json.chart.result || json.chart.result.length === 0) {
       debugWarn(`[yahoo] No chart data for ${symbol}`);
       return [];
     }
-    
+
     const result = json.chart.result[0];
     const quote = result.indicators.quote[0];
     const timestamps = result.timestamp;
@@ -913,7 +913,7 @@ async function fetchYahooKlines(symbol: string, interval: string = '1m'): Promis
         "0", 0, "0", "0", "0"
       ] as BinanceKline);
     }
-    
+
     debugLog(`[yahoo] ${symbol}: Converted ${klines.length} valid candles`);
     return klines;
   } catch (err) {
@@ -986,9 +986,9 @@ async function fetchBybitKlines(symbol: string, interval: string, exchange: stri
     // 'bybit' = spot, 'bybit-linear' = linear (perpetual)
     const category = exchange === 'bybit-linear' ? 'linear' : 'spot';
     const url = `https://api.bybit.com/v5/market/kline?category=${category}&symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    
+
     debugLog(`[bybit] Fetching ${limit} ${interval}m klines for ${symbol} (${category})`);
-    
+
     const payload = await fetchBybitApiWithRetry<BybitKlineResponse>(url, `klines for ${symbol}`, FETCH_RETRY_COUNT, signal);
     const rows = payload.result?.list ?? [];
 
@@ -1023,12 +1023,12 @@ async function fetchBybitKlines(symbol: string, interval: string, exchange: stri
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     debugWarn(`[bybit] kline fetch failed for ${symbol}:`, errMsg);
-    
+
     // Check if it's a geo-block or rate limit
     if (errMsg.includes('geo-blocked') || errMsg.includes('403') || errMsg.includes('451')) {
       throw new Error(`SKIP_SYMBOL: ${symbol} geo-blocked on Bybit`);
     }
-    
+
     throw err;
   }
 }
@@ -1122,17 +1122,17 @@ async function fetchAllKlinesBatched(
   symbols: string[],
   exchange: string = 'binance',
   signal?: AbortSignal
-): Promise<{ 
-  sym: string; 
-  res1m: PromiseSettledResult<BinanceKline[]>; 
+): Promise<{
+  sym: string;
+  res1m: PromiseSettledResult<BinanceKline[]>;
   res1h: PromiseSettledResult<BinanceKline[]>;
   res4h: PromiseSettledResult<BinanceKline[]>;
   res1d: PromiseSettledResult<BinanceKline[]>;
 }[]> {
   if (signal?.aborted) return [];
-  const results = new Array<{ 
-    sym: string; 
-    res1m: PromiseSettledResult<BinanceKline[]>; 
+  const results = new Array<{
+    sym: string;
+    res1m: PromiseSettledResult<BinanceKline[]>;
     res1h: PromiseSettledResult<BinanceKline[]>;
     res4h: PromiseSettledResult<BinanceKline[]>;
     res1d: PromiseSettledResult<BinanceKline[]>;
@@ -1238,7 +1238,7 @@ function buildEntry(
     // Lowered to 20 klines to allow progressive indicator display.
     // 20 candles is enough for RSI(14) + 1 warmup period on 1m timeframe.
     // This provides better UX than showing all dashes.
-    const klineCountThreshold = 20; 
+    const klineCountThreshold = 20;
     if (validKlines.length < klineCountThreshold) {
       debugWarn(`[screener] ${sym}: Insufficient klines (${validKlines.length}/${klineCountThreshold}), returning ticker-only entry`);
       if (validKlines.length > 0 && ticker) {
@@ -1322,7 +1322,7 @@ function buildEntry(
     let macdSignalState: { ema: number } | null = null;
     let ema12: number | null = null; // ✅ Function-scoped for return statement access
     let ema26: number | null = null; // ✅ Function-scoped for return statement access
-    
+
     // Try 15m first (preferred for accuracy)
     if (closes15m.length >= 35) {
       const ema12Arr = calculateEma(closes15m, 12);
@@ -1347,7 +1347,7 @@ function buildEntry(
         }
       }
       debugLog(`[screener] ${sym}: MACD from 15m data`);
-    } 
+    }
     // Fallback to 5m if 15m insufficient
     else if (closes5m.length >= 35) {
       const ema12Arr = calculateEma(closes5m, 12);
@@ -1400,14 +1400,14 @@ function buildEntry(
     } else {
       debugWarn(`[screener] ${sym}: Insufficient data for MACD (need 35 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
-    
+
     // Additional diagnostic: Log if MACD calculation failed despite having data
     if (macdHistogramVal === null && (closes1m.length >= 35 || closes5m.length >= 35 || closes15m.length >= 35)) {
       debugWarn(`[screener] ${sym}: MACD calculation returned null despite sufficient candles - check EMA calculation`);
     }
 
     const bb = calculateBollinger(closes15m);
-    
+
     // Stoch RSI - with intelligent fallback
     let stochRsi: { k: number; d: number } | null = null;
     if (closes15m.length >= 50) {
@@ -1422,7 +1422,7 @@ function buildEntry(
     } else {
       debugWarn(`[screener] ${sym}: Insufficient data for Stoch RSI (need 50 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
-    
+
     // Additional diagnostic: Log if Stoch RSI calculation failed despite having data
     if (stochRsi === null && (closes1m.length >= 50 || closes5m.length >= 50 || closes15m.length >= 50)) {
       debugWarn(`[screener] ${sym}: Stoch RSI calculation returned null despite sufficient candles - check RSI calculation`);
@@ -1488,7 +1488,7 @@ function buildEntry(
     let atr: number | null = null;
     let adx: number | null = null;
     let adxTimeframe = '15m';
-    
+
     if (highs15m.length >= 14 && lows15m.length >= 14 && closes15m.length >= 14) {
       atr = calculateATR(highs15m, lows15m, closes15m);
       adx = calculateADX(highs15m, lows15m, closes15m);
@@ -1505,7 +1505,7 @@ function buildEntry(
     } else {
       debugWarn(`[screener] ${sym}: Insufficient data for ATR/ADX (need 14 candles, have 1m:${closes1m.length}, 5m:${closes5m.length}, 15m:${closes15m.length})`);
     }
-    
+
     if (atr !== null || adx !== null) {
       const candleCount = adxTimeframe === '15m' ? closes15m.length : adxTimeframe === '5m' ? closes5m.length : closes1m.length;
       debugLog(`[screener] ${sym}: ATR/ADX from ${adxTimeframe} data (${candleCount} candles)`);
@@ -1564,7 +1564,7 @@ function buildEntry(
     const high1m = lastKline1m ? parseFloat(lastKline1m[2]) : null;
     const low1m = lastKline1m ? parseFloat(lastKline1m[3]) : null;
     const volStart1m = lastKline1m ? parseFloat(lastKline1m[5]) : null;
-    
+
     const curCandleSize = (high1m !== null && low1m !== null) ? Math.abs(high1m - low1m) : null;
     const curCandleVol = volStart1m;
 
@@ -1579,8 +1579,8 @@ function buildEntry(
       bbWidthAvg: bbWidthAvgRolling, // ✅ Fixed: was always null
       volumeSpike,
       priceChange24h: toNum(ticker?.priceChangePercent, 0), // ✅ 2026 FIX: Pass 24h price change for extreme move detection
-      volumeRatio: volumeSpike && curCandleVol && avgVolume1m && avgVolume1m > 0 
-        ? curCandleVol / avgVolume1m 
+      volumeRatio: volumeSpike && curCandleVol && avgVolume1m && avgVolume1m > 0
+        ? curCandleVol / avgVolume1m
         : null, // ✅ 2026 FIX: Pass volume ratio for breakout vs trending distinction
     });
 
@@ -1680,7 +1680,7 @@ function buildEntry(
     updateBaselineCache(sym, entry_partial.avgBarSize1m, entry_partial.avgVolume1m);
 
     // Calculate candle direction and long candle flag (using pre-computed metrics)
-    const candleDirection = (close1m !== null && open1m !== null) 
+    const candleDirection = (close1m !== null && open1m !== null)
       ? (close1m > open1m ? 'bullish' : close1m < open1m ? 'bearish' : 'neutral')
       : null;
 
@@ -1705,7 +1705,7 @@ function buildEntry(
     const totalIndicators = Object.values(indicatorCoverage).reduce((a, b) => a + b, 0);
     const maxIndicators = 4 + 2 + 1 + 1 + 1 + 1 + 1 + 1; // 12 total
     const coveragePercent = Math.round((totalIndicators / maxIndicators) * 100);
-    
+
     debugLog(`[screener] ${sym}: ✅ Entry built successfully (${coveragePercent}% indicator coverage):`, {
       rsi: { rsi1m, rsi5m, rsi15m, rsi1h },
       ema: { ema9: ema9Val, ema21: ema21Val, cross: emaCross },
@@ -1754,17 +1754,17 @@ function buildEntry(
       smc: smc ?? null,
       riskParams: (() => {
         if (atr === null) return null;
-        
+
         // 2026 FIX: Determine structural bias for Risk Parameters.
         // Fallback through Strategy -> Final Signal -> SMC Geometry to ensure
         // high-conviction SMC trades get proper TP/SL execution parameters.
         const structuralBias = strategy.signal.includes('buy') ? 'buy'
-                             : strategy.signal.includes('sell') ? 'sell'
-                             : signal.includes('buy') ? 'buy'
-                             : signal.includes('sell') ? 'sell'
-                             : (smc?.orderBlock?.type === 'bullish' || smc?.fvg?.type === 'bullish') ? 'buy'
-                             : (smc?.orderBlock?.type === 'bearish' || smc?.fvg?.type === 'bearish') ? 'sell'
-                             : 'neutral';
+          : strategy.signal.includes('sell') ? 'sell'
+            : signal.includes('buy') ? 'buy'
+              : signal.includes('sell') ? 'sell'
+                : (smc?.orderBlock?.type === 'bullish' || smc?.fvg?.type === 'bullish') ? 'buy'
+                  : (smc?.orderBlock?.type === 'bearish' || smc?.fvg?.type === 'bearish') ? 'sell'
+                    : 'neutral';
 
         return structuralBias !== 'neutral'
           ? computeRiskParameters(price, atr, structuralBias as 'buy' | 'sell', getMarketType(sym), smc)
@@ -1920,7 +1920,7 @@ function runRefresh(
   const work = (async (): Promise<ScreenerResponse> => {
     // ── CRITICAL: Define getCacheKey at the VERY TOP to avoid TDZ errors ──
     const getCacheKey = (sym: string) => `${sym}:${rsiPeriod}:${exchange}`;
-    
+
     const start = Date.now();
     const nowTs = Date.now();
     debugLog(`[screener] runRefresh(${symbolCount}, smart=${smartMode}, exchange=${exchange}) starting...`);
@@ -1928,25 +1928,25 @@ function runRefresh(
     // ── Distributed Locking Layer ──
     const lockKey = `refresh:${symbolCount}:${smartMode}:${rsiPeriod}:${exchange}`;
     const aggResultKey = `agg:${symbolCount}:${smartMode}:${rsiPeriod}:${exchange}`;
-    
+
     // Attempt to acquire Leader lock. Leader performs computations; Followers fetch Leader's work.
     const hasLock = await redisService.acquireLock(lockKey, 30);
-    
+
     if (!hasLock) {
       debugLog(`[screener] 🛡️ Shared L3 Sync: Waiting for Leader result for ${lockKey}.`);
-      
+
       const fetchAndOverlay = async () => {
         const l3 = await redisService.getJson<ScreenerResponse>(`cache:${aggResultKey}`);
         if (l3 && l3.data && l3.data.length > 0) {
           // Metadata Intelligence: Mark as shared and update compute latency to current
           l3.meta.syncMode = 'SHARED';
           l3.meta.computeTimeMs = Date.now() - start;
-          
+
           // CRITICAL PEFORMANCE OVERLAY: Shared indicators are 10-20s old.
           // We overlay with this instance's freshest ticker prices for sub-second liveness.
           const freshTickers = await fetchTickers(exchange);
           l3.data = l3.data.map(entry => withTickerOverlay(entry, freshTickers.get(entry.symbol), Date.now()));
-          
+
           debugLog(`[screener] ✅ L3 Hydration with live overlay success for ${lockKey}.`);
           return l3;
         }
@@ -1957,7 +1957,7 @@ function runRefresh(
       for (let attempt = 0; attempt < 3; attempt++) {
         const sharedResult = await fetchAndOverlay();
         if (sharedResult) return sharedResult;
-        
+
         const waitMs = 3000 + (attempt * 1500); // 3s, 4.5s, 6s...
         debugLog(`[screener] L2/L3 missing, retry ${attempt + 1}/3 after ${waitMs}ms...`);
         await new Promise(r => setTimeout(r, waitMs));
@@ -2049,8 +2049,8 @@ function runRefresh(
     const isInitialLoad = uncachedSymbols.length > (symbolCount * 0.5);
     const baseBootstrapCap = symbolCount;
     // For 500+ symbols, we rolling-refresh in batches of 300 to keep the event loop responsive
-    const baseRollingCap = symbolCount >= 500 ? 300 : symbolCount; 
-    
+    const baseRollingCap = symbolCount >= 500 ? 300 : symbolCount;
+
     let refreshCap = smartMode
       ? (isInitialLoad
         ? Math.max(symbolCount, tuning.dynamicCap) // Fill gaps aggressively on first load
@@ -2323,13 +2323,13 @@ function runRefresh(
     .catch((err) => {
       // 🔥 FIX: Don't swallow errors - let them propagate so failover can work
       console.error(`[screener] runRefresh error for ${exchange}:`, err instanceof Error ? err.message : String(err));
-      
+
       const stale = fromCachedResult(symbolCount, smartMode, rsiPeriod, exchange);
       if (stale) {
         debugLog(`[screener] Returning stale cache for ${exchange} after error`);
         return stale;
       }
-      
+
       // Re-throw the error so getScreenerData can try the next exchange
       throw err;
     })
@@ -2393,7 +2393,7 @@ export async function getScreenerData(
         }
         return result;
       }
-      
+
       // Empty result but no error - log and try next exchange
       debugWarn(`[screener] ⚠️ Exchange ${tryExchange} returned empty data. Trying next...`);
     } catch (err) {
@@ -2401,7 +2401,7 @@ export async function getScreenerData(
       const errStack = err instanceof Error ? err.stack : '';
       console.error(`[screener] ❌ Exchange ${tryExchange} error: ${errMsg}`);
       if (errStack) console.error(`[screener] Stack: ${errStack.split('\n').slice(0, 3).join('\n')}`);
-      
+
       if (errMsg.includes('geo-blocked') || errMsg.includes('403') || errMsg.includes('451')) {
         debugWarn(`[screener] 🌍 Exchange ${tryExchange} geo-blocked. Trying next...`);
         geoBlockedExchanges.add(tryExchange);
@@ -2419,12 +2419,12 @@ export async function getScreenerData(
   }, 300_000); // Reset every 5 minutes
 
   console.error(`[screener] ❌ All exchanges failed. Attempting cached fallback...`);
-  
+
   // 🔥 NEW: Try to return cached data from any exchange before returning empty
   const cachedEntries = Array.from(resultCache.entries())
     .map(([key, entry]) => entry.value)
     .sort((a, b) => b.ts - a.ts);
-  
+
   const anyCached = cachedEntries[0];
 
   if (anyCached && Date.now() - anyCached.ts < 300_000) { // 5 min stale cache acceptable
@@ -2472,4 +2472,5 @@ export const __test__ = {
   buildEntry,
   applyCurrentCycleCoherence,
 };
+
 

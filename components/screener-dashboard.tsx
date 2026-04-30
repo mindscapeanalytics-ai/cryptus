@@ -42,6 +42,7 @@ import { computeStrategyScore, deriveSignal, deriveCoherentSignal, calculateRsi,
 import { classifyRegime } from '@/lib/market-regime';
 import { getSymbolAlias, getSymbolTicker } from '@/lib/symbol-utils';
 import { generateSignalNarration } from '@/lib/signal-narration';
+import { evaluateInstitutionalProtocol } from '@/lib/institutional-engine';
 import type { AssetClass } from '@/lib/asset-classes';
 import { useMarketData } from '@/hooks/use-market-data';
 import { toast } from 'sonner';
@@ -1457,6 +1458,28 @@ const ScreenerRow = memo(function ScreenerRow({
         </td>
       )}
 
+      {visibleCols.has('institutional') && (
+        <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
+          {entry.institutionalDecision ? (
+            <div className="flex flex-col items-end cursor-help group relative" title={entry.institutionalDecision.message}>
+              <span className={cn(
+                "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded leading-tight",
+                entry.institutionalDecision.decision === 'VALID TRADE' ? 'bg-[#39FF14]/20 text-[#39FF14]' :
+                entry.institutionalDecision.decision === 'LOW CONFIDENCE SETUP' ? 'bg-amber-500/20 text-amber-500' :
+                'bg-rose-500/20 text-rose-500'
+              )}>
+                {entry.institutionalDecision.decision}
+              </span>
+              <span className="text-[7px] text-slate-500 font-bold uppercase mt-1 tracking-widest">
+                {entry.institutionalDecision.state} • {entry.institutionalDecision.score}/10
+              </span>
+            </div>
+          ) : (
+            <span className="text-slate-700">-</span>
+          )}
+        </td>
+      )}
+
       {visibleCols.has('finalAction') && (
         <td className={cn("px-3 py-3 text-right overflow-hidden", COL_WIDTHS.signal)}>
           <FinalBadge
@@ -1673,7 +1696,7 @@ type ColumnId =
   | 'rank' | 'winRate' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
   | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
   | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy' | 'superSignal'
-  | 'finalAction'
+  | 'finalAction' | 'institutional'
   | 'confluence' | 'divergence' | 'momentum'
   | 'atr' | 'adx'
   | 'fundingRate' | 'orderFlow' | 'smartMoney';
@@ -1713,6 +1736,7 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'smartMoney', label: 'Smart $', group: 'Derivatives', defaultVisible: true },
   { id: 'strategy', label: 'Strategy', group: 'Strategy', defaultVisible: true },
   { id: 'superSignal', label: 'SUPER SIGNAL', group: 'Intelligence', defaultVisible: true },
+  { id: 'institutional', label: 'INSTITUTIONAL', group: 'Intelligence', defaultVisible: true },
   { id: 'finalAction', label: 'FINAL', group: 'Execution', defaultVisible: true },
 ];
 
@@ -2239,6 +2263,33 @@ const ScreenerCard = memo(function ScreenerCard({
                   )}>
                     {smartMoneyScore ? `${smartMoneyScore.score > 0 ? '+' : ''}${smartMoneyScore.score}` : '-'}
                   </span>
+                ) : col.id === 'institutional' ? (
+                  entry.institutionalDecision ? (
+                    <div className="flex flex-col items-center">
+                      <span className={cn(
+                        "text-[7px] font-black uppercase tracking-tighter px-1 py-0.5 rounded leading-none",
+                        entry.institutionalDecision.decision === 'VALID TRADE' ? 'bg-[#39FF14]/20 text-[#39FF14]' :
+                        entry.institutionalDecision.decision === 'LOW CONFIDENCE SETUP' ? 'bg-amber-500/20 text-amber-500' :
+                        'bg-rose-500/20 text-rose-500'
+                      )}>
+                        {entry.institutionalDecision.decision === 'VALID TRADE' ? 'VALID' : entry.institutionalDecision.decision === 'LOW CONFIDENCE SETUP' ? 'LOW CONF' : 'NO TRADE'}
+                      </span>
+                    </div>
+                  ) : <span className="text-slate-700 text-[9px]">-</span>
+                ) : col.id === 'superSignal' ? (
+                  <SuperSignalBadge
+                    superSignal={entry.superSignal}
+                    isOwner={isOwner}
+                    entry={entry}
+                    onViewNarration={onViewNarration}
+                  />
+                ) : col.id === 'finalAction' ? (
+                  <FinalBadge
+                    signal={entry.finalSignal ?? entry.strategySignal}
+                    source={entry.finalSource ?? 'strategy'}
+                    entry={entry}
+                    onViewNarration={onViewNarration}
+                  />
                 ) : (
                   <span className={cn(
                     "text-[9px] font-bold tabular-nums transition-colors duration-300",
@@ -3102,10 +3153,10 @@ export default function ScreenerDashboard() {
     if (finalDirection === 1 && entry.signal === 'overbought') alignedBaseSignal = 'neutral';
     if (finalDirection === -1 && entry.signal === 'oversold') alignedBaseSignal = 'neutral';
 
-    return { 
-      finalSignal, 
-      finalScore, 
-      finalSource, 
+    return {
+      finalSignal,
+      finalScore,
+      finalSource,
       alignedBaseSignal
     };
   }, []);
@@ -3539,14 +3590,47 @@ export default function ScreenerDashboard() {
   const processedWithFinal = useMemo(() => {
     return processedData.map((e) => {
       const f = resolveFinal(e);
+      const instDec = evaluateInstitutionalProtocol(e);
+
+      let finalSignal = f.finalSignal;
+      let strategySignal = e.strategySignal;
+      let signal = f.alignedBaseSignal;
+      let superSignal = e.superSignal ? { ...e.superSignal } : undefined;
+
+      // ── Institutional Intelligence Enforcement ──
+      // If the setup lacks basic Smart Money confirmation (liquidity sweep, BOS, etc.),
+      // forcefully suppress the indicator-driven signals to prevent false positives.
+      if (instDec.decision !== 'VALID TRADE' && instDec.decision !== 'LOW CONFIDENCE SETUP') {
+        if (finalSignal.includes('buy') || finalSignal.includes('sell')) finalSignal = 'neutral';
+        if (strategySignal.includes('buy') || strategySignal.includes('sell')) strategySignal = 'neutral';
+        if (signal === 'overbought' || signal === 'oversold') signal = 'neutral';
+        if (superSignal && superSignal.category !== 'Neutral') {
+          superSignal.category = 'Neutral';
+          superSignal.value = 50;
+        }
+      } else if (instDec.decision === 'LOW CONFIDENCE SETUP') {
+        // Enforce accurate STRONG buy/sell signals: downgrade "strong" if institutional score is low
+        if (finalSignal === 'strong-buy') finalSignal = 'buy';
+        if (finalSignal === 'strong-sell') finalSignal = 'sell';
+        if (strategySignal === 'strong-buy') strategySignal = 'buy';
+        if (strategySignal === 'strong-sell') strategySignal = 'sell';
+        if (superSignal) {
+          if (superSignal.category === 'Strong Buy') superSignal.category = 'Buy';
+          if (superSignal.category === 'Strong Sell') superSignal.category = 'Sell';
+          // Cap conviction at 60 for low confidence
+          superSignal.value = Math.min(superSignal.value, 60);
+        }
+      }
+
       return {
         ...e,
-        signal: f.alignedBaseSignal,
-        // Strategy column is NO LONGER overwritten — it shows the true computeStrategyScore output.
-        // strategySignal, strategyScore, strategyLabel remain untouched.
-        finalSignal: f.finalSignal,
+        signal,
+        strategySignal,
+        superSignal,
+        finalSignal,
         finalScore: f.finalScore,
-        finalSource: f.finalSource
+        finalSource: f.finalSource,
+        institutionalDecision: instDec
       } as ScreenerEntry;
     });
   }, [processedData, resolveFinal]);
@@ -6054,6 +6138,7 @@ export default function ScreenerDashboard() {
                       widthClass={COL_WIDTHS.signal}
                     />
                   )}
+                  {visibleCols.has('institutional') && <th className={cn("px-3 py-3 text-[10px] font-bold uppercase text-slate-500 text-right tracking-widest whitespace-nowrap", COL_WIDTHS.signal)}>INSTITUTIONAL</th>}
                   {visibleCols.has('finalAction') && <SortHeader label="Final" sortKey="finalScore" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
                   <th className={cn("px-3 py-3 text-right text-[10px] font-bold uppercase text-slate-500 tracking-widest whitespace-nowrap", COL_WIDTHS.edit)}>Edit</th>
                 </tr>

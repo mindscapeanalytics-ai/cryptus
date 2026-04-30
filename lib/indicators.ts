@@ -1667,8 +1667,9 @@ export function computeRiskParameters(
       rawStop = Math.min(rawStop, smc.orderBlock.bottom);
     }
     stopLoss = round(rawStop);
-    takeProfit1 = round(price + riskDistance * 1.33);
-    takeProfit2 = round(price + riskDistance * 2.0);
+    const actualRisk = Math.abs(price - stopLoss);
+    takeProfit1 = round(price + actualRisk * 1.33);
+    takeProfit2 = round(price + actualRisk * 2.0);
   } else {
     let rawStop = price + riskDistance;
     // SMC Confluence: Place stop above OB if OB exists and is above price
@@ -1676,8 +1677,9 @@ export function computeRiskParameters(
       rawStop = Math.max(rawStop, smc.orderBlock.top);
     }
     stopLoss = round(rawStop);
-    takeProfit1 = round(price - riskDistance * 1.33);
-    takeProfit2 = round(price - riskDistance * 2.0);
+    const actualRisk = Math.abs(stopLoss - price);
+    takeProfit1 = round(price - actualRisk * 1.33);
+    takeProfit2 = round(price - actualRisk * 2.0);
   }
 
   // Calculate dynamic R/R based on actual stop distance

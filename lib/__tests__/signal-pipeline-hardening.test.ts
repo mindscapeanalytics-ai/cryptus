@@ -66,7 +66,14 @@ describe('Signal Pipeline Hardening 2026', () => {
         strategySignal: 'buy',
         strategyScore: 85,
         market: 'Metal',
-        change24h: -2.5
+        change24h: -2.5,
+        smc: { orderBlock: { type: 'bullish', top: 4504, bottom: 4500, strength: 'strong' } },
+        rsiDivergence: 'bullish',
+        volumeSpike: true,
+        obvTrend: 'bullish',
+        emaCross: 'bullish',
+        confluence: 70,
+        smartMoneyScore: 50
       };
       const narration = generateSignalNarration(entry as any);
       // It should NOT say "Demand Zone Confirmed" because price is 4505 and level is 4511
