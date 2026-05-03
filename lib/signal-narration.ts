@@ -108,42 +108,63 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   if (entry.change24h !== null && entry.change24h !== undefined) {
     const priceChange = entry.change24h;
     const absPriceChange = Math.abs(priceChange);
+    // FIX #6: Gate reversal logic behind RSI confirmation.
+    // Without RSI confirming exhaustion, extreme moves should score WITH the trend, not against it.
+    const currentRsiForContext = entry.rsi15m ?? entry.rsi1m ?? 50;
+    const rsiConfirmsExhaustion = priceChange > 0
+      ? currentRsiForContext > 75   // Rally + overbought RSI = exhaustion
+      : currentRsiForContext < 25;  // Crash + oversold RSI = exhaustion
     
     if (absPriceChange > 50) {
       // EXTREME move (>50%)
       const emoji = priceChange > 0 ? '🚀' : '💥';
       const direction = priceChange > 0 ? 'rallied' : 'crashed';
-      reasons.push(`${emoji} PARABOLIC MOVE: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. Extreme exhaustion risk, high reversal probability`);
-      totalPoints += 25;
-      // Extreme rally = bearish reversal signal (overbought exhaustion)
-      // Extreme crash = bullish reversal signal (oversold bounce)
-      if (priceChange > 0) bearishPoints += 25;
-      else bullishPoints += 25;
+      if (rsiConfirmsExhaustion) {
+        reasons.push(`${emoji} PARABOLIC MOVE: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. RSI confirms exhaustion — high reversal probability`);
+        totalPoints += 25;
+        if (priceChange > 0) bearishPoints += 25;
+        else bullishPoints += 25;
+      } else {
+        reasons.push(`${emoji} PARABOLIC MOVE: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. Momentum intact — trend continuation likely`);
+        totalPoints += 15;
+        if (priceChange > 0) bullishPoints += 15;
+        else bearishPoints += 15;
+      }
       pillars.momentum = true;
     } else if (absPriceChange > 30) {
       // VERY STRONG move (30-50%)
       const emoji = priceChange > 0 ? '🚀' : '📉';
       const direction = priceChange > 0 ? 'surged' : 'plunged';
-      reasons.push(`${emoji} EXTREME MOMENTUM: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. Monitor for exhaustion signals`);
-      totalPoints += 20;
-      if (priceChange > 0) bearishPoints += 20;
-      else bullishPoints += 20;
+      if (rsiConfirmsExhaustion) {
+        reasons.push(`${emoji} EXTREME MOMENTUM: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. RSI exhaustion detected — monitor for reversal`);
+        totalPoints += 20;
+        if (priceChange > 0) bearishPoints += 20;
+        else bullishPoints += 20;
+      } else {
+        reasons.push(`${emoji} EXTREME MOMENTUM: Price ${direction} ${absPriceChange.toFixed(1)}% in 24h. Trend continuation bias`);
+        totalPoints += 12;
+        if (priceChange > 0) bullishPoints += 12;
+        else bearishPoints += 12;
+      }
       pillars.momentum = true;
     } else if (absPriceChange > 15) {
       // STRONG move (15-30%)
-      const emoji = priceChange > 0 ? '📈' : '📉';
-      const direction = priceChange > 0 ? 'rallied' : 'declined';
-      reasons.push(`${emoji} Strong 24h momentum: ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%. ${priceChange > 0 ? 'Overbought' : 'Oversold'} risk building`);
+      reasons.push(`${priceChange > 0 ? '📈' : '📉'} Strong 24h momentum: ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%. ${rsiConfirmsExhaustion ? 'Exhaustion risk building' : 'Trend intact'}`);
       totalPoints += 12;
-      if (priceChange > 0) bearishPoints += 12;
-      else bullishPoints += 12;
+      if (rsiConfirmsExhaustion) {
+        if (priceChange > 0) bearishPoints += 12;
+        else bullishPoints += 12;
+      } else {
+        if (priceChange > 0) bullishPoints += 8;
+        else bearishPoints += 8;
+      }
       pillars.momentum = true;
     } else if (absPriceChange > 5) {
       // MODERATE move (5-15%)
       reasons.push(`📊 24h change: ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%. Moderate momentum`);
       totalPoints += 5;
-      if (priceChange > 0) bearishPoints += 5;
-      else bullishPoints += 5;
+      if (priceChange > 0) bullishPoints += 3;
+      else bearishPoints += 3;
     }
   }
 
@@ -651,7 +672,10 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
     convictionLabel = 'Weak';
   } else {
     const baseConviction = (Math.abs(netBias) / maxPossible) * 100;
-    const confluenceBonus = Math.max(0, (pillarCount - 1) * 12);
+    // FIX #12: Scale confluenceBonus by directional strength.
+    // Previously, indecision zones (netBias ≈ 0) could show 48% conviction from pillar count alone.
+    const directionalStrength = totalPoints > 0 ? Math.abs(netBias) / totalPoints : 0;
+    const confluenceBonus = Math.max(0, (pillarCount - 1) * 12) * directionalStrength;
     const scaleFactor = totalPoints > 50 ? 1.2 : 1.0;
     conviction = Math.min(100, Math.round(baseConviction * scaleFactor + confluenceBonus));
     

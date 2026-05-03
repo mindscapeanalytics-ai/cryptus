@@ -1786,7 +1786,7 @@ function calculateInstitutionalScore(params, config) {
 
   const {
     macdHistogram, bbPosition, emaCross, vwapDiff, volumeSpike, momentum,
-    regime, obvTrend, smartMoneyScore, structure
+    regime, obvTrend, smartMoneyScore, structure, adx
   } = params;
 
   // STEP 1: Market State Classification
@@ -1794,10 +1794,10 @@ function calculateInstitutionalScore(params, config) {
   if (state === 'RANGING') { score -= 2; reasons.push('Ranging market (-2)'); }
 
   // STEP 2: Zone Detection
-  const zoneAligned = (bbPosition && (bbPosition <= 0.1 || bbPosition >= 0.9)) || (vwapDiff && Math.abs(vwapDiff) > 1);
+  const zoneAligned = (bbPosition != null && (bbPosition <= 0.1 || bbPosition >= 0.9)) || (vwapDiff != null && Math.abs(vwapDiff) > 1);
   if (zoneAligned) { score += 1; checklist.zoneAlignment = true; reasons.push('Zone Alignment (+1)'); }
 
-  // STEP 3: Liquidity Analysis (MANDATORY)
+  // STEP 3: Liquidity Analysis
   const sweep = structure?.sweep || 'none';
   if (sweep !== 'none') {
     score += 2;
@@ -1811,50 +1811,62 @@ function calculateInstitutionalScore(params, config) {
     checklist.volumeExpansion = true;
     reasons.push('Volume Expansion (+2)');
   } else {
-    score -= 2; // No volume
+    score -= 1; // Mild penalty (was -2)
   }
 
-  const isMomentumWeak = Math.abs(momentum || 0) < 0.5 || obvTrend === 'none' || obvTrend === 'flat';
+  // FIX: AND instead of OR — both momentum AND OBV must be weak for penalty
+  const isMomentumWeak = Math.abs(momentum || 0) < 0.5 && (obvTrend === 'none' || obvTrend === 'flat');
   if (isMomentumWeak) {
-    score -= 2;
-    reasons.push('Weak Momentum (-2)');
+    score -= 1;
+    reasons.push('Weak Momentum (-1)');
   } else {
     checklist.momentumFlow = true;
+    score += 1;
   }
 
-  // STEP 5: Confirmation (Critical)
-  const bosConfirmed = structure?.bos || (emaCross !== 'none' && volumeSpike && !isMomentumWeak);
-  if (bosConfirmed) {
+  // STEP 5: Trend Confirmation (EMA cross + volume + momentum as BOS proxy)
+  const trendConfirmed = emaCross !== 'none' && volumeSpike && !isMomentumWeak;
+  if (trendConfirmed) {
     score += 2;
     checklist.bosConfirmed = true;
-    reasons.push('BOS Confirmation (+2)');
+    reasons.push('Trend Confirmation (+2)');
   }
 
   // STEP 6: Indicator Context (Secondary)
   let indScore = 0;
-  if (macdHistogram && Math.abs(macdHistogram) > 0) indScore++;
-  if (vwapDiff && Math.abs(vwapDiff) > 0) indScore++;
-  if (smartMoneyScore && Math.abs(smartMoneyScore) > 30) indScore++;
+  if (macdHistogram != null && Math.abs(macdHistogram) > 0) indScore++;
+  if (vwapDiff != null && Math.abs(vwapDiff) > 1) indScore++;
+  if (smartMoneyScore != null && Math.abs(smartMoneyScore) > 30) indScore++;
+  if (adx != null && adx > 25) indScore++;
   if (indScore >= 2) {
     score += 1;
     reasons.push('Indicator Support (+1)');
   }
 
-  // Strict Institutional Filters
-  if (!checklist.liquiditySweep) score -= 10;
-  if (isMomentumWeak) score -= 10;
-  if (!checklist.volumeExpansion) score -= 10;
-  if (state === 'RANGING') score -= 10;
+  // FIX: Removed quadruple -10 penalty stacking that made score always <= -40 → always NO TRADE.
+  // Mandatory gates are enforced in decision tree below.
 
   // STEP 8: Decision Logic
   let decision = 'NO TRADE';
-  if (score >= 6 && checklist.liquiditySweep && checklist.volumeExpansion && checklist.momentumFlow) {
-    decision = 'VALID TRADE';
-  } else if (score >= 3) {
+  let message = 'Awaiting Confluence';
+
+  if (score >= 4 && checklist.volumeExpansion && checklist.momentumFlow) {
+    if (checklist.liquiditySweep) {
+      decision = 'VALID TRADE';
+      message = 'All institutional conditions met';
+    } else {
+      decision = 'LOW CONFIDENCE SETUP';
+      message = 'Setup valid but no liquidity sweep detected';
+    }
+  } else if (score >= 2 || checklist.zoneAlignment) {
     decision = 'LOW CONFIDENCE SETUP';
-    if (!checklist.bosConfirmed) reasons.push('WAIT - No confirmation');
+    if (!checklist.bosConfirmed) message = 'Awaiting trend confirmation';
+    else if (!checklist.volumeExpansion) message = 'Volume expansion required';
+    else message = 'Partial confluence — monitor for completion';
   } else {
-    if (!checklist.liquiditySweep) reasons.push('WAIT - Awaiting sweep');
+    if (state === 'RANGING') message = 'Ranging market — no institutional edge';
+    else if (isMomentumWeak) message = 'Weak momentum — no directional flow';
+    else message = 'Insufficient confluence for entry';
   }
 
   // Output Mapping
@@ -1868,7 +1880,7 @@ function calculateInstitutionalScore(params, config) {
       state,
       decision,
       score: Math.max(0, score),
-      message: reasons[0] || 'Awaiting Confluence',
+      message,
       checklist
     }
   };

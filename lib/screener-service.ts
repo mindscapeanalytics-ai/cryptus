@@ -9,6 +9,7 @@ import {
   calculateATR, calculateADX, deriveCoherentSignal, calculateSMC, type StrategySignal,
   calculateOBV, calculateWilliamsR,
   computeRiskParameters, detectHiddenDivergence, calculateFibonacciLevels,
+  detectLiquiditySweeps,
   // 2026 Intelligence: Regime fix + Commodity Channel Index
   computeRollingAtrAverage, computeRollingBbWidthAverage, calculateCCI,
 } from './indicators';
@@ -86,7 +87,7 @@ const KLINE_1D_CACHE_TTL = 3600_000; // 1 hour (1d changes very slowly)
 // ── Super Signal Confidence Threshold (Single Source of Truth) ──
 // Used by both coherence gate and FINAL resolution to determine when Super Signal is trustworthy.
 // Must match the threshold used in screener-dashboard.tsx resolveFinal().
-const SUPER_CONFIDENCE_THRESHOLD = 60;
+export const SUPER_CONFIDENCE_THRESHOLD = 60;
 
 // ── Binance API Weight Tracking (Rate Limit Protection) ──
 let globalWeight = 0;
@@ -1546,6 +1547,10 @@ function buildEntry(
       closes15m
     );
 
+    // 2026 Intelligence: Liquidity Sweeps (BSL/SSL detection)
+    // FIX #4: Previously never calculated — institutional engine couldn't detect sweeps.
+    const liquiditySweepResult = detectLiquiditySweeps(highs15m, lows15m, closes15m, 60);
+
     // 2026 Intelligence: Market Regime Classification (FIXED)
     // Previously hardcoded atrAvg=null and bbWidthAvg=null which permanently
     // broke the trending/volatile distinction in classifyRegime().
@@ -1752,6 +1757,7 @@ function buildEntry(
       regime: regimeResult,
       fibLevels: fibLevels ?? null,
       smc: smc ?? null,
+      liquidity: liquiditySweepResult ?? null,
       riskParams: (() => {
         if (atr === null) return null;
 

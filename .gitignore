@@ -61,3 +61,4 @@ coverage/
 .kiro/
 tsc-errors.txt
 replace_emdash.py
+.tradingview_pinescript

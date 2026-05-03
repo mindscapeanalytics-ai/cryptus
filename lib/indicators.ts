@@ -14,7 +14,6 @@ import { getRegimeWeights, type MarketRegime } from './market-regime';
 import { groupCorrelatedIndicators, applyDiminishingReturns, shouldSuppressSignal, calculateSmartMoneyBoost, type SmartMoneyComponents } from './signal-helpers';
 import { validateWithSuperSignal } from './signal-validation';
 import { SIGNAL_FEATURES } from './feature-flags';
-import { calculateInstitutionalScore } from './strategy-logic';
 
 
 function round(n: number): number {
@@ -1263,9 +1262,10 @@ export function computeStrategyScore(params: {
       if (group.scores.length === 0) continue;
       
       const rawGroupScore = group.scores.reduce((sum, s) => sum + s, 0);
-      // Only apply diminishing returns when we truly have redundancy (3+ correlated signals).
-      // With only 2 indicators, the penalty was too aggressive and suppressed legitimate strong setups.
-      const adjustedGroupScore = group.scores.length >= 3 ? applyDiminishingReturns(group.scores) : rawGroupScore;
+      // FIX #9: Lower threshold for oscillators (RSI/Stoch/WilliamsR are mathematically near-identical).
+      // Oscillators need penalty at 2+; trend/volume groups still require 3+.
+      const minForPenalty = group.name === 'oscillators' ? 2 : 3;
+      const adjustedGroupScore = group.scores.length >= minForPenalty ? applyDiminishingReturns(group.scores) : rawGroupScore;
       
       adjustedGroupedScore += adjustedGroupScore;
       

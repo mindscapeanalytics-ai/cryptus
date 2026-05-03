@@ -202,7 +202,7 @@ export const FEATURE_DESCRIPTIONS: Record<keyof SignalFeatureFlags, string> = {
   useRelaxedSuppression: 'Smart suppression considering 1h trend and volume (Phase 3) - ENABLED',
   useStrongSmartMoney: 'Component-aware Smart Money boost 20-40% (Phase 4) - ENABLED',
   useSuperSignalValidation: 'Cross-validates Strategy with Super Signal (Phase 5) - ENABLED',
-  useRegimeThresholds: 'Dynamic thresholds based on market regime (Future)',
+  useRegimeThresholds: 'Dynamic RSI thresholds based on market regime (Active)',
   useWeightedTFAgreement: 'Importance-based timeframe agreement (Future)',
   maxTrialRecords: 'Max records for trial users',
   maxSubscribedRecords: 'Max records for subscribed users',
