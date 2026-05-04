@@ -3057,6 +3057,11 @@ export default function ScreenerDashboard() {
     orderFlow,
     openInterest,
     smartMoney,
+    cvd,
+    cascadeRisk,
+    fundingHistory,
+    oiAnalysis,
+    optionsIntel,
     isConnected: derivativesConnected,
     isStale: derivativesStale,
     streamHealth: derivStreamHealth,
@@ -5862,6 +5867,11 @@ export default function ScreenerDashboard() {
           orderFlow={orderFlow}
           openInterest={openInterest}
           smartMoney={smartMoney}
+          cvd={cvd}
+          cascadeRisk={cascadeRisk}
+          fundingHistory={fundingHistory}
+          oiAnalysis={oiAnalysis}
+          optionsIntel={optionsIntel}
           isConnected={derivativesConnected}
           streamHealth={derivStreamHealth}
           onUpdateConfig={updateDerivConfig}

@@ -275,6 +275,9 @@ interface DerivativesPanelProps {
   // Phase 1 additions
   cvd?: Map<string, import('@/lib/derivatives-types').CVDData>;
   cascadeRisk?: Map<string, import('@/lib/derivatives-types').LiquidationCascadeRisk>;
+  fundingHistory?: Map<string, import('@/lib/derivatives-types').FundingRateHistory>;
+  oiAnalysis?: Map<string, import('@/lib/derivatives-types').OpenInterestAnalysis>;
+  optionsIntel?: Map<string, import('@/lib/derivatives-types').OptionsIntelligence>;
   isConnected: boolean;
   streamHealth?: {
     funding: boolean;
@@ -285,7 +288,7 @@ interface DerivativesPanelProps {
   onUpdateConfig?: (config: { liquidationThreshold?: number }) => void;
 }
 
-type ActiveTab = 'liquidations' | 'whales' | 'funding' | 'flow' | 'cascade' | 'cvd';
+type ActiveTab = 'liquidations' | 'whales' | 'funding' | 'flow' | 'cascade' | 'cvd' | 'oi' | 'options';
 
 export const DerivativesPanel = memo(function DerivativesPanel({
   fundingRates,
@@ -296,6 +299,9 @@ export const DerivativesPanel = memo(function DerivativesPanel({
   smartMoney,
   cvd,
   cascadeRisk,
+  fundingHistory,
+  oiAnalysis,
+  optionsIntel,
   isConnected,
   streamHealth,
   onUpdateConfig,
@@ -402,6 +408,8 @@ export const DerivativesPanel = memo(function DerivativesPanel({
     { id: 'flow', label: 'Flow', mobileLabel: 'Flow', icon: Activity },
     ...(cascadeRisk && cascadeRisk.size > 0 ? [{ id: 'cascade' as ActiveTab, label: 'Cascade', mobileLabel: 'Risk', icon: AlertTriangle, count: cascadeRisk.size }] : []),
     ...(cvd && cvd.size > 0 ? [{ id: 'cvd' as ActiveTab, label: 'CVD', mobileLabel: 'Delta', icon: TrendingUp, count: cvd.size }] : []),
+    ...(oiAnalysis && oiAnalysis.size > 0 ? [{ id: 'oi' as ActiveTab, label: 'OI Analysis', mobileLabel: 'OI', icon: BarChart3, count: oiAnalysis.size }] : []),
+    ...(optionsIntel && optionsIntel.size > 0 ? [{ id: 'options' as ActiveTab, label: 'Options', mobileLabel: 'Options', icon: Eye, count: optionsIntel.size }] : []),
   ];
 
   return (
@@ -803,6 +811,96 @@ export const DerivativesPanel = memo(function DerivativesPanel({
                             <span className="text-slate-600">|</span>
                             <span className="text-slate-500">Strength:</span>
                             <span className="text-white/80 font-black">{data.strength}</span>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+              {activeTab === 'oi' && oiAnalysis && (
+                <div className="flex flex-col gap-1">
+                  {oiAnalysis.size === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-3 text-slate-600 text-[9px]">
+                      <BarChart3 size={12} className="opacity-40 animate-pulse" />
+                      <span>Analyzing Open Interest patterns...</span>
+                    </div>
+                  ) : (
+                    Array.from(oiAnalysis.entries())
+                      .sort((a, b) => Math.abs(b[1].change24h) - Math.abs(a[1].change24h))
+                      .slice(0, 15)
+                      .map(([symbol, data]) => (
+                        <div key={symbol} className="flex items-center justify-between px-1.5 py-1 rounded border border-white/5 bg-slate-800/30">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-white/90 text-[10px] tracking-tight">
+                              {getSymbolAlias(symbol)}
+                            </span>
+                            <span className={cn(
+                              "text-[8px] font-black px-1 rounded uppercase",
+                              data.riskLevel === 'extreme' ? "bg-[#FF4B5C]/15 text-[#FF4B5C]" : 
+                              data.riskLevel === 'high' ? "bg-orange-500/15 text-orange-400" :
+                              "bg-slate-700/20 text-slate-400"
+                            )}>
+                              {data.riskLevel} Risk
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[8px] font-mono">
+                            <span className="text-slate-500">24h Δ:</span>
+                            <span className={cn(
+                              "font-black tabular-nums",
+                              data.change24h > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]"
+                            )}>
+                              {data.change24h > 0 ? '+' : ''}{data.change24h.toFixed(1)}%
+                            </span>
+                            <span className="text-slate-600">|</span>
+                            <span className="text-slate-500">Rate:</span>
+                            <span className="text-white/80">{data.changeRate}</span>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'options' && optionsIntel && (
+                <div className="flex flex-col gap-1">
+                  {optionsIntel.size === 0 ? (
+                    <div className="flex items-center justify-center gap-2 py-3 text-slate-600 text-[9px]">
+                      <Eye size={12} className="opacity-40 animate-pulse" />
+                      <span>Gathering Options Intelligence...</span>
+                    </div>
+                  ) : (
+                    Array.from(optionsIntel.entries())
+                      .sort((a, b) => b[1].impliedVolatility - a[1].impliedVolatility)
+                      .slice(0, 15)
+                      .map(([symbol, data]) => (
+                        <div key={symbol} className="flex items-center justify-between px-1.5 py-1 rounded border border-white/5 bg-slate-800/30">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-white/90 text-[10px] tracking-tight">
+                              {getSymbolAlias(symbol)}
+                            </span>
+                            <span className={cn(
+                              "text-[8px] font-black px-1 rounded uppercase",
+                              data.sentiment === 'bullish' ? "bg-[#39FF14]/15 text-[#39FF14]" : 
+                              data.sentiment === 'bearish' ? "bg-[#FF4B5C]/15 text-[#FF4B5C]" : "bg-slate-700/20 text-slate-400"
+                            )}>
+                              {data.sentiment}
+                            </span>
+                            {data.synthetic && (
+                              <span className="text-[7px] text-slate-500 border border-slate-700 rounded px-1">SYNC</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[8px] font-mono">
+                            <span className="text-slate-500">PCR:</span>
+                            <span className={cn(
+                              "font-black tabular-nums",
+                              data.putCallRatio < 0.8 ? "text-[#39FF14]" : 
+                              data.putCallRatio > 1.2 ? "text-[#FF4B5C]" : "text-yellow-400"
+                            )}>
+                              {data.putCallRatio.toFixed(2)}
+                            </span>
+                            <span className="text-slate-600">|</span>
+                            <span className="text-slate-500">IV:</span>
+                            <span className="text-white/80 font-black">{data.impliedVolatility}</span>
                           </div>
                         </div>
                       ))
