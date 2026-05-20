@@ -19,7 +19,7 @@ export function getMarketType(symbol: string): ScreenerEntry['market'] {
   const isMetal = METALS_SYMBOLS.some(m => m.yahoo === s || m.exchange === s) || 
                   [
                     // Gold tokenized on-chain
-                    'PAXGUSDT', 'XAUTUSDT',
+                    'PAXGUSDT', 'XAUUSDT', 'XAUTUSDT',
                     // Spot/futures aliases
                     'GOLD', 'SILVER', 'XAUUSD', 'XAGUSD',
                     // Yahoo futures

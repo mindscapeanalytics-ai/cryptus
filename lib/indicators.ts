@@ -1311,7 +1311,7 @@ export function computeStrategyScore(params: {
 
   // ── 12 PINE SCRIPT v38 HACKS PORTING ──
   let hackScore = 0;
-  const isGold = params.symbol === 'XAUUSDT' || params.symbol === 'PAXGUSDT' || params.symbol === 'GOLD';
+  const isGold = ['XAUUSDT', 'XAUTUSDT', 'PAXGUSDT', 'XAUUSD', 'GC=F', 'GOLD'].includes(params.symbol);
   const now = new Date();
   const utcHour = now.getUTCHours();
   const utcMin = now.getUTCMinutes();

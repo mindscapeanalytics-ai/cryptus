@@ -171,6 +171,16 @@ const COL_WIDTHS = {
   finalAction: "w-[100px] min-w-[100px]",   // Final execution column
 };
 
+function getStickyOffsets(visibleCols: Set<string>, bulkMode: boolean) {
+  const symbol = bulkMode
+    ? (visibleCols.has('rank') ? 132 : 84)
+    : (visibleCols.has('rank') ? 88 : 40);
+  return {
+    symbol,
+    price: symbol + 120,
+  };
+}
+
 // ─── Atomic Components ──────────────────────────────────────────
 
 const SortHeader = memo(function SortHeader({
@@ -1050,10 +1060,7 @@ const ScreenerRow = memo(function ScreenerRow({
     }
   }, [display.strategySignal, display.price, entry.symbol, entry.market, entry.atr, isVisible]);
 
-  const stickyOffsetSym = bulkMode
-    ? (visibleCols.has('rank') ? 132 : 84)  // Add 44px for checkbox
-    : (visibleCols.has('rank') ? 88 : 40);
-  const stickyOffsetPrice = stickyOffsetSym + 120;
+  const { symbol: stickyOffsetSym, price: stickyOffsetPrice } = getStickyOffsets(visibleCols, bulkMode);
 
   return (
     <tr
@@ -1439,9 +1446,8 @@ function EditableRsiCell({
 
 // ─── Skeleton ──────────────────────────────────────────────────
 
-function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
-  const stickyOffsetSym = visibleCols.has('rank') ? 88 : 40;
-  const stickyOffsetPrice = visibleCols.has('rank') ? 88 + 120 : 40 + 120;
+function SkeletonRows({ visibleCols, bulkMode }: { visibleCols: Set<string>; bulkMode: boolean }) {
+  const { symbol: stickyOffsetSym, price: stickyOffsetPrice } = getStickyOffsets(visibleCols, bulkMode);
 
   return (
     <>
@@ -2798,7 +2804,7 @@ export default function ScreenerDashboard() {
     streamHealth: derivStreamHealth,
     lastHealthPulse: derivativesLastPulse,
     updateConfig: updateDerivConfig,
-  } = useDerivativesIntel(derivativeSymbols, derivativeSymbols.size > 0);
+  } = useDerivativesIntel(derivativeSymbols, true);
 
   const derivativesLastUpdateMs = useMemo(() => Date.now() - (derivativesLastPulse || 0), [derivativesLastPulse, lastGlobalUpdate]);
 
@@ -3402,15 +3408,11 @@ export default function ScreenerDashboard() {
           superSignal.value = 50;
         }
       } else if (instDec.decision === 'LOW CONFIDENCE SETUP') {
-        // Enforce accurate STRONG buy/sell signals: downgrade "strong" if institutional score is low
-        if (finalSignal === 'strong-buy') finalSignal = 'buy';
-        if (finalSignal === 'strong-sell') finalSignal = 'sell';
-        if (strategySignal === 'strong-buy') strategySignal = 'buy';
-        if (strategySignal === 'strong-sell') strategySignal = 'sell';
+        // Low-confidence institutional setups should not erase strong algorithmic signals.
+        // Preserve strategy/final signal strength while tempering the Super Signal display.
         if (superSignal) {
           if (superSignal.category === 'Strong Buy') superSignal.category = 'Buy';
           if (superSignal.category === 'Strong Sell') superSignal.category = 'Sell';
-          // Cap conviction at 60 for low confidence
           superSignal.value = Math.min(superSignal.value, 60);
         }
       }
@@ -4945,6 +4947,7 @@ export default function ScreenerDashboard() {
   const fearGreedColor = fearGreedScore >= 65 ? 'text-[#39FF14]' : fearGreedScore >= 45 ? 'text-yellow-400' : 'text-[#FF4B5C]';
 
   const colCount = 7 + OPTIONAL_COLUMNS.filter((c) => visibleCols.has(c.id)).length;
+  const stickyOffsets = getStickyOffsets(visibleCols, bulkMode);
 
   return (
     <div className="w-full px-0 lg:px-8 pt-0 lg:pt-4 pb-32 lg:py-6">
@@ -5889,12 +5892,12 @@ export default function ScreenerDashboard() {
                   <SortHeader
                     label="Symbol" sortKey="symbol" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="left"
                     widthClass={COL_WIDTHS.symbol}
-                    stickyOffset={visibleCols.has('rank') ? 88 : 40}
+                    stickyOffset={stickyOffsets.symbol}
                   />
                   <SortHeader
                     label="Price" sortKey="price" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right"
                     widthClass={COL_WIDTHS.price}
-                    stickyOffset={visibleCols.has('rank') ? 88 + 120 : 40 + 120}
+                    stickyOffset={stickyOffsets.price}
                   />
 
                   <SortHeader
@@ -5935,7 +5938,7 @@ export default function ScreenerDashboard() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {(loading || (activeAssetClass !== 'crypto' && marketDataLoading && processedData.length === 0)) ? (
-                  <SkeletonRows visibleCols={visibleCols} />
+                  <SkeletonRows visibleCols={visibleCols} bulkMode={bulkMode} />
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={colCount} className="px-6 py-32 text-center">

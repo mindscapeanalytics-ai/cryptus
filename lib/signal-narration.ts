@@ -593,7 +593,7 @@ export function generateSignalNarration(entry: ScreenerEntry, tradingStyle: Trad
   // Provides the 'why' behind the technical signal using commodity market economics.
   if (market === 'Metal') {
     const sym = entry.symbol?.toUpperCase() || '';
-    const isGold   = ['GC=F', 'XAUTUSDT', 'PAXGUSDT', 'XAUUSD', 'GOLD'].includes(sym);
+    const isGold   = ['GC=F', 'XAUUSDT', 'XAUTUSDT', 'PAXGUSDT', 'XAUUSD', 'GOLD'].includes(sym);
     const isSilver  = ['SI=F', 'XAGUSD', 'SILVER'].includes(sym);
     const isOil     = ['CL=F', 'BZ=F'].includes(sym);
     const isGas     = ['NG=F'].includes(sym);

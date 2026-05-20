@@ -79,6 +79,21 @@ export function evaluateInstitutionalProtocol(entry: ScreenerEntry): Institution
     score += 1;
   }
 
+  // Institutional validation: regime confidence + Super Signal confirmation
+  const regimeConfidence = entry.regime?.confidence ?? 0;
+  const isTrendingRegime = entry.regime?.regime === 'trending';
+  if (isTrendingRegime && regimeConfidence >= 55) {
+    score += 1;
+  }
+
+  if (entry.superSignal?.status === 'ok' && (entry.superSignal.confidence ?? 0) >= 65) {
+    score += 1;
+  }
+
+  if (entry.smartMoneyScore != null && Math.abs(entry.smartMoneyScore) >= 45) {
+    score += 1;
+  }
+
   // FIX #3: Removed quadruple -10 penalty stacking.
   // Previously, missing liquidity/volume/momentum + ranging each subtracted -10,
   // making score always <= -40 → always clamped to 0 → always NO TRADE.
@@ -88,21 +103,24 @@ export function evaluateInstitutionalProtocol(entry: ScreenerEntry): Institution
   let decision: InstitutionalDecision['decision'] = 'NO TRADE';
   let message = 'Market invalid';
 
-  // VALID TRADE requires all three mandatory gates
-  if (score >= 4 && checklist.volumeExpansion && checklist.momentumFlow) {
-    if (checklist.liquiditySweep) {
-      decision = 'VALID TRADE';
-      message = 'All institutional conditions met';
-    } else {
-      // Strong setup but no sweep — still actionable with caution
-      decision = 'LOW CONFIDENCE SETUP';
-      message = 'Setup valid but no liquidity sweep detected';
-    }
-  } else if (score >= 2 || checklist.zoneAlignment) {
+  const hasMinimumConfluence = score >= 4;
+  const hasValidTradeShape = checklist.volumeExpansion && checklist.momentumFlow && checklist.liquiditySweep;
+  const hasCautionTradeShape = checklist.volumeExpansion && checklist.momentumFlow;
+
+  if (hasValidTradeShape && score >= 5) {
+    decision = 'VALID TRADE';
+    message = 'All institutional conditions met';
+  } else if (hasCautionTradeShape && score >= 4) {
     decision = 'LOW CONFIDENCE SETUP';
-    if (!checklist.bosConfirmed) message = 'Awaiting trend confirmation';
-    else if (!checklist.volumeExpansion) message = 'Volume expansion required';
-    else message = 'Partial confluence — monitor for completion';
+    message = 'Valid setup with institutional structure; liquidity sweep is weak or missing';
+  } else if (hasMinimumConfluence || checklist.zoneAlignment || regimeConfidence >= 55) {
+    decision = 'LOW CONFIDENCE SETUP';
+    if (!checklist.bosConfirmed) message = 'Awaiting stronger structural confirmation';
+    else if (!checklist.volumeExpansion) message = 'Volume expansion required for entry';
+    else message = 'Partial institutional confluence; watch for follow-through';
+  } else if (score >= 2) {
+    decision = 'WAIT';
+    message = 'Watch: building structure but not yet institutional grade';
   } else {
     if (state === 'RANGING') message = 'Ranging market — no institutional edge';
     else if (isMomentumWeak) message = 'Weak momentum — no directional flow';

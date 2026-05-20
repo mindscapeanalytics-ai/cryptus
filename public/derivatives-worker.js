@@ -365,10 +365,15 @@ function connectFundingStream() {
 
         const now = Date.now();
         lastDataReceived = now;
+        const symbolsToTrack = new Set([
+          ...Array.from(currentSymbols).map(s => s.toUpperCase()),
+          ...WHALE_WATCH_SYMBOLS.map(s => s.toUpperCase()),
+        ]);
+
         for (const item of data) {
-          // Only track symbols we care about
-          const symbol = item.s;
-          if (!symbol || !currentSymbols.has(symbol)) continue;
+          // Only track symbols we care about, including default top derivatives symbols.
+          const symbol = (item.s || '').toUpperCase();
+          if (!symbol || !symbolsToTrack.has(symbol)) continue;
 
           const rate = parseFloat(item.r);
           const markPrice = parseFloat(item.p);

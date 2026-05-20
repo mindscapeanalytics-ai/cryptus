@@ -130,7 +130,7 @@ const FALLBACK_SYMBOLS = [
 // ── Multi-Market definitions ──
 // BINANCE_NATIVE_SPECIAL: Symbols supported by Binance that are NOT primarily Crypto.
 const BINANCE_NATIVE_SPECIAL = [
-  'PAXGUSDT', 'XAUTUSDT',                    // Metals (Gold)
+  'PAXGUSDT', 'XAUUSDT', 'XAUTUSDT',          // Metals (Gold)
   'EURUSDT', 'GBPUSDT', 'AUDUSDT',            // Forex Majors
 ];
 
