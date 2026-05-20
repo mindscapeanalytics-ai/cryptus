@@ -40,6 +40,7 @@ type SubscriptionLite = {
   periodEnd: Date | null;
   trialEnd: Date | null;
   endedAt: Date | null;
+  updatedAt?: Date | null;
 };
 
 function isOwnerUser(user: EntitlementUser | null): boolean {
@@ -56,9 +57,49 @@ function getBestSubscription(subscriptions: SubscriptionLite[]): SubscriptionLit
 
   if (subscriptions.length === 0) return null;
 
-  return subscriptions
-    .slice()
-    .sort((a, b) => (statusPriority[a.status] ?? 99) - (statusPriority[b.status] ?? 99))[0];
+  const now = Date.now();
+  const graceMs = AUTH_CONFIG.PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
+  const evaluate = (sub: SubscriptionLite) => {
+    const periodEndMs = sub.periodEnd ? new Date(sub.periodEnd).getTime() : null;
+    const explicitTrialEndMs = sub.trialEnd ? new Date(sub.trialEnd).getTime() : null;
+    const trialEndMs = explicitTrialEndMs ?? periodEndMs ?? 0;
+    const isActive = sub.status === "active";
+    const isTrialing = sub.status === "trialing";
+    const isPastDue = sub.status === "past_due";
+    const activeAndExpired = isActive && !!periodEndMs && !Number.isNaN(periodEndMs) && periodEndMs < now;
+    const withinPastDueGrace =
+      isPastDue && !!periodEndMs && !Number.isNaN(periodEndMs) && now <= periodEndMs + graceMs;
+    const trialActive = isTrialing && !!trialEndMs && !Number.isNaN(trialEndMs) && now < trialEndMs;
+    const isValid = (isActive && !activeAndExpired) || trialActive || withinPastDueGrace;
+
+    return {
+      sub,
+      isValid,
+      priority: statusPriority[sub.status] ?? 99,
+      endMs: trialEndMs,
+      updatedAtMs: sub.updatedAt ? new Date(sub.updatedAt).getTime() : 0,
+    };
+  };
+
+  const validSubscriptions = subscriptions
+    .map(evaluate)
+    .filter((entry) => entry.isValid)
+    .sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.endMs !== b.endMs) return b.endMs - a.endMs;
+      return b.updatedAtMs - a.updatedAtMs;
+    });
+
+  if (validSubscriptions.length > 0) {
+    return validSubscriptions[0].sub;
+  }
+
+  return subscriptions.slice().sort((a, b) => {
+    const aUpdated = a.endedAt ? new Date(a.endedAt).getTime() : 0;
+    const bUpdated = b.endedAt ? new Date(b.endedAt).getTime() : 0;
+    return bUpdated - aUpdated;
+  })[0] || null;
 }
 
 function deriveOptions(maxRecords: number): number[] {
@@ -146,6 +187,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
         periodEnd: true,
         trialEnd: true,
         endedAt: true,
+        updatedAt: true,
       },
     });
   } catch (error: any) {
@@ -182,7 +224,7 @@ export async function resolveEntitlementsForUser(user: EntitlementUser | null): 
     }
   }
 
-  if (!best) {
+  if (!hasPaidAccess && !isTrialing) {
     const trialMs = AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
     isTrialing = now < user.createdAt.getTime() + trialMs;
   }

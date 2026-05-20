@@ -9,6 +9,7 @@ type SubscriptionStatusRef = {
   endedAt: Date | null;
   periodEnd: Date | null;
   trialEnd: Date | null;
+  updatedAt?: Date | null;
 };
 
 export async function getSessionUser() {
@@ -75,7 +76,7 @@ export async function checkSubscription(
   const subs = await prisma.subscription.findMany({
     where: { referenceId },
     orderBy: { updatedAt: "desc" },
-    select: { status: true, endedAt: true, periodEnd: true, trialEnd: true },
+    select: { status: true, endedAt: true, periodEnd: true, trialEnd: true, updatedAt: true },
   }) as SubscriptionStatusRef[];
 
   const user = await prisma.user.findUnique({
@@ -84,13 +85,46 @@ export async function checkSubscription(
   });
 
   const statusPriority: Record<string, number> = { active: 0, trialing: 1, past_due: 2 };
-  const subscription = subs.length > 0
-    ? subs.sort((a, b) => {
-      const pa = statusPriority[a.status ?? ""] ?? 99;
-      const pb = statusPriority[b.status ?? ""] ?? 99;
-      return pa - pb;
-    })[0]
-    : null;
+  const now = Date.now();
+  const trialMs = AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
+  const fallbackTrialEndMs = user ? user.createdAt.getTime() + trialMs : null;
+  const graceMs = AUTH_CONFIG.PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
+  const evaluateSub = (sub: SubscriptionStatusRef) => {
+    const periodEndMs = sub.periodEnd ? new Date(sub.periodEnd).getTime() : null;
+    const explicitTrialEndMs = sub.trialEnd ? new Date(sub.trialEnd).getTime() : null;
+    const trialEndMs = explicitTrialEndMs ?? periodEndMs ?? fallbackTrialEndMs;
+    const isActive = sub.status === "active";
+    const isTrialing = sub.status === "trialing";
+    const isPastDue = sub.status === "past_due";
+    const activeAndExpired = isActive && !!periodEndMs && !Number.isNaN(periodEndMs) && periodEndMs < now;
+    const withinPastDueGrace =
+      isPastDue && !!periodEndMs && !Number.isNaN(periodEndMs) && now <= periodEndMs + graceMs;
+    const trialActive = isTrialing && !!trialEndMs && !Number.isNaN(trialEndMs) && now < trialEndMs;
+    const valid = (isActive && !activeAndExpired) || trialActive || withinPastDueGrace;
+    return {
+      sub,
+      valid,
+      priority: statusPriority[sub.status ?? ""] ?? 99,
+      endMs: trialEndMs ?? 0,
+      updatedAtMs: sub.updatedAt ? new Date(sub.updatedAt).getTime() : 0,
+    };
+  };
+
+  const validSubscriptions = subs
+    .map(evaluateSub)
+    .filter((entry) => entry.valid)
+    .sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.endMs !== b.endMs) return b.endMs - a.endMs;
+      return b.updatedAtMs - a.updatedAtMs;
+    });
+
+  const subscription = validSubscriptions.length > 0
+    ? validSubscriptions[0].sub
+    : subs.length > 0
+      ? subs[0]
+      : null;
 
   if (subscription) {
     const isActive = subscription.status === "active";

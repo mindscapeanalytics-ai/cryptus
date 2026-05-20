@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         billingInterval: plan === "yearly" ? "year" : "month",
         periodStart: now,
         periodEnd: periodEndDate,
+        trialEnd: null,
         cancelAtPeriodEnd: false,
         endedAt: null,
         canceledAt: null,
@@ -90,14 +91,6 @@ export async function POST(request: Request) {
       status: "active",
       periodStart: now,
       periodEnd: periodEndDate,
-      invoiceRef: invoiceRef.trim(),
-      renewalNotes: renewalNotes?.trim() || null,
-    },
-  });
-
-  return NextResponse.json({
-    ok: true,
-    message: `Manual subscription created for ${targetUser.email}.`,
-    subscriptionId: created.id,
+      trialEnd: null,
   });
 }
