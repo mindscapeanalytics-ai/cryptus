@@ -710,6 +710,23 @@ export function computeStrategyScore(params: {
     williamsR?: boolean;
     cci?: boolean;
   };
+  symbol?: string; // HACK: Gold magnets and DXY checks
+  smc?: {
+    fvg?: { type: 'bullish' | 'bearish'; top: number; bottom: number; } | null;
+    orderBlock?: { type: 'bullish' | 'bearish'; top: number; bottom: number; strength: 'weak' | 'moderate' | 'strong'; } | null;
+  } | null;
+  liquidity?: { bsl: number | null; ssl: number | null; sweep: 'bullish' | 'bearish' | 'none' | null; } | null;
+  curCandleSize?: number | null;
+  curCandleVol?: number | null;
+  avgBarSize1m?: number | null;
+  open1m?: number | null;
+  close1m?: number | null;
+  high1m?: number | null;
+  low1m?: number | null;
+  fibLevels?: any;
+  consecutiveCandles?: 'bullish' | 'bearish' | 'none'; // HACK-08
+  dxyDivergence?: boolean; // HACK-11
+  scoreVelocity?: boolean; // HACK-12
 }): StrategyResult {
   let score = 0;
   
@@ -1291,7 +1308,97 @@ export function computeStrategyScore(params: {
 
   // Final validation guard: normalized score
   let normalized = factors > 0 ? score / factors : 0;
-  
+
+  // ── 12 PINE SCRIPT v38 HACKS PORTING ──
+  let hackScore = 0;
+  const isGold = params.symbol === 'XAUUSDT' || params.symbol === 'PAXGUSDT' || params.symbol === 'GOLD';
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  const utcMin = now.getUTCMinutes();
+
+  // ✓ HACK-01: ICT Silver Bullet FVG Precision (+3 score in SB window + FVG + CHoCH)
+  const isSilverBullet = (utcHour === 3 || utcHour === 4) || (utcHour === 10 || utcHour === 11) || (utcHour === 14 || utcHour === 15);
+  if (isSilverBullet && params.smc?.fvg) {
+    const fvgType = params.smc.fvg.type;
+    const bonus = fvgType === 'bullish' ? 3 : -3;
+    hackScore += bonus;
+    reasons.push(`HACK-01: ICT Silver Bullet FVG (${fvgType})`);
+  }
+
+  // ✓ HACK-02: LDN/NY Overlap Power Window (+2 at 12:00 UTC peak liquidity)
+  if (utcHour === 12 || utcHour === 13) {
+    if (params.momentum && params.momentum > 0) { hackScore += 2; reasons.push('HACK-02: LDN/NY Overlap Power Window (Bullish)'); }
+    else if (params.momentum && params.momentum < 0) { hackScore -= 2; reasons.push('HACK-02: LDN/NY Overlap Power Window (Bearish)'); }
+  }
+
+  // ✓ HACK-03: Trap-Aware Smart Money Dampener (-3 for bull/bear traps)
+  if (params.liquidity?.sweep) {
+    if (params.liquidity.sweep === 'bearish' && normalized > 0) { hackScore -= 3; reasons.push('HACK-03: Bull Trap Detected (Liquidity Sweep)'); }
+    else if (params.liquidity.sweep === 'bullish' && normalized < 0) { hackScore += 3; reasons.push('HACK-03: Bear Trap Detected (Liquidity Sweep)'); }
+  }
+
+  // ✓ HACK-04: MSS Retest Premium Entry (+3 for structure shift + retest + rejection)
+  if (params.smc?.orderBlock && params.liquidity?.sweep) {
+     if (params.smc.orderBlock.type === 'bullish' && params.liquidity.sweep === 'bullish') { hackScore += 3; reasons.push('HACK-04: MSS Retest Premium Entry (Bullish)'); }
+     if (params.smc.orderBlock.type === 'bearish' && params.liquidity.sweep === 'bearish') { hackScore -= 3; reasons.push('HACK-04: MSS Retest Premium Entry (Bearish)'); }
+  }
+
+  // ✓ HACK-05 & HACK-10: Gold Century & Half-Century Magnet
+  if (isGold) {
+    const p = params.price;
+    const rem100 = p % 100;
+    const rem50 = p % 50;
+    if (rem100 < 2 || rem100 > 98) {
+      if (normalized > 0) { hackScore += 1; reasons.push('HACK-05: Gold Century-Level Magnet (Bullish)'); }
+      else if (normalized < 0) { hackScore -= 1; reasons.push('HACK-05: Gold Century-Level Magnet (Bearish)'); }
+    } else if (rem50 < 2 || rem50 > 48) {
+      if (normalized > 0) { hackScore += 1; reasons.push('HACK-10: Gold Half-Century Magnet (Bullish)'); }
+      else if (normalized < 0) { hackScore -= 1; reasons.push('HACK-10: Gold Half-Century Magnet (Bearish)'); }
+    }
+  }
+
+  // ✓ HACK-06: Asian Sweep → London Reversal (+4 — highest-conviction ICT setup)
+  if (utcHour >= 7 && utcHour <= 10 && params.liquidity?.sweep) {
+     if (params.liquidity.sweep === 'bullish') { hackScore += 4; reasons.push('HACK-06: Asian Sweep → London Reversal (Bullish)'); }
+     else if (params.liquidity.sweep === 'bearish') { hackScore -= 4; reasons.push('HACK-06: Asian Sweep → London Reversal (Bearish)'); }
+  }
+
+  // ✓ HACK-07: NY Macro Time Windows (+2 in 14:50-15:10 / 15:50-16:10 UTC)
+  if ((utcHour === 14 && utcMin >= 50) || (utcHour === 15 && utcMin <= 10) || (utcHour === 15 && utcMin >= 50) || (utcHour === 16 && utcMin <= 10)) {
+     if (params.momentum && params.momentum > 0) { hackScore += 2; reasons.push('HACK-07: NY Macro Time Window (Bullish)'); }
+     else if (params.momentum && params.momentum < 0) { hackScore -= 2; reasons.push('HACK-07: NY Macro Time Window (Bearish)'); }
+  }
+
+  // ✓ HACK-08: Consecutive Institutional Delivery (+2 for 3+ candles + rising vol)
+  if (params.consecutiveCandles) {
+    if (params.consecutiveCandles === 'bullish') { hackScore += 2; reasons.push('HACK-08: Consecutive Institutional Delivery (Bullish)'); }
+    else if (params.consecutiveCandles === 'bearish') { hackScore -= 2; reasons.push('HACK-08: Consecutive Institutional Delivery (Bearish)'); }
+  }
+
+  // ✓ HACK-09: Wick Rejection Quality Dampener (-2 for >60% wick, exempts SFP/OB)
+  if (params.curCandleSize && params.curCandleSize > 0 && params.open1m && params.close1m && params.high1m && params.low1m) {
+    const body = Math.abs(params.close1m - params.open1m);
+    if (body / params.curCandleSize < 0.4) {
+      if (normalized > 0) { hackScore -= 2; reasons.push('HACK-09: Wick Rejection Quality Dampener (Bullish Suppressed)'); }
+      else if (normalized < 0) { hackScore += 2; reasons.push('HACK-09: Wick Rejection Quality Dampener (Bearish Suppressed)'); }
+    }
+  }
+
+  // ✓ HACK-11: DXY Inverse Strength Amplifier (+2 when gold+DXY extreme divergence)
+  if (params.dxyDivergence) {
+    if (normalized > 0) { hackScore += 2; reasons.push('HACK-11: DXY Inverse Strength Amplifier (Bullish)'); }
+    else if (normalized < 0) { hackScore -= 2; reasons.push('HACK-11: DXY Inverse Strength Amplifier (Bearish)'); }
+  }
+
+  // ✓ HACK-12: Score Velocity Surge Bonus (+2 for 3+ bars accelerating score)
+  if (params.scoreVelocity) {
+    if (normalized > 0) { hackScore += 2; reasons.push('HACK-12: Score Velocity Surge Bonus (Bullish)'); }
+    else if (normalized < 0) { hackScore -= 2; reasons.push('HACK-12: Score Velocity Surge Bonus (Bearish)'); }
+  }
+
+  // Scale the hackScore proportionally (1 point = 2 on the normalized scale so it matches the script)
+  normalized += hackScore * 2;
+    
   // ── Accuracy Pivot Guard (Institutional Sanity & Stop-Loss) ──
   // 1. TF-Resistance Guard: Dampen if fighting higher TF extremes without volume confirmation
   if (!params.volumeSpike) {

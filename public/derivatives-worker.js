@@ -83,6 +83,7 @@ let liquidationWs = null;      // Bybit
 let binanceLiqWs = null;       // Binance Aggregated Force Orders
 let whaleWsSockets = new Map();     // symbol → WebSocket
 let whaleOpenSockets = 0;
+let activeWhaleSymbols = new Set(); // Tracks currently connected whale symbols
 
 // Reconnection tracking
 let reconnectAttempts = new Map();  // streamKey → attempt count
@@ -659,6 +660,7 @@ function connectWhaleStream() {
         .filter(isFuturesUsdtSymbol)
         .map(s => s.toLowerCase())
     ]);
+    activeWhaleSymbols = activeSet;
     const allSymbols = Array.from(activeSet);
     const MAX_SYMBOLS_PER_SOCKET = 80;
     const MAX_WHALE_SOCKETS = 3;
@@ -1198,9 +1200,9 @@ function updateSymbols(symbols) {
   }
 
   // ── Intelligence: Whale Stream Resynchronization ──
-  // If any current symbol is missing from the whale stream, reconnect to add it.
-  // This ensures whale alerts work for ANY symbol the user views, not just the top 20.
-  const needsWhaleRefresh = Array.from(currentSymbols).some(s => !WHALE_WATCH_SYMBOLS.includes(s.toLowerCase()));
+  // Reconnect whale stream only if we are watching a symbol not currently connected
+  const targetWhaleSymbols = Array.from(currentSymbols).filter(isFuturesUsdtSymbol).map(s => s.toLowerCase());
+  const needsWhaleRefresh = targetWhaleSymbols.some(s => !activeWhaleSymbols.has(s));
   if (needsWhaleRefresh && isRunning) {
     // Reconnect whale stream with the new symbols (throttled naturally by scheduleReconnect logic if needed)
     connectWhaleStream();

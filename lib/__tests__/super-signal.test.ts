@@ -74,6 +74,9 @@ function createMockEntry(overrides: Partial<ScreenerEntry> = {}): ScreenerEntry 
     market: 'Crypto',
     marketState: 'OPEN',
     open1m: 49950,
+    close1m: 50000,
+    high1m: 50100,
+    low1m: 49900,
     volStart1m: 45000000,
     historicalCloses: Array.from({ length: 50 }, (_, i) => 49000 + i * 20),
     regime: {

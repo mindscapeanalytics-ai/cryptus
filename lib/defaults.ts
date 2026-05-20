@@ -65,22 +65,9 @@ export const DASHBOARD_DEFAULTS = {
     'rsi5m',          // 5m RSI timeframe
     'rsi15m',         // Primary RSI timeframe
     'rsi1h',          // 1h RSI timeframe
-    'ema9',           // Fast EMA
-    'ema21',          // Slow EMA
-    'emaCross',       // Trend direction
-    'macdHistogram',  // Momentum
-    'bbUpper',        // Bollinger Upper
-    'bbLower',        // Bollinger Lower
-    'bbPosition',     // Bollinger Position
-    'stochK',         // Stochastic RSI
-    'vwapDiff',       // Volume-weighted price
     'confluence',     // Multi-indicator agreement
     'divergence',     // Divergence/reversal signals
     'momentum',       // Price momentum
-    'atr',            // Average True Range
-    'adx',            // Trend strength
-    'longCandle',     // Volatility detection
-    'volumeSpike',    // Volume surge detection
     'fundingRate',    // Derivatives funding
     'orderFlow',      // Order flow pressure
     'smartMoney',     // Smart money score

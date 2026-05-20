@@ -358,6 +358,9 @@ function buildTickerOnlyEntry(sym: string, ticker: BinanceTicker, nowTs: number)
     updatedAt: nowTs,
     market: getMarketType(sym),
     open1m: null,
+    close1m: null,
+    high1m: null,
+    low1m: null,
     volStart1m: null,
     longCandle: false,
     obvTrend: 'none',
@@ -1618,6 +1621,28 @@ function buildEntry(
       regime: regimeResult.regime as any,
       tradingStyle,
       superSignalScore: undefined,
+      symbol: sym,
+      smc,
+      liquidity: liquiditySweepResult,
+      curCandleSize,
+      curCandleVol,
+      avgBarSize1m,
+      open1m,
+      close1m,
+      high1m,
+      low1m,
+      fibLevels,
+      // Need to compute consecutiveCandles here for hack-08
+      consecutiveCandles: (
+        (closes15m.length >= 3 && 
+         closes15m[closes15m.length-1] > closes15m[closes15m.length-2] &&
+         closes15m[closes15m.length-2] > closes15m[closes15m.length-3]) ? 'bullish' :
+        (closes15m.length >= 3 && 
+         closes15m[closes15m.length-1] < closes15m[closes15m.length-2] &&
+         closes15m[closes15m.length-2] < closes15m[closes15m.length-3]) ? 'bearish' : 'none'
+      ) as 'bullish' | 'bearish' | 'none',
+      dxyDivergence: false, // DXY proxy would require multi-symbol data, stub for now
+      scoreVelocity: false, // Compute score velocity over time if we have previous scores
     });
 
     const primaryRsi = rsi15m ?? rsi1m;
@@ -1679,15 +1704,30 @@ function buildEntry(
       williamsR,
       avgBarSize1m,
       avgVolume1m,
+      curCandleSize,
+      curCandleVol,
+      candleDirection: (open1m !== null && close1m !== null) ? (close1m > open1m ? 'bullish' : close1m < open1m ? 'bearish' : 'neutral') : null,
+      open1m,
+      close1m,
+      high1m,
+      low1m,
+      consecutiveCandles: (
+        (closes15m.length >= 3 && 
+         closes15m[closes15m.length-1] > closes15m[closes15m.length-2] &&
+         closes15m[closes15m.length-2] > closes15m[closes15m.length-3]) ? 'bullish' :
+        (closes15m.length >= 3 && 
+         closes15m[closes15m.length-1] < closes15m[closes15m.length-2] &&
+         closes15m[closes15m.length-2] < closes15m[closes15m.length-3]) ? 'bearish' : 'none'
+      ) as 'bullish' | 'bearish' | 'none',
+      dxyDivergence: false,
+      scoreVelocity: false,
+      volStart1m,
+      momentumPriceBaseline: closes15m[Math.max(0, closes15m.length - 10)],
+      vwapPriceBaseline: vwap,
     };
 
     // Update the long-lived baseline cache for persistent volatility checks
     updateBaselineCache(sym, entry_partial.avgBarSize1m, entry_partial.avgVolume1m);
-
-    // Calculate candle direction and long candle flag (using pre-computed metrics)
-    const candleDirection = (close1m !== null && open1m !== null)
-      ? (close1m > open1m ? 'bullish' : close1m < open1m ? 'bearish' : 'neutral')
-      : null;
 
     // Calculate long candle flag
     const longCandle = curCandleSize !== null && entry_partial.avgBarSize1m !== null && entry_partial.avgBarSize1m > 0
@@ -1718,7 +1758,7 @@ function buildEntry(
       bb: { upper: bb?.upper, middle: bb?.middle, lower: bb?.lower, position: bb?.position },
       stoch: { k: stochRsi?.k, d: stochRsi?.d },
       other: { vwap, vwapDiff, atr, adx, momentum },
-      candle: { curCandleSize, curCandleVol, candleDirection, longCandle },
+      candle: { curCandleSize, curCandleVol, candleDirection: entry_partial.candleDirection, longCandle },
       strategy: { score: strategy.score, signal: strategy.signal, label: strategy.label },
       coverage: indicatorCoverage,
     });
@@ -1727,7 +1767,7 @@ function buildEntry(
       ...entry_partial,
       curCandleSize,
       curCandleVol,
-      candleDirection,
+      candleDirection: (entry_partial.candleDirection as 'bullish' | 'bearish' | 'neutral' | null),
       marketState: ticker?.marketState || 'REGULAR',
       rsiState1m,
       rsiState5m,
@@ -1838,6 +1878,20 @@ function applyCurrentCycleCoherence(
     tradingStyle,
     smartMoneyScore: entry.smartMoneyScore ?? undefined,
     superSignalScore: getTrustedSuperScore(),
+    symbol: entry.symbol,
+    smc: entry.smc,
+    liquidity: entry.liquidity,
+    curCandleSize: entry.curCandleSize,
+    curCandleVol: entry.curCandleVol,
+    avgBarSize1m: entry.avgBarSize1m,
+    open1m: entry.open1m,
+    close1m: entry.close1m,
+    high1m: entry.high1m,
+    low1m: entry.low1m,
+    fibLevels: entry.fibLevels,
+    consecutiveCandles: entry.consecutiveCandles,
+    dxyDivergence: entry.dxyDivergence,
+    scoreVelocity: entry.scoreVelocity,
   });
 
   entry.strategyScore = strategy.score;

@@ -40,6 +40,11 @@ function getOrCreateWorker(): Worker | null {
   try {
     // Cache-bust so the Service Worker precache doesn't serve a stale version
     derivativesWorker = new Worker(`/derivatives-worker.js?v=${Date.now()}`);
+    derivativesWorker.onerror = (e) => {
+      console.error('[DerivativesIntel] Worker error, resetting...', e);
+      derivativesWorker = null;
+      workerStarted = false;
+    };
     console.log('[DerivativesIntel] Worker created');
     return derivativesWorker;
   } catch (e) {
@@ -442,31 +447,37 @@ export function useSymbolDerivatives(symbol: string, enabled: boolean = true) {
     const handleMessage = (e: MessageEvent) => {
       const { type, payload } = e.data;
 
+      const isMatch = (sym: string) => {
+        const s1 = sym.toUpperCase();
+        const s2 = symbol.toUpperCase();
+        return s1 === s2 || s1 === s2 + 'USDT' || s1 + 'USDT' === s2;
+      };
+
       if (type === 'SNAPSHOT') {
         const fundingEntries = (payload?.fundingRates ?? []) as [string, FundingRateData][];
         const flowEntries = (payload?.orderFlow ?? []) as [string, OrderFlowData][];
-        const fundingMatch = fundingEntries.find(([sym]) => sym === symbol);
-        const flowMatch = flowEntries.find(([sym]) => sym === symbol);
+        const fundingMatch = fundingEntries.find(([sym]) => isMatch(sym));
+        const flowMatch = flowEntries.find(([sym]) => isMatch(sym));
         if (fundingMatch) setFunding(fundingMatch[1]);
         if (flowMatch) setFlow(flowMatch[1]);
       }
 
       if (type === 'FUNDING_UPDATE') {
         const entries = payload as [string, FundingRateData][];
-        const match = entries.find(([sym]) => sym === symbol);
+        const match = entries.find(([sym]) => isMatch(sym));
         if (match) setFunding(match[1]);
       }
 
       if (type === 'ORDER_FLOW_UPDATE') {
         const entries = payload as [string, OrderFlowData][];
-        const match = entries.find(([sym]) => sym === symbol);
+        const match = entries.find(([sym]) => isMatch(sym));
         if (match) setFlow(match[1]);
       }
 
       // Compute per-symbol Smart Money Pressure from the global SMART_MONEY_UPDATE
       if (type === 'SMART_MONEY_UPDATE') {
         const entries = payload as [string, SmartMoneyPressure][];
-        const match = entries.find(([sym]) => sym === symbol);
+        const match = entries.find(([sym]) => isMatch(sym));
         if (match) setPressure(match[1]);
       }
     };

@@ -74,6 +74,9 @@ export interface ScreenerEntry {
   rsiDivergenceCustom?: 'bullish' | 'bearish' | 'none';
   rsiCrossover?: 'bullish_reversal' | 'bearish_reversal' | 'none';
   rsiPeriodAtCreation?: number; // The period used for rsiCustom and rsiStateCustom
+  consecutiveCandles?: 'bullish' | 'bearish' | 'none';
+  dxyDivergence?: boolean;
+  scoreVelocity?: boolean;
   // ── Live RSI state (for client-side approximation) ──
   rsiState1m: { avgGain: number; avgLoss: number; lastClose: number } | null;
   rsiState5m: { avgGain: number; avgLoss: number; lastClose: number } | null;
@@ -95,6 +98,9 @@ export interface ScreenerEntry {
   marketState: string | null;
   // ── High-Accuracy Real-time Initialization ──
   open1m: number | null;
+  close1m: number | null;
+  high1m: number | null;
+  low1m: number | null;
   volStart1m: number | null;
   momentumPriceBaseline?: number | null;
   vwapPriceBaseline?: number | null;

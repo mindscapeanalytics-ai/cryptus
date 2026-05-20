@@ -157,19 +157,11 @@ const COL_WIDTHS = {
   change: "w-[95px] min-w-[95px]",
   volume: "w-[100px] min-w-[100px]",
   rsi: "w-[80px] min-w-[80px]",
-  ema: "w-[100px] min-w-[100px]",
-  trend: "w-[85px] min-w-[85px]",
-  macd: "w-[95px] min-w-[95px]",
-  bb: "w-[90px] min-w-[90px]",
-  stoch: "w-[85px] min-w-[85px]",
   signal: "w-[125px] min-w-[125px]",  // Expanded from 115px to guarantee Strategy label visibility
   edit: "w-[50px] min-w-[50px]",
   confluence: "w-[95px] min-w-[95px]",
   divergence: "w-[90px] min-w-[90px]",
   momentum: "w-[85px] min-w-[85px]",
-  atr: "w-[80px] min-w-[80px]",
-  adx: "w-[80px] min-w-[80px]",
-  vwap: "w-[85px] min-w-[85px]",
   funding: "w-[100px] min-w-[100px]",  // Increased from 95px to prevent overflow
   flow: "w-[95px] min-w-[95px]",      // Increased from 90px to prevent overflow
   smart: "w-[90px] min-w-[90px]",
@@ -1189,166 +1181,7 @@ const ScreenerRow = memo(function ScreenerRow({
         />
       )}
 
-      {visibleCols.has('ema9') && (
-        <IndicatorCell
-          value={display.ema9}
-          formatted={(globalUseEma && display.ema9 != null) ? `$${formatPrice(display.ema9, entry.market)}` : '-'}
-          colorClass={globalUseEma ? "text-slate-300" : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.ema}
-          isSyncing={isSyncing}
-        />
-      )}
-      {visibleCols.has('ema21') && (
-        <IndicatorCell
-          value={display.ema21}
-          formatted={(globalUseEma && display.ema21 != null) ? `$${formatPrice(display.ema21, entry.market)}` : '-'}
-          colorClass={globalUseEma ? "text-slate-300" : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.ema}
-          isSyncing={isSyncing}
-        />
-      )}
 
-      {visibleCols.has('emaCross') && (
-        <IndicatorCell
-          value={null}
-          formatted={display.emaCross === 'bullish' ? 'BULL' : display.emaCross === 'bearish' ? 'BEAR' : 'NEUTRAL'}
-          colorClass={display.emaCross === 'bullish' ? "text-[#39FF14]" : display.emaCross === 'bearish' ? "text-[#FF4B5C]" : "text-slate-500"}
-          widthClass={COL_WIDTHS.trend}
-          align="right"
-        />
-      )}
-
-      {visibleCols.has('macdHistogram') && (
-        <IndicatorCell
-          value={display.macdHistogram}
-          formatted={display.macdHistogram != null ? formatNum(display.macdHistogram, 4) : '-'}
-          colorClass={display.macdHistogram != null ? (display.macdHistogram! > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]") : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.macd}
-          intensity={true}
-          isSyncing={isSyncing}
-        />
-      )}
-
-      {visibleCols.has('bbUpper') && (
-        <IndicatorCell
-          value={display.bbUpper}
-          formatted={(globalUseBb && display.bbUpper != null) ? `$${formatPrice(display.bbUpper, entry.market)}` : '-'}
-          colorClass={globalUseBb ? "text-[#FF4B5C]/70" : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.bb}
-          isSyncing={isSyncing}
-        />
-      )}
-      {visibleCols.has('bbLower') && (
-        <IndicatorCell
-          value={display.bbLower}
-          formatted={(globalUseBb && display.bbLower != null) ? `$${formatPrice(display.bbLower, entry.market)}` : '-'}
-          colorClass={globalUseBb ? "text-[#39FF14]/70" : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.bb}
-          isSyncing={isSyncing}
-        />
-      )}
-      {visibleCols.has('bbPosition') && (
-        <IndicatorCell
-          value={display.bbPosition}
-          formatted={(globalUseBb && display.bbPosition != null) ? formatNum(display.bbPosition) : '-'}
-          colorClass={globalUseBb ? (display.bbPosition! < 0.2 ? "text-[#39FF14]" : display.bbPosition! > 0.8 ? "text-[#FF4B5C]" : "text-slate-400") : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.bb}
-          isSyncing={isSyncing}
-        />
-      )}
-
-      {visibleCols.has('stochK') && (
-        <td className={cn(
-          "px-3 py-4 text-right text-[10px] tabular-nums font-bold font-mono transition-opacity duration-300",
-          !globalUseStoch && "opacity-20 grayscale"
-        )}>
-          {globalUseStoch ? (
-            <>
-              <span className={getRsiColor(display.stochK)}>{formatRsi(display.stochK)}</span>
-              {display.stochD !== null && <span className="text-slate-600 ml-1">/{display.stochD.toFixed(0)}</span>}
-            </>
-          ) : <span className="text-slate-700">-</span>}
-        </td>
-      )}
-
-      {visibleCols.has('confluence') && (
-        <td className={cn(
-          "px-3 py-4 text-right text-[10px] font-black uppercase tracking-tighter transition-all duration-300 whitespace-nowrap",
-          display.confluence >= 15 ? "text-[#39FF14] drop-shadow-[0_0_8px_rgba(57,255,20,0.3)]" :
-            display.confluence <= -15 ? "text-[#FF4B5C] drop-shadow-[0_0_8px_rgba(255,75,92,0.3)]" :
-              "text-slate-600"
-        )}>
-          {display.confluenceLabel || '-'}
-        </td>
-      )}
-
-      {visibleCols.has('divergence') && (
-        <td className={cn("px-3 py-4 text-right text-[10px] font-black uppercase whitespace-nowrap overflow-hidden", COL_WIDTHS.divergence)}>
-          {(() => {
-            // Show RSI crossover if available, otherwise show divergence
-            const crossover = display.rsiCrossover;
-            const divergence = entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence;
-            if (crossover === 'bullish_reversal') {
-              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="RSI Bullish Reversal – crossed back above oversold">↑ Rev</span>;
-            }
-            if (crossover === 'bearish_reversal') {
-              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="RSI Bearish Reversal – crossed back below overbought">↓ Rev</span>;
-            }
-            if (divergence === 'bullish') {
-              return <span className="text-[#39FF14] drop-shadow-[0_0_6px_rgba(57,255,20,0.3)]" title="Bullish Divergence – price lower low, RSI higher low">Bull Div</span>;
-            }
-            if (divergence === 'bearish') {
-              return <span className="text-[#FF4B5C] drop-shadow-[0_0_6px_rgba(255,75,92,0.3)]" title="Bearish Divergence – price higher high, RSI lower high">Bear Div</span>;
-            }
-            return <span className="text-slate-800">-</span>;
-          })()}
-        </td>
-      )}
-
-      {visibleCols.has('vwapDiff') && (
-        <IndicatorCell
-          value={display.vwapDiff}
-          formatted={globalUseVwap && display.vwapDiff !== null ? formatPct(display.vwapDiff) : '-'}
-          colorClass={globalUseVwap ? (display.vwapDiff! > 0 ? "text-[#39FF14]" : "text-[#FF4B5C]") : "text-slate-700/40"}
-          widthClass={COL_WIDTHS.vwap}
-          intensity={true}
-          isSyncing={isSyncing}
-        />
-      )}
-
-      {visibleCols.has('longCandle') && (
-        (() => {
-          const hasData = globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m && display.avgBarSize1m > 0;
-          const ratio = hasData ? display.curCandleSize! / display.avgBarSize1m! : null;
-          const isTriggered = ratio !== null && ratio >= globalLongCandleThreshold;
-          return (
-            <IndicatorCell
-              value={null}
-              formatted={ratio !== null ? `${ratio.toFixed(1)}x` : '-'}
-              colorClass={isTriggered ? "text-amber-400" : ratio !== null ? "text-slate-600" : "text-slate-700/40"}
-              widthClass={COL_WIDTHS.signal}
-              intensity={isTriggered}
-            />
-          );
-        })()
-      )}
-
-      {visibleCols.has('volumeSpike') && (
-        (() => {
-          const hasData = globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m && display.avgVolume1m > 0;
-          const ratio = hasData ? display.curCandleVol! / display.avgVolume1m! : null;
-          const isTriggered = ratio !== null && ratio >= globalVolumeSpikeThreshold;
-          return (
-            <IndicatorCell
-              value={null}
-              formatted={ratio !== null ? `${ratio.toFixed(1)}x` : '-'}
-              colorClass={isTriggered ? "text-[#39FF14]" : ratio !== null ? "text-slate-600" : "text-slate-700/40"}
-              widthClass={COL_WIDTHS.signal}
-              intensity={isTriggered}
-            />
-          );
-        })()
-      )}
 
       {visibleCols.has('momentum') && (
         <IndicatorCell
@@ -1361,26 +1194,7 @@ const ScreenerRow = memo(function ScreenerRow({
         />
       )}
 
-      {visibleCols.has('atr') && (
-        <IndicatorCell
-          value={display.atr}
-          formatted={display.atr != null ? formatPrice(display.atr, entry.market) : '-'}
-          colorClass="text-slate-500"
-          widthClass={COL_WIDTHS.atr}
-          isSyncing={isSyncing}
-        />
-      )}
 
-      {visibleCols.has('adx') && (
-        <IndicatorCell
-          value={display.adx}
-          formatted={display.adx != null ? display.adx.toFixed(1) : '-'}
-          colorClass={display.adx && display.adx >= 25 ? "text-[#39FF14]" : "text-slate-600"}
-          widthClass={COL_WIDTHS.adx}
-          intensity={true}
-          isSyncing={isSyncing}
-        />
-      )}
 
       {visibleCols.has('fundingRate') && (
         <td className={cn("px-3 py-3 text-center overflow-hidden", COL_WIDTHS.funding)}>
@@ -1661,18 +1475,9 @@ function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
           {Array.from(visibleCols).filter(id => !['rank'].includes(id)).map(id => {
             let width = "w-[80px]";
             if (id.startsWith('rsi')) width = COL_WIDTHS.rsi;
-            else if (id.startsWith('ema')) width = COL_WIDTHS.ema;
-            else if (id === 'emaCross') width = COL_WIDTHS.trend;
-            else if (id === 'macdHistogram') width = COL_WIDTHS.macd;
-            else if (id.startsWith('bb')) width = COL_WIDTHS.bb;
-            else if (id === 'stochK') width = COL_WIDTHS.stoch;
             else if (id === 'confluence') width = COL_WIDTHS.confluence;
             else if (id === 'divergence') width = COL_WIDTHS.divergence;
             else if (id === 'momentum') width = COL_WIDTHS.momentum;
-            else if (id === 'atr') width = COL_WIDTHS.atr;
-            else if (id === 'adx') width = COL_WIDTHS.adx;
-            else if (id === 'vwapDiff') width = COL_WIDTHS.vwap;
-            else if (id === 'longCandle' || id === 'volumeSpike') width = COL_WIDTHS.signal;
             else if (id === 'fundingRate') width = COL_WIDTHS.funding;
             else if (id === 'orderFlow') width = COL_WIDTHS.flow;
             else if (id === 'smartMoney') width = COL_WIDTHS.smart;
@@ -1707,11 +1512,8 @@ function SkeletonRows({ visibleCols }: { visibleCols: Set<string> }) {
 
 type ColumnId =
   | 'rank' | 'winRate' | 'rsi1m' | 'rsi5m' | 'rsi15m' | 'rsi1h'
-  | 'ema9' | 'ema21' | 'emaCross' | 'macdHistogram' | 'bbUpper' | 'bbLower' | 'bbPosition' | 'stochK'
-  | 'vwapDiff' | 'volumeSpike' | 'longCandle' | 'strategy' | 'superSignal'
-  | 'finalAction' | 'institutional'
+  | 'strategy' | 'superSignal' | 'finalAction' | 'institutional'
   | 'confluence' | 'divergence' | 'momentum'
-  | 'atr' | 'adx'
   | 'fundingRate' | 'orderFlow' | 'smartMoney';
 
 interface ColumnDef {
@@ -1728,22 +1530,9 @@ const OPTIONAL_COLUMNS: ColumnDef[] = [
   { id: 'rsi5m', label: 'RSI 5m', group: 'RSI', defaultVisible: true },
   { id: 'rsi15m', label: 'RSI 15m', group: 'RSI', defaultVisible: true },
   { id: 'rsi1h', label: 'RSI 1h', group: 'RSI', defaultVisible: true },
-  { id: 'ema9', label: 'EMA 9', group: 'Moving Avg', defaultVisible: true },
-  { id: 'ema21', label: 'EMA 21', group: 'Moving Avg', defaultVisible: true },
-  { id: 'emaCross', label: 'Trend', group: 'Indicators', defaultVisible: true },
-  { id: 'macdHistogram', label: 'MACD', group: 'Indicators', defaultVisible: true },
-  { id: 'bbUpper', label: 'BB Upper', group: 'Volatility', defaultVisible: true },
-  { id: 'bbLower', label: 'BB Lower', group: 'Volatility', defaultVisible: true },
-  { id: 'bbPosition', label: 'BB Pos', group: 'Volatility', defaultVisible: true },
-  { id: 'stochK', label: 'Stoch RSI', group: 'Momentum', defaultVisible: true },
-  { id: 'vwapDiff', label: 'VWAP %', group: 'Volume', defaultVisible: true },
   { id: 'confluence', label: 'Confluence', group: 'Intelligence', defaultVisible: true },
   { id: 'divergence', label: 'Div / Rev', group: 'Intelligence', defaultVisible: true },
   { id: 'momentum', label: 'Momentum', group: 'Intelligence', defaultVisible: true },
-  { id: 'atr', label: 'ATR', group: 'Volatility', defaultVisible: true },
-  { id: 'adx', label: 'ADX', group: 'Volatility', defaultVisible: true },
-  { id: 'longCandle', label: 'Long Candle', group: 'Volatility', defaultVisible: true },
-  { id: 'volumeSpike', label: 'Vol Spike', group: 'Volatility', defaultVisible: true },
   { id: 'fundingRate', label: 'Funding', group: 'Derivatives', defaultVisible: true },
   { id: 'orderFlow', label: 'Flow', group: 'Derivatives', defaultVisible: true },
   { id: 'smartMoney', label: 'Smart $', group: 'Derivatives', defaultVisible: true },
@@ -2187,70 +1976,9 @@ const ScreenerCard = memo(function ScreenerCard({
                   <span className={cn("text-[8px] font-black uppercase", (entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bullish' ? "text-[#39FF14]" : (entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bearish' ? "text-[#FF4B5C]" : "text-slate-700")}>
                     {(entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bullish' ? 'DIV+' : (entry.rsiPeriodAtCreation === rsiPeriod ? display.rsiDivergenceCustom : display.rsiDivergence) === 'bearish' ? 'DIV-' : '-'}
                   </span>
-                ) : col.id === 'vwapDiff' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseVwap && (val as number) > 0 ? "text-[#39FF14]" : globalUseVwap && (val as number) < 0 ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {globalUseVwap ? formatPct(val as number) : '-'}
-                  </span>
-                ) : col.id === 'longCandle' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 && (display.curCandleSize / display.avgBarSize1m) >= globalLongCandleThreshold) ? "text-amber-400" : "text-slate-700")}>
-                    {globalVolatilityEnabled && display.curCandleSize != null && display.avgBarSize1m != null && display.avgBarSize1m > 0 ? (
-                      <div className="flex items-center gap-1">
-                        {display.isLiveRsi && (
-                          <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" title="Real-Time" />
-                        )}
-                        {(display.curCandleSize / display.avgBarSize1m) >= (globalLongCandleThreshold * 0.8) && (
-                          <span className="text-[8px]">{display.candleDirection === 'bullish' ? 'ðŸŸ¢' : '🔍´'}</span>
-                        )}
-                        {Number.isFinite(display.curCandleSize / display.avgBarSize1m) ? `${(display.curCandleSize / display.avgBarSize1m).toFixed(1)}x` : '0.0x'}
-                      </div>
-                    ) : '-'}
-                  </span>
-                ) : col.id === 'volumeSpike' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono flex items-center justify-center gap-1", (globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 && (display.curCandleVol / display.avgVolume1m) >= globalVolumeSpikeThreshold) ? "text-[#39FF14]" : "text-slate-700")}>
-                    {globalVolatilityEnabled && display.curCandleVol != null && display.avgVolume1m != null && display.avgVolume1m > 0 ? (
-                      <div className="flex items-center gap-1">
-                        {display.isLiveRsi && (
-                          <div className="w-1 h-1 rounded-full bg-[#39FF14] animate-pulse" title="Real-Time" />
-                        )}
-                        {Number.isFinite(display.curCandleVol / display.avgVolume1m) ? `${(display.curCandleVol / display.avgVolume1m).toFixed(1)}x` : '0.0x'}
-                      </div>
-                    ) : '-'}
-                  </span>
-                ) : col.id === 'momentum' ? (
-                  <span className={cn("text-[9px] font-bold tabular-nums", globalUseMomentum && (val as number) > 0 ? "text-emerald-300" : globalUseMomentum && (val as number) < 0 ? "text-red-300" : "text-slate-500")}>
-                    {globalUseMomentum ? formatPct(val as number) : '-'}
-                  </span>
-                ) : col.id === 'ema9' || col.id === 'ema21' ? (
-                  <span className="text-[9px] font-bold text-slate-300 tabular-nums">
-                    {globalUseEma && typeof val === 'number' ? `$${formatPrice(val, entry.market)}` : '-'}
-                  </span>
-                ) : col.id === 'bbUpper' || col.id === 'bbLower' ? (
-                  <span className="text-[9px] font-bold text-slate-300 tabular-nums">
-                    {globalUseBb && typeof val === 'number' ? `$${formatPrice(val, entry.market)}` : '-'}
-                  </span>
-                ) : col.id === 'macdHistogram' ? (
-                  <span className={cn("text-[9px] font-bold tabular-nums", (val as number) > 0 ? "text-[#39FF14]" : (val as number) < 0 ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {typeof val === 'number' ? val.toFixed(4) : '-'}
-                  </span>
                 ) : col.id === 'confluence' ? (
                   <span className={cn("text-[9px] font-bold tabular-nums", display.confluence >= 15 ? "text-[#39FF14]" : display.confluence <= -15 ? "text-[#FF4B5C]" : "text-slate-700")}>
                     {display.confluenceLabel || '-'}
-                  </span>
-                ) : col.id === 'emaCross' ? (
-                  <span className={cn("text-[9px] font-bold uppercase", display.emaCross === 'bullish' ? "text-[#39FF14]" : display.emaCross === 'bearish' ? "text-[#FF4B5C]" : "text-slate-700")}>
-                    {display.emaCross !== 'none' ? (display.emaCross === 'bullish' ? 'BULL' : 'BEAR') : '-'}
-                  </span>
-                ) : col.id === 'stochK' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseStoch && (val as number) > 80 ? "text-[#FF4B5C]" : globalUseStoch && (val as number) < 20 ? "text-[#39FF14]" : "text-slate-300")}>
-                    {globalUseStoch && typeof val === 'number' ? val.toFixed(1) : '-'}
-                  </span>
-                ) : col.id === 'bbPosition' ? (
-                  <span className={cn("text-[10px] font-black tabular-nums font-mono", globalUseBb && (val as number) >= 0.9 ? "text-[#FF4B5C]" : globalUseBb && (val as number) <= 0.1 ? "text-[#39FF14]" : "text-slate-300")}>
-                    {globalUseBb && typeof val === 'number' ? val.toFixed(2) : '-'}
-                  </span>
-                ) : col.id === 'atr' || col.id === 'adx' ? (
-                  <span className="text-[10px] font-black tabular-nums font-mono text-slate-300">
-                    {globalVolatilityEnabled && typeof val === 'number' ? formatIndicator(val, entry.market, col.id === 'atr' ? 4 : 1) : '-'}
                   </span>
                 ) : col.id === 'fundingRate' ? (
                   <span className={cn("text-[9px] font-black tabular-nums",
@@ -3044,7 +2772,10 @@ export default function ScreenerDashboard() {
     const next = new Set<string>();
     symbolSet.forEach((symbol) => {
       if (typeof symbol !== 'string' || symbol.length === 0) return;
-      const s = symbol.toUpperCase();
+      let s = symbol.toUpperCase();
+      if (!s.endsWith('USDT') && !s.endsWith('USD')) {
+        s = s + 'USDT';
+      }
       if (/^[A-Z0-9]{2,20}USDT$/.test(s)) next.add(s);
     });
     return next;
@@ -3073,9 +2804,10 @@ export default function ScreenerDashboard() {
 
   const getDerivativesForEntry = useCallback((entry: ScreenerEntry) => {
     const symbolKey = (entry.symbol || '').toUpperCase();
-    const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey);
-    const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey);
-    const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey);
+    const usdtKey = symbolKey.endsWith('USDT') ? symbolKey : `${symbolKey}USDT`;
+    const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey) ?? fundingRates.get(usdtKey);
+    const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey) ?? orderFlow.get(usdtKey);
+    const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey) ?? smartMoney.get(usdtKey);
 
     const fundingRate = fr
       ? { rate: fr.rate, annualized: fr.annualized }
@@ -3198,10 +2930,12 @@ export default function ScreenerDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const processedData = useMemo<ScreenerEntry[]>(() => {
     const getDerivativeComposite = (symbol: string): number | null => {
-      const sm = smartMoney.get(symbol)?.score;
+      const symUp = symbol.toUpperCase();
+      const symUsdt = symUp.endsWith('USDT') ? symUp : `${symUp}USDT`;
+      const sm = smartMoney.get(symUp)?.score ?? smartMoney.get(symUsdt)?.score;
       if (sm !== undefined && sm !== null) return sm;
-      const funding = fundingRates.get(symbol)?.rate;
-      const flow = orderFlow.get(symbol)?.ratio;
+      const funding = fundingRates.get(symUp)?.rate ?? fundingRates.get(symUsdt)?.rate;
+      const flow = orderFlow.get(symUp)?.ratio ?? orderFlow.get(symUsdt)?.ratio;
       let composite = 0;
       let used = 0;
       if (funding !== undefined && funding !== null) {
@@ -3287,6 +3021,10 @@ export default function ScreenerDashboard() {
           momentum: roc10,
           confluence: baselineConfluence.score,
           price: md.price || 0,
+          open1m: md.open || md.price,
+          close1m: md.price,
+          high1m: md.high || md.price,
+          low1m: md.low || md.price,
           volumeSpike: false,
           smartMoneyScore: derivativeScore,
           market: resolvedMarket,
@@ -3309,6 +3047,10 @@ export default function ScreenerDashboard() {
         const entry: ScreenerEntry = {
           symbol: md.symbol,
           price: md.price,
+          open1m: md.open || md.price,
+          close1m: md.price,
+          high1m: md.high || md.price,
+          low1m: md.low || md.price,
           change24h: md.changePercent,
           volume24h: md.volume,
           cci: null,
@@ -3365,7 +3107,6 @@ export default function ScreenerDashboard() {
           rsiDivergenceCustom: 'none',
           signalStartedAt: Date.now(),
           updatedAt: md.updatedAt,
-          open1m: vwapPriceBaseline,
           volStart1m: 0,
           historicalCloses: closes.slice(-50),
           smartMoneyScore: derivativeScore
@@ -3433,6 +3174,10 @@ export default function ScreenerDashboard() {
           hiddenDivergence: (live.hiddenDivergence ?? entry.hiddenDivergence) as any,
           regime: live.regime ?? entry.regime,
           marketState: 'OPEN',
+          // Real-time OHLC tracking for ICT candle body analysis
+          close1m: live.price,
+          high1m: Math.max(entry.high1m ?? live.price, live.price),
+          low1m: Math.min(entry.low1m ?? live.price, live.price),
         };
       })() : entry;
 
@@ -3466,6 +3211,30 @@ export default function ScreenerDashboard() {
         superSignalScore: trustedSuperScore,
         adx: merged.adx,
         hiddenDivergence: merged.hiddenDivergence,
+        confluence: merged.confluence,
+        rsiDivergence: merged.rsiDivergence,
+        momentum: merged.momentum,
+        rsiCrossover: merged.rsiCrossover,
+        market: merged.market as any,
+        atr: merged.atr,
+        obvTrend: merged.obvTrend,
+        williamsR: merged.williamsR,
+        cci: merged.cci,
+        regime: merged.regime as any,
+        symbol: merged.symbol,
+        smc: merged.smc,
+        liquidity: merged.liquidity,
+        curCandleSize: merged.curCandleSize,
+        curCandleVol: merged.curCandleVol,
+        avgBarSize1m: merged.avgBarSize1m,
+        open1m: merged.open1m,
+        close1m: merged.close1m,
+        high1m: merged.high1m,
+        low1m: merged.low1m,
+        fibLevels: merged.fibLevels,
+        consecutiveCandles: merged.consecutiveCandles,
+        dxyDivergence: merged.dxyDivergence,
+        scoreVelocity: merged.scoreVelocity,
         enabledIndicators: {
           rsi: globalUseRsi,
           macd: globalUseMacd,
@@ -3565,10 +3334,13 @@ export default function ScreenerDashboard() {
       if (live && live.emaCross) merged.emaCross = live.emaCross;
 
       // Derivatives intelligence passthrough for coherent narration/risk context.
+      // Multi-key fallback: try bare symbol, UPPERCASE, then with USDT suffix
+      // because worker stores keys as 'BTCUSDT' while entry.symbol may be 'BTC'
       const symbolKey = (entry.symbol || '').toUpperCase();
-      const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey);
-      const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey);
-      const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey);
+      const usdtKey = symbolKey.endsWith('USDT') ? symbolKey : `${symbolKey}USDT`;
+      const fr = fundingRates.get(entry.symbol) ?? fundingRates.get(symbolKey) ?? fundingRates.get(usdtKey);
+      const flow = orderFlow.get(entry.symbol) ?? orderFlow.get(symbolKey) ?? orderFlow.get(usdtKey);
+      const sm = smartMoney.get(entry.symbol) ?? smartMoney.get(symbolKey) ?? smartMoney.get(usdtKey);
       // Preserve prior/server derivatives values when live maps are temporarily empty.
       merged.fundingRate = fr?.rate ?? merged.fundingRate ?? entry.fundingRate ?? null;
       merged.orderFlowRatio = flow?.ratio ?? merged.orderFlowRatio ?? entry.orderFlowRatio ?? null;
@@ -4031,7 +3803,7 @@ export default function ScreenerDashboard() {
       stocks: ['Index', 'Stocks']
     };
     const targetMarkets = MARKET_MAP[activeAssetClass] || ['Crypto'];
-    const tabData = processedData.filter(e => targetMarkets.includes(e.market));
+    const tabData = processedWithFinal.filter(e => targetMarkets.includes(e.market));
     const total = tabData.length;
     let oversold = 0;
     let overbought = 0;
@@ -4072,7 +3844,7 @@ export default function ScreenerDashboard() {
     const volatilityLevel = spikeRate > 0.15 ? 'EXTREME' : spikeRate > 0.08 ? 'HIGH' : spikeRate > 0.03 ? 'MED' : 'LOW';
 
     return { total, oversold, overbought, strongBuy, buy, neutral, sell, strongSell, bias, pressureDist, volatilityLevel };
-  }, [processedData, activeAssetClass]);
+  }, [processedWithFinal, activeAssetClass]);
 
 
   // ─── Feed Health Aggregation (Debounced – 5s) ──────────────────
@@ -4999,16 +4771,22 @@ export default function ScreenerDashboard() {
         bv = (b.curCandleSize && b.avgBarSize1m) ? b.curCandleSize / b.avgBarSize1m : 0;
       }
       if (sortKey === 'fundingRate') {
-        av = fundingRates.get(a.symbol)?.rate ?? -9999;
-        bv = fundingRates.get(b.symbol)?.rate ?? -9999;
+        const aKey = a.symbol.toUpperCase(); const aUsdt = aKey.endsWith('USDT') ? aKey : `${aKey}USDT`;
+        const bKey = b.symbol.toUpperCase(); const bUsdt = bKey.endsWith('USDT') ? bKey : `${bKey}USDT`;
+        av = (fundingRates.get(a.symbol) ?? fundingRates.get(aKey) ?? fundingRates.get(aUsdt))?.rate ?? -9999;
+        bv = (fundingRates.get(b.symbol) ?? fundingRates.get(bKey) ?? fundingRates.get(bUsdt))?.rate ?? -9999;
       }
       if (sortKey === 'orderFlow') {
-        av = orderFlow.get(a.symbol)?.ratio ?? -9999;
-        bv = orderFlow.get(b.symbol)?.ratio ?? -9999;
+        const aKey = a.symbol.toUpperCase(); const aUsdt = aKey.endsWith('USDT') ? aKey : `${aKey}USDT`;
+        const bKey = b.symbol.toUpperCase(); const bUsdt = bKey.endsWith('USDT') ? bKey : `${bKey}USDT`;
+        av = (orderFlow.get(a.symbol) ?? orderFlow.get(aKey) ?? orderFlow.get(aUsdt))?.ratio ?? -9999;
+        bv = (orderFlow.get(b.symbol) ?? orderFlow.get(bKey) ?? orderFlow.get(bUsdt))?.ratio ?? -9999;
       }
       if (sortKey === 'smartMoney') {
-        av = smartMoney.get(a.symbol)?.score ?? -9999;
-        bv = smartMoney.get(b.symbol)?.score ?? -9999;
+        const aKey = a.symbol.toUpperCase(); const aUsdt = aKey.endsWith('USDT') ? aKey : `${aKey}USDT`;
+        const bKey = b.symbol.toUpperCase(); const bUsdt = bKey.endsWith('USDT') ? bKey : `${bKey}USDT`;
+        av = (smartMoney.get(a.symbol) ?? smartMoney.get(aKey) ?? smartMoney.get(aUsdt))?.score ?? -9999;
+        bv = (smartMoney.get(b.symbol) ?? smartMoney.get(bKey) ?? smartMoney.get(bUsdt))?.score ?? -9999;
       }
 
       if (av === null || av === undefined || av === -9999) return 1;
@@ -5281,7 +5059,7 @@ export default function ScreenerDashboard() {
           <div className="flex flex-col gap-2.5 lg:gap-3.5 relative z-10 w-full">
 
             {/* ROW 1: STRATEGIC IDENTITY & COMMAND SEARCH */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2 lg:gap-4 min-h-[40px] lg:h-10">
+            <div className="hidden lg:flex items-center justify-between gap-4 min-h-[40px] lg:h-10">
               <div className="flex items-center gap-4 bg-black/40 border border-white/5 rounded-2xl p-0.5 pl-3 pr-0.5 shadow-inner h-full shrink-0">
                 <Link href="/" className="flex items-center gap-3 group px-1">
                   <div className="relative w-28 h-7 transition-all group-hover:scale-105 active:scale-95">
@@ -5488,7 +5266,7 @@ export default function ScreenerDashboard() {
 
 
             {/* ROW 2: STRATEGIC PULSE & INTEL RIBBON */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 lg:gap-3 min-h-[40px] lg:h-10 lg:mb-1.5">
+            <div className="hidden lg:flex items-center gap-3 min-h-[40px] lg:h-10 lg:mb-1.5">
               {/* Enhanced Asset Class Dropdown with Icons & Names */}
               <div className="relative shrink-0">
                 <button
@@ -5637,7 +5415,7 @@ export default function ScreenerDashboard() {
             </div>
 
             {/* ROW 3: OPERATIONAL UTILITIES & DYNAMICS */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2 lg:gap-3 min-h-[36px] lg:h-9">
+            <div className="hidden lg:flex items-center gap-3 min-h-[36px] lg:h-9">
               {/* Institutional Action Cluster */}
               <div className="flex items-center bg-black/40 border border-white/5 rounded-xl p-0.5 h-full shadow-inner shrink-0">
                 <button onClick={() => setShowWatchlistOnly(!showWatchlistOnly)} className={cn("h-full px-3 rounded-xl flex items-center gap-2 transition-all group", showWatchlistOnly ? "bg-yellow-500/10 text-yellow-400" : "text-slate-500 hover:text-slate-300")}>
@@ -6013,7 +5791,7 @@ export default function ScreenerDashboard() {
           ) : (
             <>
               {/* COMPACTED COLUMN HEADER (Mobile Only) */}
-              <div className="sticky top-0 z-30 flex items-center justify-between px-2 py-2 bg-[#0A0F1B]/95 backdrop-blur-md border-b border-white/10 shadow-lg">
+              <div className="relative z-30 flex items-center justify-between px-2 py-2 bg-[#0A0F1B]/95 backdrop-blur-md border-b border-white/10 shadow-lg">
                 <div className="w-[110px] shrink-0 text-[8px] font-black uppercase tracking-widest text-slate-500">
                   <span className="flex items-center gap-2">
                     {visibleCols.has('rank') && <span className="w-4">#</span>}
@@ -6129,23 +5907,9 @@ export default function ScreenerDashboard() {
                   {visibleCols.has('rsi5m') && <SortHeader label="RSI 5m" sortKey="rsi5m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
                   {visibleCols.has('rsi15m') && <SortHeader label="RSI 15m" sortKey="rsi15m" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
                   {visibleCols.has('rsi1h') && <SortHeader label="RSI 1h" sortKey="rsi1h" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.rsi} />}
-                  {visibleCols.has('ema9') && <SortHeader label="EMA 9" sortKey="ema9" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.ema} />}
-                  {visibleCols.has('ema21') && <SortHeader label="EMA 21" sortKey="ema21" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.ema} />}
-                  {visibleCols.has('emaCross') && <SortHeader label="Trend" sortKey="emaCross" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.trend} />}
-                  {visibleCols.has('macdHistogram') && <SortHeader label="MACD" sortKey="macdHistogram" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.macd} />}
-                  {visibleCols.has('bbUpper') && <SortHeader label="BB Up" sortKey="bbUpper" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.bb} />}
-                  {visibleCols.has('bbLower') && <SortHeader label="BB Low" sortKey="bbLower" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.bb} />}
-                  {visibleCols.has('bbPosition') && <SortHeader label="BB Pos" sortKey="bbPosition" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.bb} />}
-                  {visibleCols.has('stochK') && <SortHeader label="Stoch" sortKey="stochK" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.stoch} />}
                   {visibleCols.has('confluence') && <SortHeader label="Confluence" sortKey="confluence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.confluence} />}
                   {visibleCols.has('divergence') && <SortHeader label="Diverg" sortKey="rsiDivergence" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.divergence} />}
                   {visibleCols.has('momentum') && <SortHeader label="Momentum" sortKey="momentum" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.momentum} />}
-                  {visibleCols.has('atr') && <SortHeader label="ATR" sortKey="atr" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.atr} />}
-                  {visibleCols.has('adx') && <SortHeader label="ADX" sortKey="adx" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.adx} />}
-                  {visibleCols.has('vwapDiff') && <SortHeader label="VWAP %" sortKey="vwapDiff" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.vwap} />}
-                  {visibleCols.has('longCandle') && <SortHeader label="Long Candle" sortKey="longCandle" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
-                  {visibleCols.has('volumeSpike') && <SortHeader label="Vol Spike" sortKey="volumeSpike" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.signal} />}
-
                   {visibleCols.has('fundingRate') && <SortHeader label="Funding" sortKey="fundingRate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.funding} />}
                   {visibleCols.has('orderFlow') && <SortHeader label="Flow" sortKey="orderFlow" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.flow} />}
                   {visibleCols.has('smartMoney') && <SortHeader label="Smart $" sortKey="smartMoney" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} align="right" widthClass={COL_WIDTHS.smart} />}
@@ -8300,7 +8064,7 @@ function GlobalSettingsModal({
           {/* Reset to Default Button */}
           <button
             onClick={() => {
-              if (confirm('Reset all settings to institutional defaults?\n\n• All 12 strategy indicators ↑ ON\n• RSI period ↑ 14 (industry standard)\n• Thresholds ↑ 80/20 (institutional grade)\n• Signal mode ↑ Custom (expert)\n• Volatility detection ↑ ON (2.0x/2.5x)\n• Columns ↑ Optimal trading set\n• Keep your watchlist and alerts\n\nContinue?')) {
+              if (confirm('Reset all settings to institutional defaults?\n\n• All 12 strategy indicators ↑ ON\n• RSI period ↑ 14 (industry standard)\n• Thresholds ↑ 80/20 (institutional grade)\n• Signal mode ↑ Custom (expert)\n• Volatility detection ↑ ON (2.0x/2.5x)\n• Alerts & Sound ↑ ON\n• Columns ↑ Optimal trading set\n• Keep your watchlist\n\nContinue?')) {
                 // Reset all indicators to default (all ON – expert mode)
                 setGlobalUseRsi(INDICATOR_DEFAULTS.rsi);
                 setGlobalUseMacd(INDICATOR_DEFAULTS.macd);
@@ -8331,6 +8095,10 @@ function GlobalSettingsModal({
                 setGlobalLongCandleThreshold(VOLATILITY_DEFAULTS.longCandleThreshold);
                 setGlobalVolumeSpikeThreshold(VOLATILITY_DEFAULTS.volumeSpikeThreshold);
 
+                // Reset alerts & sound – all ON by default
+                setAlertsEnabled(true);
+                setSoundEnabled(true);
+
                 // Reset performance
                 setRefreshInterval(DASHBOARD_DEFAULTS.refreshInterval);
                 setPairCount(DASHBOARD_DEFAULTS.pairCount);
@@ -8340,6 +8108,23 @@ function GlobalSettingsModal({
                   OPTIONAL_COLUMNS.filter(c => c.defaultVisible).map(c => c.id)
                 ) as Set<ColumnId>;
                 setVisibleCols(optimalCols);
+
+                // Purge stale localStorage flags to ensure clean state
+                try {
+                  const keysToReset = [
+                    'crypto-rsi-global-use-rsi', 'crypto-rsi-global-use-macd',
+                    'crypto-rsi-global-use-bb', 'crypto-rsi-global-use-stoch',
+                    'crypto-rsi-global-use-ema', 'crypto-rsi-global-use-vwap',
+                    'crypto-rsi-global-use-confluence', 'crypto-rsi-global-use-divergence',
+                    'crypto-rsi-global-use-momentum', 'crypto-rsi-global-use-obv',
+                    'crypto-rsi-global-use-williams-r', 'crypto-rsi-global-use-cci',
+                    'crypto-rsi-global-thresholds-enabled', 'crypto-rsi-global-ob',
+                    'crypto-rsi-global-os', 'crypto-rsi-global-tfs',
+                    'crypto-rsi-global-volatility-enabled', 'crypto-rsi-global-stm',
+                    'crypto-rsi-global-lct', 'crypto-rsi-global-vst',
+                  ];
+                  keysToReset.forEach(k => localStorage.removeItem(k));
+                } catch (_) { /* silent */ }
 
                 toast.success('Settings reset to institutional defaults');
               }
