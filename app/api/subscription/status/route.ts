@@ -162,22 +162,4 @@ export async function GET() {
     isProcessingPayment,
     daysLeft,
   }, { headers: NO_STORE_HEADERS });
-
-  // Check for processing even if no sub exists yet (e.g. first time buy)
-  const isProcessingPayment = subscriptions.some((s: any) => s.status === "waiting" && s.paymentProvider === "nowpayments");
-
-  const trialMs = AUTH_CONFIG.TRIAL_DAYS * 24 * 60 * 60 * 1000;
-  const createdAt = new Date(user.createdAt).getTime();
-  const now = Date.now();
-  const trialActive = now < createdAt + trialMs;
-  const daysLeft = trialActive
-    ? Math.max(0, Math.ceil((createdAt + trialMs - now) / (1000 * 60 * 60 * 24)))
-    : 0;
-
-  return NextResponse.json({
-    hasActiveSubscription: trialActive,
-    subscription: null,
-    isTrialing: trialActive,
-    daysLeft,
-  }, { headers: NO_STORE_HEADERS });
 }
