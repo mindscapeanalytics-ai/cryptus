@@ -165,5 +165,7 @@ export function getRegimeWeights(regime: MarketRegime): {
       return { oscillators: 0.8, trend: 0.8, volume: 1.2, momentum: 0.6 };
     case 'breakout':
       return { oscillators: 0.9, trend: 1.1, volume: 1.4, momentum: 1.3 };
+    default:
+      return { oscillators: 1.0, trend: 1.0, volume: 1.0, momentum: 1.0 };
   }
 }
